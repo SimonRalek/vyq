@@ -1,0 +1,35 @@
+opakuj prm i = 1; .i < .str/delka; .i++: {
+	tiskni .i;
+}
+
+konst PI = 3,14;
+prm grade = 1;
+
+prm uspech;
+
+pokud .grade != 1: {
+	.uspech = ne;
+} jinak {
+	.uspech = ano;
+}
+
+prm vaha = 60;
+
+konst binary = 0b10120;
+konst hexa = 0xFF00zz;
+
+prm idk = '
+Ani nevim
+proc to takhle
+ke
+';
+
+dokud .vaha > 65 : {
+	.vaha += 1;
+
+	pokud .vaha == 60: {
+		zastav;
+	}
+
+	prm k = "Ahoj";
+}

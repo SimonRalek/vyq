@@ -1,0 +1,95 @@
+09.09.23 12:41:13 Info => Just a test info
+09.09.23 24:05:20 Info => Just a test info
+09.09.23 24:05:59 Info => Just a test info
+09.09.23 24:05:59 Error => Chyba: Neznámý počet argumentů
+
+Použití:
+> vyq [filepath] [argumenty]
+
+10.09.23 11:53:53 Info => Just a test info
+10.09.23 11:55:12 Info => Just a test info
+10.09.23 11:57:40 Info => Just a test info
+10.09.23 11:58:42 Info => Just a test info
+10.09.23 11:59:07 Info => Just a test info
+10.09.23 12:01:52 Info => Just a test info
+10.09.23 12:02:51 Info => Just a test info
+10.09.23 12:08:41 Info => Just a test info
+10.09.23 12:10:22 Info => Just a test info
+10.09.23 12:13:49 Info => Just a test info
+10.09.23 12:15:42 Info => Just a test info
+10.09.23 12:16:00 Info => Just a test info
+10.09.23 13:54:48 Info => Just a test info
+10.09.23 13:56:21 Info => Just a test info
+10.09.23 13:56:33 Info => Just a test info
+10.09.23 13:57:54 Info => Just a test info
+10.09.23 13:58:37 Info => Just a test info
+10.09.23 13:59:28 Info => Just a test info
+10.09.23 13:59:56 Info => Just a test info
+10.09.23 14:04:58 Info => Just a test info
+10.09.23 14:05:16 Info => Just a test info
+10.09.23 14:05:26 Info => Just a test info
+10.09.23 14:05:49 Info => Just a test info
+10.09.23 14:06:37 Info => Just a test info
+10.09.23 14:06:49 Info => Just a test info
+10.09.23 14:06:55 Info => Just a test info
+10.09.23 14:07:07 Info => Just a test info
+10.09.23 14:07:15 Info => Just a test info
+17.09.23 21:06:50 Error => Chyba: Soubor nebyl nalezen
+
+17.09.23 21:08:15 Error => Chyba: Neznámý počet argumentů
+
+Použití:
+> vyq [filepath] [argumenty]
+
+17.09.23 21:44:00 Error => Chyba [v {}]: 
+17.09.23 21:44:00 Error => na '{s}'
+17.09.23 21:44:00 Error => : {s}
+
+17.09.23 21:46:03 Error => Chyba [v {}]: 
+17.09.23 21:46:03 Error => na '{s}'
+17.09.23 21:46:03 Error => : {s}
+
+17.09.23 21:47:59 Error => Chyba [v {}]: 
+17.09.23 21:47:59 Error => na '{s}'
+17.09.23 21:47:59 Error => : {s}
+
+17.09.23 21:53:17 Error => Chyba : 
+17.09.23 21:53:17 Error => na '{s}'
+17.09.23 21:53:17 Error => : {s}
+17.09.23 21:53:17 Error => : na řádce {}
+
+17.09.23 21:54:56 Error => Chyba: 
+17.09.23 21:54:56 Error => {s} - 
+17.09.23 21:54:56 Error => '{s}'
+17.09.23 21:54:56 Error => , řádka {}
+
+17.09.23 21:55:38 Error => Chyba: 
+17.09.23 21:55:38 Error => {s} - 
+17.09.23 21:55:38 Error => v '{s}'
+17.09.23 21:55:38 Error => , řádka {}
+
+17.09.23 22:40:11 Error => Chyba: 
+17.09.23 22:40:11 Error => {s} - 
+17.09.23 22:40:11 Error => v '{s}'
+17.09.23 22:40:11 Error => , řádka {}
+
+17.09.23 22:40:32 Error => Chyba: 
+17.09.23 22:40:32 Error => {s} - 
+17.09.23 22:40:32 Error => v '{s}'
+17.09.23 22:40:32 Error => , řádka {}
+
+17.09.23 22:40:46 Error => Chyba: 
+17.09.23 22:40:46 Error => {s} - 
+17.09.23 22:40:46 Error => v '{s}'
+17.09.23 22:40:46 Error => , řádka {}
+
+17.09.23 22:41:23 Error => Chyba: 
+17.09.23 22:41:23 Error => {s} - 
+17.09.23 22:41:23 Error => v '{s}'
+17.09.23 22:41:23 Error => , řádka {}
+
+17.09.23 22:42:36 Error => Chyba: 
+17.09.23 22:42:36 Error => {s} - 
+17.09.23 22:42:36 Error => v '{s}'
+17.09.23 22:42:36 Error => , řádka {}
+
