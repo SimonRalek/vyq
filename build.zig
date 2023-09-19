@@ -24,14 +24,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // const time = b.addModule("time", .{ .source_file = .{ .path = "libs/time.zig" } });
-    // exe.addModule("time", time);
-
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
     b.installArtifact(exe);
-
+    b.exe_dir = "./";
     // This *creates* a Run step in the build graph, to be executed when another
     // step is evaluated that depends on it. The next line below will establish
     // such a dependency.
