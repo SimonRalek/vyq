@@ -23,35 +23,24 @@ pub fn main() !void {
     defer _ = heap.deinit();
     const allocator = heap.allocator();
 
-    var block = Block.init(allocator);
-    var val = try block.addValue(1.2);
-    try block.writeOpCode(.op_value, 123);
-    try block.writeByte(val, 123);
-    try block.writeOpCode(.op_negate, 123);
-    try block.writeOpCode(.op_return, 123);
+    try shared.initLogger(allocator);
 
-    var vm = VM.init(allocator);
-    debug.disassembleBlock(&block, "test");
-    try vm.interpret(&block);
-    block.deinit();
-    // try shared.initLogger(allocator);
-    //
-    // const args = try std.process.argsAlloc(allocator);
-    // defer std.process.argsFree(allocator, args);
-    //
-    // try arguments();
-    //
-    // try switch (args.len) {
-    //     1 => repl(allocator),
-    //     2 => runFile(allocator, args[1]),
-    //     else => try shared.logger.err(
-    //         \\Chyba: Neznámý počet argumentů
-    //         \\
-    //         \\Použití:
-    //         \\> vyq [filepath] [argumenty]
-    //         \\
-    //     , .{}),
-    // };
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    try arguments();
+
+    try switch (args.len) {
+        1 => repl(allocator),
+        2 => runFile(allocator, args[1]),
+        else => try shared.logger.err(
+            \\Chyba: Neznámý počet argumentů
+            \\
+            \\Použití:
+            \\> vyq [filepath] [argumenty]
+            \\
+        , .{}),
+    };
 }
 
 fn repl(allocator: Allocator) !void {
@@ -72,7 +61,7 @@ fn repl(allocator: Allocator) !void {
         }
         const source = buf[0..input.len];
 
-        try vm.interpret(source, allocator);
+        vm.interpret(source) catch {};
     }
 }
 

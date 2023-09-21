@@ -4,12 +4,14 @@ const shared = @import("shared.zig");
 const ResultError = shared.ResultError;
 const Token = @import("token.zig").Token;
 const Scanner = @import("scanner.zig").Scanner;
+const Block = @import("block.zig").Block;
+const Compiler = @import("compiler.zig").Compiler;
 
 const Precedence = enum(u8) { none, assign, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
 
-const ParseFn = fn () ResultError!void;
+const ParseFn = *const fn (self: *Parser) void;
 
-const ParseRule = struct { infix: ?ParseFn, prefix: ?ParseFn, precedence: Precedence };
+const ParseRule = struct { infix: ?ParseFn = null, prefix: ?ParseFn = null, precedence: Precedence = .none };
 
 pub const Parser = struct {
     const Self = @This();
@@ -18,8 +20,8 @@ pub const Parser = struct {
     current: Token,
     hadError: bool,
     panicMode: bool,
-    // parseRule: ?ParseRule,
     scanner: ?Scanner = null,
+    compiler: ?Compiler = null,
 
     pub fn init() Parser {
         return .{ .current = undefined, .previous = undefined, .hadError = false, .panicMode = false };
@@ -56,6 +58,10 @@ pub const Parser = struct {
         return expected == self.current.type;
     }
 
+    fn emitOpCode(self: *Self, op_code: Block.OpCode) void {
+        self.compiler.?.emitOpCode(op_code, self.previous.line);
+    }
+
     fn report(self: *Self, token: *Token, message: []const u8) !void {
         if (self.panicMode) return;
         self.panicMode = true;
@@ -81,7 +87,35 @@ pub const Parser = struct {
         self.parsePrecedence(.assign);
     }
 
-    fn binary() void {}
+    fn group(self: *Self) void {
+        self.expression();
+        self.eat(.right_paren, "Ocekavana ')' zavorka nebyla nalezena");
+    }
+
+    fn binary(self: *Self) void {
+        const op_type = self.previous.type;
+        const rule = getRule(op_type);
+
+        self.parsePrecedence(@enumFromInt(@intFromEnum(rule.precedence) + 1));
+
+        switch (op_type) {
+            .plus => {
+                self.emitOpCode(.op_add);
+            },
+            .minus => {
+                self.emitOpCode(.op_sub);
+            },
+            .star => {
+                self.emitOpCode(.op_mult);
+            },
+            .slash => {
+                self.emitOpCode(.op_div);
+            },
+            else => {
+                unreachable;
+            },
+        }
+    }
 
     fn number(self: *Self) void {
         var buff: [self.previous.lexeme.len]u8 = undefined;
@@ -103,27 +137,27 @@ pub const Parser = struct {
 
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
-        const prefix = self.getRule(self.previous.type).prefix orelse {
+        const prefix = getRule(self.previous.type).prefix orelse {
             return;
         };
 
-        prefix();
-        while (precedence <= self.getRule(self.previous.type).precedence) {
+        prefix(self);
+        while (@intFromEnum(precedence) <= @intFromEnum(getRule(self.previous.type).precedence)) {
             self.advance();
             const infix = getRule(self.previous.type).infix orelse unreachable;
-            infix();
+            infix(self);
         }
     }
 
-    fn getRule(self: *Self, t_type: Token.Type) ParseRule {
+    fn getRule(t_type: Token.Type) ParseRule {
         return switch (t_type) {
-            .left_paren => .{ .prefix = self.group },
+            .left_paren => .{ .prefix = Parser.group },
             .right_paren => .{},
+            .left_brace => .{},
+            .right_brace => .{},
 
-            .plus => .{ .infix = self.binary, .precedence = .term },
-            .minus => .{ .infix = self.binary, .precedence = .term },
-            .star => .{ .infix = self.binary, .precedence = .factor },
-            .slash => .{ .infix = self.binary, .precedence = .factor },
+            .plus, .minus => .{ .infix = Parser.binary, .precedence = .term },
+            .star, .slash => .{ .infix = Parser.binary, .precedence = .factor },
 
             else => unreachable,
         };

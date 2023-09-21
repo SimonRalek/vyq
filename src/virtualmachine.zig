@@ -24,25 +24,22 @@ pub const VirtualMachine = struct {
         self.block.?.deinit();
     }
 
-    // pub fn interpret(self: *Self, source: []const u8, allocator: Allocator) ResultError!void {
-    //     var block = Block.init(allocator);
-    //
-    //     if (!Compiler.compile(source, &block)) {
-    //         block.free();
-    //         return .compile_error;
-    //     }
-    //
-    //     self.block = &block;
-    //     self.ip = self.block.code;
-    //
-    //     const result = self.run();
-    //     return result;
-    // }
-    //
-    pub fn interpret(self: *Self, block: *Block) ResultError!void {
-        self.block = block;
+    pub fn interpret(self: *Self, source: []const u8) ResultError!void {
+        _ = source;
+        var block = Block.init(self.allocator);
+
+        // Compiler.compile(source) catch return .compiler_error;
+
+        self.block = &block;
+        self.ip = 0;
+
         return self.run();
     }
+    //
+    // pub fn interpret(self: *Self, block: *Block) ResultError!void {
+    //     self.block = block;
+    //     return self.run();
+    // }
 
     fn run(self: *Self) ResultError!void {
         while (true) {
