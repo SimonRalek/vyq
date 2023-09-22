@@ -27,11 +27,16 @@ pub fn disassembleInstruction(block: *Block, offset: usize) usize {
     switch (instruction) {
         .op_value => return valueInstruction("OP_VALUE", block, offset),
         .op_negate => return simpleInstruction("OP_NEGATE", offset),
+        .op_bit_not => return simpleInstruction("OP_BIT_NOT", offset),
+        .op_add => return simpleInstruction("OP_ADD", offset),
+        .op_sub => return simpleInstruction("OP_MINUS", offset),
+        .op_mult => return simpleInstruction("OP_MULT", offset),
+        .op_div => return simpleInstruction("OP_DIV", offset),
         .op_return => return simpleInstruction("OP_RETURN", offset),
-        else => {
-            std.debug.print("Unknown opcode", .{});
-            return offset + 1;
-        },
+        // else => {
+        //     std.debug.print("Unknown opcode", .{});
+        //     return offset + 1;
+        // },
     }
 }
 

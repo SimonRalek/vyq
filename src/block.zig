@@ -9,6 +9,7 @@ pub const Block = struct {
     pub const OpCode = enum(u8) {
         op_value,
         op_negate,
+        op_bit_not,
         op_add,
         op_sub,
         op_mult,
@@ -25,9 +26,9 @@ pub const Block = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.*.code.deinit();
-        self.*.lines.deinit();
-        self.*.constants.deinit();
+        self.code.deinit();
+        self.lines.deinit();
+        self.constants.deinit();
     }
 
     pub fn writeOpCode(self: *Self, op_code: OpCode, line: u32) !void {

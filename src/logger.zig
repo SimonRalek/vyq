@@ -36,12 +36,14 @@ pub const Logger = struct {
         const concat = try std.mem.concat(self.allocator, u8, &.{ now, level.toText(), message ++ "\n" });
         defer self.allocator.free(concat);
 
-        const file: File = try dir.openFile("log", .{ .mode = .write_only });
-        defer file.close();
+        const file: ?File = dir.openFile("log", .{ .mode = .write_only }) catch blk: {
+            break :blk dir.createFile("log", .{}) catch null;
+        };
+        defer file.?.close();
 
-        try file.seekFromEnd(0);
+        try file.?.seekFromEnd(0);
 
-        _ = try file.write(concat);
+        _ = try file.?.write(concat);
     }
 
     pub fn err(self: *Logger, comptime message: []const u8, args: anytype) !void {

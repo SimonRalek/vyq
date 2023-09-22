@@ -1,7 +1,7 @@
 const std = @import("std");
 const shared = @import("shared.zig");
+const Allocator = std.mem.Allocator;
 
-const ResultError = shared.ResultError;
 const Token = @import("token.zig").Token;
 const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
@@ -9,29 +9,30 @@ const Compiler = @import("compiler.zig").Compiler;
 
 const Precedence = enum(u8) { none, assign, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
 
-const ParseFn = *const fn (self: *Parser) void;
+const ParseFn = *const fn (self: *Parser) anyerror!void;
 
 const ParseRule = struct { infix: ?ParseFn = null, prefix: ?ParseFn = null, precedence: Precedence = .none };
 
 pub const Parser = struct {
     const Self = @This();
 
+    allocator: Allocator,
     previous: Token,
     current: Token,
     hadError: bool,
     panicMode: bool,
     scanner: ?Scanner = null,
-    compiler: ?Compiler = null,
+    compiler: ?*Compiler = null,
 
-    pub fn init() Parser {
-        return .{ .current = undefined, .previous = undefined, .hadError = false, .panicMode = false };
+    pub fn init(allocator: Allocator, compiler: *Compiler) Parser {
+        return .{ .allocator = allocator, .compiler = compiler, .current = undefined, .previous = undefined, .hadError = false, .panicMode = false };
     }
 
     pub fn parse(self: *Self, source: []const u8) void {
         self.scanner = Scanner.init(source);
         self.advance();
         self.expression();
-        self.eat(.eof, "Očekávaný konec souboru");
+        self.eat(.semicolon, "Očekávaný konec souboru");
     }
 
     fn advance(self: *Self) void {
@@ -67,7 +68,7 @@ pub const Parser = struct {
         self.panicMode = true;
 
         try shared.logger.err("Chyba: ", .{});
-        try shared.logger.err("{s} - ", .{message});
+        try shared.logger.err("{s} ", .{message});
 
         switch (token.type) {
             .eof => {
@@ -79,7 +80,7 @@ pub const Parser = struct {
             },
         }
 
-        try shared.logger.err(", řádka {}\n", .{token.line});
+        try shared.logger.err(", řádka {}:{} \n", .{ token.line, token.column });
         self.hadError = true;
     }
 
@@ -87,12 +88,27 @@ pub const Parser = struct {
         self.parsePrecedence(.assign);
     }
 
-    fn group(self: *Self) void {
+    fn group(self: *Self) !void {
         self.expression();
         self.eat(.right_paren, "Ocekavana ')' zavorka nebyla nalezena");
     }
 
-    fn binary(self: *Self) void {
+    fn unary(self: *Self) !void {
+        const op_type = self.previous.type;
+
+        self.expression();
+
+        switch (op_type) {
+            .minus => self.compiler.?.emitOpCode(.op_negate, self.previous.line),
+            .bw_not => {
+                // TODO is binary check
+                self.compiler.?.emitOpCode(.op_bit_not, self.previous.line);
+            },
+            else => unreachable,
+        }
+    }
+
+    fn binary(self: *Self) !void {
         const op_type = self.previous.type;
         const rule = getRule(op_type);
 
@@ -117,35 +133,37 @@ pub const Parser = struct {
         }
     }
 
-    fn number(self: *Self) void {
-        var buff: [self.previous.lexeme.len]u8 = undefined;
-        _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", &buff);
-        const converted: f16 = std.fmt.parseFloat(f16, &buff);
+    fn number(self: *Self) !void {
+        var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
+        defer self.allocator.free(buff);
+
+        _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
+        const converted: std.fmt.ParseFloatError!f16 = std.fmt.parseFloat(f16, buff);
         if (converted) |value| {
-            _ = value;
-            // emit const
-        } else {
-            shared.logger.err("Nepovedlo se cislo zpracovat", .{});
+            try self.compiler.?.emitValue(value, self.previous.line);
+        } else |err| {
+            try shared.logger.err("Nepovedlo se cislo zpracovat: {}", .{err});
         }
     }
 
     fn string(self: *Self) !void {
         const source = self.previous.lexeme[1 .. self.previoius.lexeme.len - 1];
-        // emit const
         _ = source;
+        // self.compiler.?.emitValue(sour, line: u32)
     }
 
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
         const prefix = getRule(self.previous.type).prefix orelse {
+            // TODO
             return;
         };
 
-        prefix(self);
-        while (@intFromEnum(precedence) <= @intFromEnum(getRule(self.previous.type).precedence)) {
+        prefix(self) catch {};
+        while (@intFromEnum(precedence) <= @intFromEnum(getRule(self.current.type).precedence)) {
             self.advance();
             const infix = getRule(self.previous.type).infix orelse unreachable;
-            infix(self);
+            infix(self) catch {};
         }
     }
 
@@ -156,8 +174,13 @@ pub const Parser = struct {
             .left_brace => .{},
             .right_brace => .{},
 
-            .plus, .minus => .{ .infix = Parser.binary, .precedence = .term },
+            .number => .{ .prefix = Parser.number },
+
+            .plus => .{ .infix = Parser.binary, .precedence = .term },
+            .minus => .{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .term },
             .star, .slash => .{ .infix = Parser.binary, .precedence = .factor },
+
+            .semicolon, .eof => .{},
 
             else => unreachable,
         };

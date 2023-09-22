@@ -4,13 +4,13 @@ const isDigit = std.ascii.isDigit;
 
 const Token = @import("token.zig").Token;
 
-const Location = struct { start: usize, current: usize, line: u32 };
+pub const Location = struct { current: usize, line: u32, column: usize };
 
 pub const Scanner = struct {
     const Self = @This();
 
     buf: []const u8,
-    location: Location = .{ .start = 0, .current = 0, .line = 1 },
+    location: Location = .{ .current = 0, .line = 1, .column = 0 },
 
     pub fn init(source: []const u8) Self {
         return .{ .buf = source };
@@ -190,7 +190,7 @@ pub const Scanner = struct {
     }
 
     fn errorToken(self: Self, message: []const u8) Token {
-        return .{ .type = .chyba, .lexeme = message, .line = self.location.line };
+        return .{ .type = .chyba, .lexeme = message, .line = self.location.line, .column = self.location.column };
     }
 
     fn identifierOrKeyword(self: *Self) Token.Type {
@@ -210,9 +210,17 @@ pub const Scanner = struct {
             switch (char) {
                 '\n' => {
                     self.location.line += 1;
+                    self.location.column = 0;
                     _ = self.advance();
                 },
-                ' ', '\r', '\t' => _ = self.advance(),
+                ' ', '\r' => {
+                    self.location.column += 1;
+                    _ = self.advance();
+                },
+                '\t' => {
+                    self.location.column += 4;
+                    _ = self.advance();
+                },
                 '/' => {
                     switch (self.peekNext()) {
                         '/' => {
@@ -243,12 +251,13 @@ pub const Scanner = struct {
     }
 
     fn createToken(self: *Self, token_type: Token.Type) Token {
-        return Token{ .type = token_type, .lexeme = self.buf[0..self.location.current], .line = self.location.line };
+        const lexeme = self.buf[0..self.location.current];
+        self.location.column += lexeme.len;
+        return Token{ .type = token_type, .lexeme = self.buf[0..self.location.current], .line = self.location.line, .column = self.location.column };
     }
 
     fn resetPointers(self: *Self) void {
         self.buf = self.buf[self.location.current..];
-        self.location.start = self.location.current;
         self.location.current = 0;
     }
 };

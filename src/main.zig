@@ -29,10 +29,11 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     try arguments();
+    var vm = VM.init(allocator);
 
     try switch (args.len) {
-        1 => repl(allocator),
-        2 => runFile(allocator, args[1]),
+        1 => repl(allocator, &vm),
+        2 => runFile(allocator, args[1], &vm),
         else => try shared.logger.err(
             \\Chyba: Neznámý počet argumentů
             \\
@@ -43,8 +44,8 @@ pub fn main() !void {
     };
 }
 
-fn repl(allocator: Allocator) !void {
-    var vm = VM.init(allocator);
+fn repl(allocator: Allocator, vm: *VM) !void {
+    _ = allocator;
 
     while (true) {
         var buf: [256]u8 = undefined;
@@ -60,12 +61,12 @@ fn repl(allocator: Allocator) !void {
             continue;
         }
         const source = buf[0..input.len];
-
+        // TODO defer?
         vm.interpret(source) catch {};
     }
 }
 
-fn runFile(allocator: Allocator, filename: []const u8) !void {
+fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     const source = std.fs.cwd().readFileAlloc(allocator, filename, 1_000_000) catch {
         try shared.logger.err(
             \\Chyba: Soubor nebyl nalezen
@@ -75,9 +76,9 @@ fn runFile(allocator: Allocator, filename: []const u8) !void {
     };
     defer allocator.free(source);
 
-    var parser = Parser.init();
-    parser.parse(source);
-    // try Compiler.compile(source);
+    vm.interpret(source) catch {
+        std.debug.print("err\n", .{}); // TODO
+    };
 }
 
 fn arguments() !void {

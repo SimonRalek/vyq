@@ -6,6 +6,8 @@ const Block = @import("block.zig").Block;
 const ResultError = @import("shared.zig").ResultError;
 const Compiler = @import("compiler.zig").Compiler;
 
+const BinaryOperation = enum { add, sub, mult, div };
+
 pub const VirtualMachine = struct {
     const Self = @This();
 
@@ -21,25 +23,21 @@ pub const VirtualMachine = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.block.?.deinit();
+        self.block.deinit();
     }
 
     pub fn interpret(self: *Self, source: []const u8) ResultError!void {
-        _ = source;
         var block = Block.init(self.allocator);
+        defer block.deinit();
 
-        // Compiler.compile(source) catch return .compiler_error;
+        var compiler = Compiler.init(self.allocator);
+        compiler.compile(source, &block) catch return ResultError.compile;
 
         self.block = &block;
         self.ip = 0;
 
         return self.run();
     }
-    //
-    // pub fn interpret(self: *Self, block: *Block) ResultError!void {
-    //     self.block = block;
-    //     return self.run();
-    // }
 
     fn run(self: *Self) ResultError!void {
         while (true) {
@@ -49,12 +47,16 @@ pub const VirtualMachine = struct {
                 .op_value => {
                     var value = self.readValue();
                     self.push(value);
-                    std.debug.print("{}\n", .{value});
                 },
+                .op_add => self.binary(.add),
+                .op_sub => self.binary(.sub),
+                .op_mult => self.binary(.mult),
+                .op_div => self.binary(.div),
                 // .op_add => self.opAdd(),
                 .op_negate => self.push(-self.pop()),
+                // .op_bit_not => self.push(~self.pop()),
                 .op_return => return,
-                else => {},
+                else => unreachable,
             }
         }
     }
@@ -62,7 +64,7 @@ pub const VirtualMachine = struct {
     fn push(self: *Self, val: f16) void {
         defer self.stack_top += 1;
         self.stack[self.stack_top] = val;
-        std.debug.print("VAL: {}", .{val});
+        std.debug.print("VAL: {}\n", .{val});
     }
 
     fn pop(self: *Self) f16 {
@@ -73,6 +75,18 @@ pub const VirtualMachine = struct {
     fn resetStack(self: *Self) void {
         self.stack_top = 0;
         self.ip = 0;
+    }
+
+    inline fn binary(self: *Self, operation: BinaryOperation) void {
+        const b = self.pop();
+        const a = self.pop();
+
+        self.push(switch (operation) {
+            .add => a + b,
+            .sub => a - b,
+            .mult => a * b,
+            .div => a / b,
+        });
     }
 
     inline fn readByte(self: *Self) u8 {
