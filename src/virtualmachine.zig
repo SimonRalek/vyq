@@ -13,7 +13,7 @@ pub const VirtualMachine = struct {
 
     block: *Block = undefined,
     ip: usize,
-    stack: [256]f16 = undefined,
+    stack: [256]f64 = undefined,
     stack_top: usize,
 
     allocator: Allocator,
@@ -61,13 +61,13 @@ pub const VirtualMachine = struct {
         }
     }
 
-    fn push(self: *Self, val: f16) void {
+    fn push(self: *Self, val: f64) void {
         defer self.stack_top += 1;
         self.stack[self.stack_top] = val;
         std.debug.print("VAL: {}\n", .{val});
     }
 
-    fn pop(self: *Self) f16 {
+    fn pop(self: *Self) f64 {
         self.stack_top -= 1;
         return self.stack[self.stack_top];
     }
@@ -95,7 +95,7 @@ pub const VirtualMachine = struct {
         return byte;
     }
 
-    inline fn readValue(self: *Self) f16 {
+    inline fn readValue(self: *Self) f64 {
         return self.block.constants.items[self.readByte()];
     }
 };

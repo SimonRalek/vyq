@@ -96,7 +96,7 @@ pub const Parser = struct {
     fn unary(self: *Self) !void {
         const op_type = self.previous.type;
 
-        self.expression();
+        self.parsePrecedence(.unary);
 
         switch (op_type) {
             .minus => self.compiler.?.emitOpCode(.op_negate, self.previous.line),
@@ -138,7 +138,7 @@ pub const Parser = struct {
         defer self.allocator.free(buff);
 
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
-        const converted: std.fmt.ParseFloatError!f16 = std.fmt.parseFloat(f16, buff);
+        const converted: std.fmt.ParseFloatError!f64 = std.fmt.parseFloat(f64, buff);
         if (converted) |value| {
             try self.compiler.?.emitValue(value, self.previous.line);
         } else |err| {

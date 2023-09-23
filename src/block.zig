@@ -19,10 +19,10 @@ pub const Block = struct {
 
     code: ArrayList(u8),
     lines: ArrayList(u32),
-    constants: ArrayList(f16),
+    constants: ArrayList(f64),
 
     pub fn init(allocator: Allocator) Self {
-        return .{ .code = ArrayList(u8).init(allocator), .lines = ArrayList(u32).init(allocator), .constants = ArrayList(f16).init(allocator) };
+        return .{ .code = ArrayList(u8).init(allocator), .lines = ArrayList(u32).init(allocator), .constants = ArrayList(f64).init(allocator) };
     }
 
     pub fn deinit(self: *Self) void {
@@ -40,7 +40,7 @@ pub const Block = struct {
         try self.lines.append(line);
     }
 
-    pub fn addValue(self: *Self, value: f16) !u8 {
+    pub fn addValue(self: *Self, value: f64) !u8 {
         const index = self.constants.items.len;
         try self.constants.append(value);
         return @intCast(index);
