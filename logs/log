@@ -223,8 +223,7 @@
 22.09.23 22:54:51 Error => v '{s}'
 22.09.23 22:54:51 Error => , řádka {}:{} 
 
-22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {}
-22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {}
+22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {} 22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {}
 22.09.23 23:25:39 Error => Nepovedlo se cislo zpracovat: {}
 22.09.23 23:25:39 Error => Nepovedlo se cislo zpracovat: {}
 22.09.23 23:27:10 Error => Nepovedlo se cislo zpracovat: {}
@@ -234,4 +233,9 @@
 23.09.23 09:01:48 Error => {s} 
 23.09.23 09:01:48 Error => v '{s}'
 23.09.23 09:01:48 Error => , řádka {}:{} 
+
+23.09.23 10:10:47 Error => Chyba: 
+23.09.23 10:10:47 Error => {s} 
+23.09.23 10:10:47 Error => v '{s}'
+23.09.23 10:10:47 Error => , řádka {}:{} 
 

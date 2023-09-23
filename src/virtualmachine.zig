@@ -52,11 +52,15 @@ pub const VirtualMachine = struct {
                 .op_sub => self.binary(.sub),
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
-                // .op_add => self.opAdd(),
                 .op_negate => self.push(-self.pop()),
+
+                // .op_bit_and => self.binary(.bit_and),
+                // .op_bit_or => self.binary(.bit_or),
+                // .op_shift_left => self.binary(.shift_left),
+                // .op_shift_right => self.binary(.shift_right),
                 // .op_bit_not => self.push(~self.pop()),
+
                 .op_return => return,
-                else => unreachable,
             }
         }
     }
@@ -86,6 +90,10 @@ pub const VirtualMachine = struct {
             .sub => a - b,
             .mult => a * b,
             .div => a / b,
+            // .bit_and => a & b,
+            // .bit_or => a | b,
+            // .shift_right => a >> b,
+            // .shift_left => a << b,
         });
     }
 

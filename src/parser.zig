@@ -100,10 +100,10 @@ pub const Parser = struct {
 
         switch (op_type) {
             .minus => self.compiler.?.emitOpCode(.op_negate, self.previous.line),
-            .bw_not => {
-                // TODO is binary check
-                self.compiler.?.emitOpCode(.op_bit_not, self.previous.line);
-            },
+            // .bw_not => {
+            //     // TODO is binary check
+            //     self.compiler.?.emitOpCode(.op_bit_not, self.previous.line);
+            // },
             else => unreachable,
         }
     }
@@ -127,6 +127,18 @@ pub const Parser = struct {
             .slash => {
                 self.emitOpCode(.op_div);
             },
+            // .bw_and => {
+            //     self.emitOpCode(.op_bit_and);
+            // },
+            // .bw_or => {
+            //     self.emitOpCode(.op_bit_or);
+            // },
+            // .shift_left => {
+            //     self.emitOpCode(.op_shift_left);
+            // },
+            // .shift_right => {
+            //     self.emitOpCode(.op_shift_right);
+            // },
             else => {
                 unreachable;
             },
@@ -179,6 +191,9 @@ pub const Parser = struct {
             .plus => .{ .infix = Parser.binary, .precedence = .term },
             .minus => .{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .term },
             .star, .slash => .{ .infix = Parser.binary, .precedence = .factor },
+
+            // .bw_and, .bw_or => .{ .infix = Parser.binary, .precedence = .bit },
+            // .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
             .semicolon, .eof => .{},
 
