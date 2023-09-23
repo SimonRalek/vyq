@@ -2,6 +2,8 @@ const std = @import("std");
 const shared = @import("shared.zig");
 const Allocator = std.mem.Allocator;
 
+const VM = @import("virtualmachine.zig").VirtualMachine;
+
 const Token = @import("token.zig").Token;
 const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
@@ -186,3 +188,17 @@ pub const Parser = struct {
         };
     }
 };
+
+fn testParser(source: []const u8, expected: f64) !void {
+    var allocator = std.testing.allocator;
+    var vm = VM.init(allocator);
+    try vm.interpret(source);
+
+    try std.testing.expectEqual(expected, vm.stack[0]);
+}
+
+test "simple expressions" {
+    try testParser("1 + 2;", 3);
+    try testParser("7 - 2 * 3;", 1);
+    try testParser("-(4 + (-6)) * 10 /5;", 4);
+}
