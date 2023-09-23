@@ -9,7 +9,13 @@ pub const Block = struct {
     pub const OpCode = enum(u8) {
         op_value,
         op_negate,
-        op_bit_not,
+
+        // op_shift_left,
+        // op_shift_right,
+        // op_bit_and,
+        // op_bit_or,
+        // op_bit_not,
+
         op_add,
         op_sub,
         op_mult,
