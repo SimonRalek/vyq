@@ -24,13 +24,20 @@ pub fn disassembleInstruction(block: *Block, offset: usize) usize {
     }
 
     const instruction: Block.OpCode = @enumFromInt(block.*.code.items[offset]);
-    switch (instruction) {
-        .op_value => return valueInstruction("OP_VALUE", block, offset),
-        .op_negate => return simpleInstruction("OP_NEGATE", offset),
-        .op_add => return simpleInstruction("OP_ADD", offset),
-        .op_sub => return simpleInstruction("OP_MINUS", offset),
-        .op_mult => return simpleInstruction("OP_MULT", offset),
-        .op_div => return simpleInstruction("OP_DIV", offset),
+    return switch (instruction) {
+        .op_value => valueInstruction("OP_VALUE", block, offset),
+        .op_negate => simpleInstruction("OP_NEGATE", offset),
+        .op_add => simpleInstruction("OP_ADD", offset),
+        .op_sub => simpleInstruction("OP_MINUS", offset),
+        .op_mult => simpleInstruction("OP_MULT", offset),
+        .op_div => simpleInstruction("OP_DIV", offset),
+        .op_not => simpleInstruction("OP_NOT", offset),
+        .op_nic => simpleInstruction("OP_NIC", offset),
+        .op_ano => simpleInstruction("OP_ANO", offset),
+        .op_ne => simpleInstruction("OP_NE", offset),
+        .op_equal => simpleInstruction("OP_EQUAL", offset),
+        .op_greater => simpleInstruction("OP_GREATER", offset),
+        .op_less => simpleInstruction("OP_LESS", offset),
         // .op_bit_and => return simpleInstruction("op_bit_and", offset),
         // .op_bit_or => return simpleInstruction("op_bit_or", offset),
         // .op_shift_left => return simpleInstruction("op_shift_left", offset),
@@ -41,7 +48,7 @@ pub fn disassembleInstruction(block: *Block, offset: usize) usize {
         //     std.debug.print("Unknown opcode", .{});
         //     return offset + 1;
         // },
-    }
+    };
 }
 
 fn simpleInstruction(name: []const u8, offset: usize) usize {
