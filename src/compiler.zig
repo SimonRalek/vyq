@@ -3,6 +3,7 @@ const shared = @import("shared.zig");
 const debug = @import("debug.zig");
 const Allocator = std.mem.Allocator;
 
+const Val = @import("value.zig").Val;
 const ResultError = shared.ResultError;
 const Scanner = @import("scanner.zig").Scanner;
 const Parser = @import("parser.zig").Parser;
@@ -44,7 +45,7 @@ pub const Compiler = struct {
         self.getCurrentChunk().writeOpCode(op_code, line) catch {};
     }
 
-    pub fn emitValue(self: *Self, val: f64, line: u32) !void {
+    pub fn emitValue(self: *Self, val: Val, line: u32) !void {
         self.emitOpCodes(.op_value, try self.makeValue(val), line);
     }
 
@@ -53,7 +54,7 @@ pub const Compiler = struct {
         self.getCurrentChunk().writeByte(op2, line) catch {};
     }
 
-    pub fn makeValue(self: *Self, val: f64) !u8 {
+    pub fn makeValue(self: *Self, val: Val) !u8 {
         const value = try self.getCurrentChunk().addValue(val);
         if (value > 255) {
             std.debug.print("", .{}); //TODO

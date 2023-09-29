@@ -45,8 +45,8 @@ pub const Scanner = struct {
             '}' => self.createToken(.right_brace),
             '.' => self.createToken(.dot),
 
-            '"' => self.string(false),
-            '\'' => self.string(true),
+            '\'' => self.string(false),
+            '"' => self.string(true),
 
             '=' => self.createToken(if (self.match('='))
                 .equal
@@ -135,7 +135,7 @@ pub const Scanner = struct {
             _ = self.advance();
         }
 
-        self.skipSpace(2);
+        // self.skipSpace(2);
 
         return self.createToken(.hexadecimal);
     }
@@ -145,17 +145,17 @@ pub const Scanner = struct {
             _ = self.advance();
         }
 
-        self.skipSpace(2);
+        // self.skipSpace(2);
 
         return self.createToken(.binary);
     }
 
     fn string(self: *Self, isMultiline: bool) Token {
-        const deli: u8 = if (isMultiline) '\'' else '"';
+        const deli: u8 = if (isMultiline) '"' else '\'';
         var hadMultilineError = false;
 
         switch (deli) {
-            '"' => {
+            '\'' => {
                 while (self.peek() != deli and !self.isEof()) {
                     if (self.peek() == '\n') {
                         hadMultilineError = true;
@@ -163,7 +163,7 @@ pub const Scanner = struct {
                     _ = self.advance();
                 }
             },
-            '\'' => {
+            '"' => {
                 while (self.peek() != deli and !self.isEof()) {
                     if (self.peek() == '\n') self.location.line += 1;
                     _ = self.advance();
@@ -311,15 +311,19 @@ test "binary" {
 
 test "string" {
     try testScanner(
-        \\ "This is a test of a single line string"
+        \\ 'This is a test of a single line string'
     , &.{.string});
     try testScanner(
-        \\ 'This is a multiline 
-        \\ string'
+        \\ "This is a multiline 
+        \\ string"
     , &.{.string});
     try testScanner(
-        \\ "This is multiline string
-        \\ using wrong quotes"
+        \\ 'This is multiline string
+        \\ using wrong quotes'
+    , &.{.chyba});
+
+    try testScanner(
+        \\ 'This is test of unterminated string
     , &.{.chyba});
     try testScanner(
         \\ "This is test of unterminated string

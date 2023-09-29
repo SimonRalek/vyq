@@ -223,8 +223,7 @@
 22.09.23 22:54:51 Error => v '{s}'
 22.09.23 22:54:51 Error => , řádka {}:{} 
 
-22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {}
-22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {}
+22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {} 22.09.23 23:24:40 Error => Nepovedlo se cislo zpracovat: {}
 22.09.23 23:25:39 Error => Nepovedlo se cislo zpracovat: {}
 22.09.23 23:25:39 Error => Nepovedlo se cislo zpracovat: {}
 22.09.23 23:27:10 Error => Nepovedlo se cislo zpracovat: {}
@@ -234,4 +233,66 @@
 23.09.23 09:01:48 Error => {s} 
 23.09.23 09:01:48 Error => v '{s}'
 23.09.23 09:01:48 Error => , řádka {}:{} 
+
+23.09.23 10:10:47 Error => Chyba: 
+23.09.23 10:10:47 Error => {s} 
+23.09.23 10:10:47 Error => v '{s}'
+23.09.23 10:10:47 Error => , řádka {}:{} 
+
+25.09.23 21:43:50 Error => Chyba: 
+25.09.23 21:43:50 Error => {s} 
+25.09.23 21:43:50 Error => v '{s}'
+25.09.23 21:43:50 Error => , řádka {}:{} 
+
+28.09.23 10:25:07 Error => Chyba: 
+28.09.23 10:25:07 Error => {s} 
+28.09.23 10:25:07 Error => v '{s}'
+28.09.23 10:25:07 Error => , řádka {}:{} 
+
+28.09.23 10:26:11 Error => Chyba: 
+28.09.23 10:26:11 Error => {s} 
+28.09.23 10:26:11 Error => v '{s}'
+28.09.23 10:26:11 Error => , řádka {}:{} 
+
+28.09.23 11:57:01 Error => Chyba: Neznámý počet argumentů
+
+Použití:
+> vyq [filepath] [argumenty]
+
+28.09.23 11:57:03 Error => Chyba: Neznámý počet argumentů
+
+Použití:
+> vyq [filepath] [argumenty]
+
+28.09.23 20:44:38 Error => Chyba: 
+28.09.23 20:44:38 Error => {s} 
+28.09.23 20:44:38 Error => v '{s}'
+28.09.23 20:44:38 Error => , řádka {}:{} 
+
+28.09.23 20:45:20 Error => Chyba: 
+29.09.23 17:47:09 Error => Chyba: 
+29.09.23 17:47:09 Error => {s} 
+29.09.23 17:47:25 Error => Chyba: 
+29.09.23 17:47:25 Error => {s} 
+29.09.23 17:51:22 Error => Chyba: 
+29.09.23 17:51:22 Error => {s} 
+29.09.23 17:51:22 Error => v '{s}'
+29.09.23 17:51:22 Error => , řádka {}:{} 
+
+29.09.23 17:53:51 Error => Chyba: 
+29.09.23 17:53:51 Error => {s} 
+29.09.23 17:54:06 Error => Chyba: 
+29.09.23 17:54:06 Error => {s} 
+29.09.23 17:54:06 Error => v '{s}'
+29.09.23 17:54:06 Error => , řádka {}:{} 
+
+29.09.23 18:18:28 Error => Chyba: 
+29.09.23 18:18:28 Error => {s} 
+29.09.23 18:18:28 Error => v '{s}'
+29.09.23 18:18:28 Error => , řádka {}:{} 
+
+29.09.23 18:18:48 Error => Chyba: 
+29.09.23 18:18:48 Error => {s} 
+29.09.23 18:18:48 Error => v '{s}'
+29.09.23 18:18:48 Error => , řádka {}:{} 
 
