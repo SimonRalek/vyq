@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const Val = @import("value.zig").Val;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 
@@ -8,13 +9,21 @@ pub const Block = struct {
 
     pub const OpCode = enum(u8) {
         op_value,
+        op_ano,
+        op_ne,
+        op_nic,
+
+        op_not,
         op_negate,
 
-        // op_shift_left,
-        // op_shift_right,
-        // op_bit_and,
-        // op_bit_or,
-        // op_bit_not,
+        op_equal,
+        op_greater,
+        op_less,
+        op_shift_left,
+        op_shift_right,
+        op_bit_and,
+        op_bit_or,
+        op_bit_not,
 
         op_add,
         op_sub,
@@ -25,10 +34,10 @@ pub const Block = struct {
 
     code: ArrayList(u8),
     lines: ArrayList(u32),
-    constants: ArrayList(f64),
+    constants: ArrayList(Val),
 
     pub fn init(allocator: Allocator) Self {
-        return .{ .code = ArrayList(u8).init(allocator), .lines = ArrayList(u32).init(allocator), .constants = ArrayList(f64).init(allocator) };
+        return .{ .code = ArrayList(u8).init(allocator), .lines = ArrayList(u32).init(allocator), .constants = ArrayList(Val).init(allocator) };
     }
 
     pub fn deinit(self: *Self) void {
@@ -46,7 +55,7 @@ pub const Block = struct {
         try self.lines.append(line);
     }
 
-    pub fn addValue(self: *Self, value: f64) !u8 {
+    pub fn addValue(self: *Self, value: Val) !u8 {
         const index = self.constants.items.len;
         try self.constants.append(value);
         return @intCast(index);

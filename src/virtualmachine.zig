@@ -2,18 +2,20 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+const Val = @import("value.zig").Val;
 const Block = @import("block.zig").Block;
 const ResultError = @import("shared.zig").ResultError;
 const Compiler = @import("compiler.zig").Compiler;
 
-const BinaryOperation = enum { add, sub, mult, div };
+const BinaryOp = enum { add, sub, mult, div, greater, less, bit_and, bit_or };
+const ShiftOp = enum { left, right };
 
 pub const VirtualMachine = struct {
     const Self = @This();
 
     block: *Block = undefined,
     ip: usize,
-    stack: [256]f64 = undefined,
+    stack: [256]Val = undefined,
     stack_top: usize,
 
     allocator: Allocator,
@@ -43,37 +45,67 @@ pub const VirtualMachine = struct {
         while (true) {
             const instruction: Block.OpCode = @enumFromInt(self.readByte());
 
-            switch (instruction) {
+            try switch (instruction) {
                 .op_value => {
                     var value = self.readValue();
                     self.push(value);
                 },
+                .op_ano => self.push(Val{ .boolean = true }),
+                .op_ne => self.push(Val{ .boolean = false }),
+                .op_nic => self.push(Val.nic),
+
                 .op_add => self.binary(.add),
                 .op_sub => self.binary(.sub),
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
-                .op_negate => self.push(-self.pop()),
 
-                // .op_bit_and => self.binary(.bit_and),
-                // .op_bit_or => self.binary(.bit_or),
-                // .op_shift_left => self.binary(.shift_left),
-                // .op_shift_right => self.binary(.shift_right),
-                // .op_bit_not => self.push(~self.pop()),
+                .op_greater => self.binary(.greater),
+                .op_less => self.binary(.less),
+                .op_equal => {
+                    var a = self.pop();
+                    var b = self.pop();
+
+                    self.push(Val{ .boolean = Val.isEqual(a, b) });
+                },
+
+                .op_not => self.push(Val{ .boolean = isFalsey(self.pop()) }),
+                .op_negate => {
+                    if (self.peek(0) != .number) {
+                        self.runtimeErr("", .{});
+                        return ResultError.runtime;
+                    }
+                    const val = Val{ .number = -(self.pop().number) };
+                    self.push(val);
+                },
+
+                .op_bit_and => self.binary(.bit_and),
+                .op_bit_or => self.binary(.bit_or),
+                .op_shift_left => self.shift(.left),
+                .op_shift_right => self.shift(.right),
+                .op_bit_not => {
+                    const val: i64 = @intFromFloat(self.pop().number);
+                    const result: f64 = @floatFromInt(~val);
+                    self.push(Val{ .number = result });
+                },
 
                 .op_return => return,
-            }
+            };
         }
     }
 
-    fn push(self: *Self, val: f64) void {
+    fn push(self: *Self, val: Val) void {
         defer self.stack_top += 1;
         self.stack[self.stack_top] = val;
-        std.debug.print("VAL: {}\n", .{val});
+        val.print();
     }
 
-    fn pop(self: *Self) f64 {
+    fn pop(self: *Self) Val {
         self.stack_top -= 1;
         return self.stack[self.stack_top];
+    }
+
+    fn peek(self: *Self, distance: u16) Val {
+        return self.stack[self.stack_top - 1 - distance];
     }
 
     fn resetStack(self: *Self) void {
@@ -81,20 +113,70 @@ pub const VirtualMachine = struct {
         self.ip = 0;
     }
 
-    inline fn binary(self: *Self, operation: BinaryOperation) void {
-        const b = self.pop();
-        const a = self.pop();
+    fn isFalsey(val: Val) bool {
+        return val == .nic or (val == .boolean and !val.boolean);
+    }
 
-        self.push(switch (operation) {
+    inline fn binary(self: *Self, operation: BinaryOp) ResultError!void {
+        if (self.peek(0) != .number or self.peek(1) != .number) {
+            self.runtimeErr("", .{});
+            return ResultError.runtime;
+        }
+
+        const b = self.pop().number;
+        const a = self.pop().number;
+
+        const result = switch (operation) {
             .add => a + b,
             .sub => a - b,
             .mult => a * b,
             .div => a / b,
-            // .bit_and => a & b,
-            // .bit_or => a | b,
-            // .shift_right => a >> b,
-            // .shift_left => a << b,
-        });
+
+            .greater => a > b,
+            .less => a < b,
+
+            else => blk: {
+                const a_bit: i64 = @intFromFloat(a);
+                const b_bit: i64 = @intFromFloat(b);
+
+                const op = switch (operation) {
+                    .bit_and => a_bit & b_bit,
+                    .bit_or => a_bit | b_bit,
+                    else => unreachable,
+                };
+
+                const res: f64 = @floatFromInt(op);
+
+                break :blk res;
+            },
+        };
+
+        if (@TypeOf(result) == bool) {
+            self.push(Val{ .boolean = result });
+        } else {
+            self.push(Val{ .number = result });
+        }
+    }
+
+    inline fn shift(self: *Self, operation: ShiftOp) ResultError!void {
+        const b = self.pop().number;
+
+        if (b >= 64.0 or b < 0.0) {
+            // report
+            return ResultError.runtime;
+        }
+
+        const a_bit: i64 = @intFromFloat(self.pop().number);
+        const b_bit: u6 = @intFromFloat(b);
+
+        const op = switch (operation) {
+            .right => a_bit >> b_bit,
+            .left => a_bit << b_bit,
+        };
+
+        const result: f64 = @floatFromInt(op);
+
+        self.push(Val{ .number = result });
     }
 
     inline fn readByte(self: *Self) u8 {
@@ -103,7 +185,14 @@ pub const VirtualMachine = struct {
         return byte;
     }
 
-    inline fn readValue(self: *Self) f64 {
+    inline fn readValue(self: *Self) Val {
         return self.block.constants.items[self.readByte()];
+    }
+
+    fn runtimeErr(self: *Self, comptime message: []const u8, args: anytype) void {
+        _ = args;
+        _ = message;
+        _ = self;
+        // reporter
     }
 };
