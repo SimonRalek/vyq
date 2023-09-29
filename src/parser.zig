@@ -112,7 +112,7 @@ pub const Parser = struct {
         }
     }
 
-    fn binaryOp(self: *Self) !void {
+    fn binary(self: *Self) !void {
         const op_type = self.previous.type;
         const rule = getRule(op_type);
 
@@ -152,18 +152,18 @@ pub const Parser = struct {
                 self.emitOpCode(.op_greater);
                 self.emitOpCode(.op_not);
             },
-            // .bw_and => {
-            //     self.emitOpCode(.op_bit_and);
-            // },
-            // .bw_or => {
-            //     self.emitOpCode(.op_bit_or);
-            // },
-            // .shift_left => {
-            //     self.emitOpCode(.op_shift_left);
-            // },
-            // .shift_right => {
-            //     self.emitOpCode(.op_shift_right);
-            // },
+            .bw_and => {
+                self.emitOpCode(.op_bit_and);
+            },
+            .bw_or => {
+                self.emitOpCode(.op_bit_or);
+            },
+            .shift_left => {
+                self.emitOpCode(.op_shift_left);
+            },
+            .shift_right => {
+                self.emitOpCode(.op_shift_right);
+            },
             else => {
                 unreachable;
             },
@@ -183,13 +183,9 @@ pub const Parser = struct {
         }
     }
 
-    fn binary(self: *Self) !void {
-        const val = try std.fmt.parseUnsigned(i64, self.previous.lexeme, 2);
+    fn base(self: *Self) !void {
+        const val = try std.fmt.parseUnsigned(i64, self.previous.lexeme, 0);
         try self.compiler.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
-    }
-
-    fn hexadecimal(self: *Self) !void {
-        _ = self;
     }
 
     fn string(self: *Self) !void {
@@ -232,22 +228,21 @@ pub const Parser = struct {
             .right_brace => .{},
 
             .number => .{ .prefix = Parser.number },
-            .binary => .{ .prefix = Parser.binary },
-            .hexadecimal => .{ .prefix = Parser.hexadecimal },
+            .binary, .hexadecimal => .{ .prefix = Parser.base },
 
             .ano, .ne, .nic => .{ .prefix = Parser.literal },
 
-            .plus => .{ .infix = Parser.binaryOp, .precedence = .term },
-            .minus => .{ .prefix = Parser.unary, .infix = Parser.binaryOp, .precedence = .term },
-            .star, .slash => .{ .infix = Parser.binaryOp, .precedence = .factor },
+            .plus => .{ .infix = Parser.binary, .precedence = .term },
+            .minus => .{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .term },
+            .star, .slash => .{ .infix = Parser.binary, .precedence = .factor },
 
             .bang => .{ .prefix = Parser.unary },
 
-            .equal, .not_equal => .{ .infix = Parser.binaryOp, .precedence = .equal },
-            .greater, .greater_equal, .less, .less_equal => .{ .infix = Parser.binaryOp, .precedence = .compare },
+            .equal, .not_equal => .{ .infix = Parser.binary, .precedence = .equal },
+            .greater, .greater_equal, .less, .less_equal => .{ .infix = Parser.binary, .precedence = .compare },
 
-            // .bw_and, .bw_or => .{ .infix = Parser.binary, .precedence = .bit },
-            // .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
+            .bw_and, .bw_or => .{ .infix = Parser.binary, .precedence = .bit },
+            .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
             .semicolon, .eof => .{},
 

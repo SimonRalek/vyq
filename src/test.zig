@@ -1,7 +1,9 @@
 const std = @import("std");
 
 pub fn main() !void {
-    const val = 6.9;
-    const ouput: i64 = @intFromFloat(val);
-    std.debug.print("{any}", .{ouput});
+    var k: i128 = 3;
+    var l: i128 = 3;
+    var v = l << k;
+
+    std.debug.print("{d}\n", .{v});
 }

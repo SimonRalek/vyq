@@ -7,7 +7,8 @@ const Block = @import("block.zig").Block;
 const ResultError = @import("shared.zig").ResultError;
 const Compiler = @import("compiler.zig").Compiler;
 
-const BinaryOperation = enum { add, sub, mult, div, greater, less };
+const BinaryOp = enum { add, sub, mult, div, greater, less, bit_and, bit_or };
+const ShiftOp = enum { left, right };
 
 pub const VirtualMachine = struct {
     const Self = @This();
@@ -77,11 +78,15 @@ pub const VirtualMachine = struct {
                     self.push(val);
                 },
 
-                // .op_bit_and => self.binary(.bit_and),
-                // .op_bit_or => self.binary(.bit_or),
-                // .op_shift_left => self.binary(.shift_left),
-                // .op_shift_right => self.binary(.shift_right),
-                // .op_bit_not => self.push(~self.pop()),
+                .op_bit_and => self.binary(.bit_and),
+                .op_bit_or => self.binary(.bit_or),
+                .op_shift_left => self.shift(.left),
+                .op_shift_right => self.shift(.right),
+                .op_bit_not => {
+                    const val: i64 = @intFromFloat(self.pop().number);
+                    const result: f64 = @floatFromInt(~val);
+                    self.push(Val{ .number = result });
+                },
 
                 .op_return => return,
             };
@@ -112,7 +117,7 @@ pub const VirtualMachine = struct {
         return val == .nic or (val == .boolean and !val.boolean);
     }
 
-    inline fn binary(self: *Self, operation: BinaryOperation) ResultError!void {
+    inline fn binary(self: *Self, operation: BinaryOp) ResultError!void {
         if (self.peek(0) != .number or self.peek(1) != .number) {
             self.runtimeErr("", .{});
             return ResultError.runtime;
@@ -130,10 +135,20 @@ pub const VirtualMachine = struct {
             .greater => a > b,
             .less => a < b,
 
-            // .bit_and => a & b,
-            // .bit_or => a | b,
-            // .shift_right => a >> b,
-            // .shift_left => a << b,
+            else => blk: {
+                const a_bit: i64 = @intFromFloat(a);
+                const b_bit: i64 = @intFromFloat(b);
+
+                const op = switch (operation) {
+                    .bit_and => a_bit & b_bit,
+                    .bit_or => a_bit | b_bit,
+                    else => unreachable,
+                };
+
+                const res: f64 = @floatFromInt(op);
+
+                break :blk res;
+            },
         };
 
         if (@TypeOf(result) == bool) {
@@ -141,6 +156,27 @@ pub const VirtualMachine = struct {
         } else {
             self.push(Val{ .number = result });
         }
+    }
+
+    inline fn shift(self: *Self, operation: ShiftOp) ResultError!void {
+        const b = self.pop().number;
+
+        if (b >= 64.0 or b < 0.0) {
+            // report
+            return ResultError.runtime;
+        }
+
+        const a_bit: i64 = @intFromFloat(self.pop().number);
+        const b_bit: u6 = @intFromFloat(b);
+
+        const op = switch (operation) {
+            .right => a_bit >> b_bit,
+            .left => a_bit << b_bit,
+        };
+
+        const result: f64 = @floatFromInt(op);
+
+        self.push(Val{ .number = result });
     }
 
     inline fn readByte(self: *Self) u8 {

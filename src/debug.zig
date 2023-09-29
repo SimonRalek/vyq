@@ -38,11 +38,11 @@ pub fn disassembleInstruction(block: *Block, offset: usize) usize {
         .op_equal => simpleInstruction("OP_EQUAL", offset),
         .op_greater => simpleInstruction("OP_GREATER", offset),
         .op_less => simpleInstruction("OP_LESS", offset),
-        // .op_bit_and => return simpleInstruction("op_bit_and", offset),
-        // .op_bit_or => return simpleInstruction("op_bit_or", offset),
-        // .op_shift_left => return simpleInstruction("op_shift_left", offset),
-        // .op_shift_right => return simpleInstruction("op_shift_right", offset),
-        // .op_bit_not => return simpleInstruction("OP_BIT_NOT", offset),
+        .op_bit_and => return simpleInstruction("op_bit_and", offset),
+        .op_bit_or => return simpleInstruction("op_bit_or", offset),
+        .op_shift_left => return simpleInstruction("op_shift_left", offset),
+        .op_shift_right => return simpleInstruction("op_shift_right", offset),
+        .op_bit_not => return simpleInstruction("OP_BIT_NOT", offset),
         .op_return => return simpleInstruction("OP_RETURN", offset),
         // else => {
         //     std.debug.print("Unknown opcode", .{});
