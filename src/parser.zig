@@ -104,10 +104,9 @@ pub const Parser = struct {
         switch (op_type) {
             .minus => self.compiler.?.emitOpCode(.op_negate, self.previous.line),
             .bang => self.compiler.?.emitOpCode(.op_not, self.previous.line),
-            // .bw_not => {
-            //     // TODO is binary check
-            //     self.compiler.?.emitOpCode(.op_bit_not, self.previous.line);
-            // },
+            .bw_not => {
+                self.compiler.?.emitOpCode(.op_bit_not, self.previous.line);
+            },
             else => unreachable,
         }
     }
@@ -157,6 +156,9 @@ pub const Parser = struct {
             },
             .bw_or => {
                 self.emitOpCode(.op_bit_or);
+            },
+            .bw_xor => {
+                self.emitOpCode(.op_bit_xor);
             },
             .shift_left => {
                 self.emitOpCode(.op_shift_left);
@@ -241,7 +243,7 @@ pub const Parser = struct {
             .equal, .not_equal => .{ .infix = Parser.binary, .precedence = .equal },
             .greater, .greater_equal, .less, .less_equal => .{ .infix = Parser.binary, .precedence = .compare },
 
-            .bw_and, .bw_or => .{ .infix = Parser.binary, .precedence = .bit },
+            .bw_and, .bw_or, .bw_xor => .{ .infix = Parser.binary, .precedence = .bit },
             .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
             .semicolon, .eof => .{},

@@ -7,7 +7,7 @@ const Block = @import("block.zig").Block;
 const ResultError = @import("shared.zig").ResultError;
 const Compiler = @import("compiler.zig").Compiler;
 
-const BinaryOp = enum { add, sub, mult, div, greater, less, bit_and, bit_or };
+const BinaryOp = enum { add, sub, mult, div, greater, less, bit_and, bit_or, bit_xor };
 const ShiftOp = enum { left, right };
 
 pub const VirtualMachine = struct {
@@ -80,6 +80,7 @@ pub const VirtualMachine = struct {
 
                 .op_bit_and => self.binary(.bit_and),
                 .op_bit_or => self.binary(.bit_or),
+                .op_bit_xor => self.binary(.bit_xor),
                 .op_shift_left => self.shift(.left),
                 .op_shift_right => self.shift(.right),
                 .op_bit_not => {
@@ -142,6 +143,7 @@ pub const VirtualMachine = struct {
                 const op = switch (operation) {
                     .bit_and => a_bit & b_bit,
                     .bit_or => a_bit | b_bit,
+                    .bit_xor => a_bit ^ b_bit,
                     else => unreachable,
                 };
 
