@@ -39,6 +39,7 @@ pub const Scanner = struct {
             ';' => self.createToken(.semicolon),
             ':' => self.createToken(.colon),
             ',' => self.createToken(.comma),
+            '?' => self.createToken(.question_mark),
             '(' => self.createToken(.left_paren),
             ')' => self.createToken(.right_paren),
             '{' => self.createToken(.left_brace),

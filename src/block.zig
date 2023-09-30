@@ -23,6 +23,7 @@ pub const Block = struct {
         op_shift_right,
         op_bit_and,
         op_bit_or,
+        op_bit_xor,
         op_bit_not,
 
         op_add,
