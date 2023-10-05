@@ -1,7 +1,7 @@
 const std = @import("std");
 const Logger = @import("logger.zig").Logger;
 
-pub const ResultError = error{ compile, runtime };
+pub const ResultError = error{ parser, compile, runtime };
 
 pub const version = "0.0.1";
 

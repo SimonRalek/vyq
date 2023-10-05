@@ -120,6 +120,7 @@ pub const VirtualMachine = struct {
 
     inline fn binary(self: *Self, operation: BinaryOp) ResultError!void {
         if (self.peek(0) != .number or self.peek(1) != .number) {
+            std.debug.print("runtime error", .{});
             self.runtimeErr("", .{});
             return ResultError.runtime;
         }
