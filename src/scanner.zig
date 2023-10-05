@@ -76,12 +76,7 @@ pub const Scanner = struct {
             '~' => self.createToken(.bw_not),
 
             '0' => {
-                return if (self.match('x'))
-                    self.hexadecimal()
-                else if (self.match('b'))
-                    self.binary()
-                else
-                    self.number();
+                return if (self.match('b')) self.binary() else if (self.match('o')) self.octal() else if (self.match('x')) self.hexadecimal() else self.number();
             },
 
             else => {
@@ -130,15 +125,21 @@ pub const Scanner = struct {
     }
 
     fn hexadecimal(self: *Self) Token {
-        var count: u8 = 0;
-
-        while (isHexa(self.peek()) and count < 6) {
+        while (isHexa(self.peek())) {
             _ = self.advance();
         }
 
         // self.skipSpace(2);
 
         return self.createToken(.hexadecimal);
+    }
+
+    fn octal(self: *Self) Token {
+        while (isOctal(self.peek())) {
+            _ = self.advance();
+        }
+
+        return self.createToken(.octal);
     }
 
     fn binary(self: *Self) Token {
@@ -266,6 +267,13 @@ pub const Scanner = struct {
 fn isHexa(c: u8) bool {
     return switch (c) {
         '0'...'9', 'A'...'F', 'a'...'f' => true,
+        else => false,
+    };
+}
+
+fn isOctal(c: u8) bool {
+    return switch (c) {
+        '0'...'7' => true,
         else => false,
     };
 }

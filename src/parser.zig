@@ -9,6 +9,7 @@ const Token = @import("token.zig").Token;
 const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
 const Compiler = @import("compiler.zig").Compiler;
+const Object = @import("value.zig").Object;
 
 const Precedence = enum(u8) { none, assign, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
 
@@ -26,9 +27,10 @@ pub const Parser = struct {
     panicMode: bool,
     scanner: ?Scanner = null,
     compiler: ?*Compiler = null,
+    vm: ?*VM = null,
 
-    pub fn init(allocator: Allocator, compiler: *Compiler) Parser {
-        return .{ .allocator = allocator, .compiler = compiler, .current = undefined, .previous = undefined, .hadError = false, .panicMode = false };
+    pub fn init(allocator: Allocator, compiler: *Compiler, vm: *VM) Parser {
+        return .{ .allocator = allocator, .compiler = compiler, .vm = vm, .current = undefined, .previous = undefined, .hadError = false, .panicMode = false };
     }
 
     pub fn parse(self: *Self, source: []const u8) void {
@@ -186,14 +188,16 @@ pub const Parser = struct {
     }
 
     fn base(self: *Self) !void {
-        const val = try std.fmt.parseUnsigned(i64, self.previous.lexeme, 0);
+        const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch blk: {
+            // reporter
+            break :blk 0;
+        };
         try self.compiler.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
     }
 
     fn string(self: *Self) !void {
-        const source = self.previous.lexeme[1 .. self.previoius.lexeme.len - 1];
-        _ = source;
-        // self.compiler.?.emitValue(sour, line: u32)
+        const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
+        try self.compiler.?.emitValue(Object.String.copy(self.vm.?, source).val(), self.previous.line);
     }
 
     fn literal(self: *Self) !void {
@@ -230,9 +234,11 @@ pub const Parser = struct {
             .right_brace => .{},
 
             .number => .{ .prefix = Parser.number },
-            .binary, .hexadecimal => .{ .prefix = Parser.base },
+            .binary, .octal, .hexadecimal => .{ .prefix = Parser.base },
 
             .ano, .ne, .nic => .{ .prefix = Parser.literal },
+
+            .string => .{ .prefix = Parser.string },
 
             .plus => .{ .infix = Parser.binary, .precedence = .term },
             .minus => .{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .term },

@@ -62,9 +62,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         }
         const source = buf[0..input.len];
         // TODO defer?
-        vm.interpret(source) catch {
-            return;
-        };
+        vm.interpret(source) catch {};
     }
 }
 
