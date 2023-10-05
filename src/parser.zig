@@ -4,11 +4,13 @@ const Allocator = std.mem.Allocator;
 
 const VM = @import("virtualmachine.zig").VirtualMachine;
 
+const ResultError = shared.ResultError;
 const Val = @import("value.zig").Val;
 const Token = @import("token.zig").Token;
 const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
 const Compiler = @import("compiler.zig").Compiler;
+const Reporter = @import("reporter.zig");
 const Object = @import("value.zig").Object;
 
 const Precedence = enum(u8) { none, assign, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
@@ -23,14 +25,13 @@ pub const Parser = struct {
     allocator: Allocator,
     previous: Token,
     current: Token,
-    hadError: bool,
-    panicMode: bool,
     scanner: ?Scanner = null,
     compiler: ?*Compiler = null,
     vm: ?*VM = null,
+    reporter: *Reporter,
 
-    pub fn init(allocator: Allocator, compiler: *Compiler, vm: *VM) Parser {
-        return .{ .allocator = allocator, .compiler = compiler, .vm = vm, .current = undefined, .previous = undefined, .hadError = false, .panicMode = false };
+    pub fn init(allocator: Allocator, compiler: *Compiler, vm: *VM, reporter: *Reporter) Parser {
+        return .{ .allocator = allocator, .compiler = compiler, .vm = vm, .reporter = reporter, .current = undefined, .previous = undefined };
     }
 
     pub fn parse(self: *Self, source: []const u8) void {
@@ -69,24 +70,7 @@ pub const Parser = struct {
     }
 
     fn report(self: *Self, token: *Token, message: []const u8) !void {
-        if (self.panicMode) return;
-        self.panicMode = true;
-
-        try shared.logger.err("Chyba: ", .{});
-        try shared.logger.err("{s} ", .{message});
-
-        switch (token.type) {
-            .eof => {
-                try shared.logger.err("na konci", .{});
-            },
-            .chyba => {},
-            else => {
-                try shared.logger.err("v '{s}'", .{token.lexeme});
-            },
-        }
-
-        try shared.logger.err(", řádka {}:{} \n", .{ token.line, token.column });
-        self.hadError = true;
+        self.reporter.report(ResultError.parser, token, message);
     }
 
     fn expression(self: *Self) void {

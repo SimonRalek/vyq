@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 
 const Val = @import("value.zig").Val;
 const ResultError = shared.ResultError;
+const Reporter = @import("reporter.zig");
 const Scanner = @import("scanner.zig").Scanner;
 const Parser = @import("parser.zig").Parser;
 const Token = @import("token.zig").Token;
@@ -18,25 +19,26 @@ pub const Compiler = struct {
     vm: *VM,
     parser: ?Parser = null,
     block: ?*Block = null,
+    reporter: Reporter,
 
     pub fn init(allocator: Allocator, vm: *VM) Self {
-        return .{ .allocator = allocator, .vm = vm };
+        return .{ .allocator = allocator, .vm = vm, .reporter = Reporter{ .allocator = allocator } };
     }
 
     pub fn deinit(self: *Self) void {
         self.emitOpCode(.op_return, self.parser.?.previous.line);
-        if (!self.parser.?.hadError) {
+        if (!self.reporter.had_error) {
             debug.disassembleBlock(self.getCurrentChunk(), "code");
         }
     }
 
     pub fn compile(self: *Self, source: []const u8, block: *Block) ResultError!void {
-        self.parser = Parser.init(self.allocator, self, self.vm);
+        self.parser = Parser.init(self.allocator, self, self.vm, &self.reporter);
         self.block = block;
         self.parser.?.parse(source);
 
         self.deinit();
-        if (self.parser.?.hadError) return ResultError.compile;
+        if (self.reporter.had_error) return ResultError.compile;
     }
 
     pub fn getCurrentChunk(self: *Self) *Block {
