@@ -252,7 +252,7 @@ fn testParser(source: []const u8, expected: f64) !void {
 }
 
 test "simple expressions" {
-    try testParser("1 + 2;", 3);
-    try testParser("7 - 2 * 3;", 1);
-    try testParser("-(4 + (-6)) * 10 /5;", 4);
+    try testParser("1 + 2", 3);
+    try testParser("7 - 2 * 3", 1);
+    try testParser("-(4 + (-6)) * 10 / 5", 4);
 }
