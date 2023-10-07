@@ -2,12 +2,14 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const Val = @import("value.zig").Val;
+const _val = @import("value.zig");
+const Val = _val.Val;
 const Block = @import("block.zig").Block;
 const ResultError = @import("shared.zig").ResultError;
 const Compiler = @import("compiler.zig").Compiler;
+const Object = _val.Object;
 
-const BinaryOp = enum { add, sub, mult, div, greater, less, bit_and, bit_or, bit_xor };
+const BinaryOp = enum { sub, mult, div, greater, less, bit_and, bit_or, bit_xor };
 const ShiftOp = enum { left, right };
 
 pub const VirtualMachine = struct {
@@ -18,21 +20,32 @@ pub const VirtualMachine = struct {
     stack: [256]Val = undefined,
     stack_top: usize,
 
+    objects: ?*Object = null,
+
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator, .ip = 0, .stack_top = 0 };
+        return .{ .allocator = allocator, .ip = 0, .stack_top = 0, .objects = null };
     }
 
     pub fn deinit(self: *Self) void {
-        self.block.deinit();
+        self.deinitObjs();
+    }
+
+    fn deinitObjs(self: *Self) void {
+        var obj = self.objects;
+        while (obj) |curr| {
+            const next = curr.next;
+            curr.deinit(curr, self);
+            obj = next;
+        }
     }
 
     pub fn interpret(self: *Self, source: []const u8) ResultError!void {
         var block = Block.init(self.allocator);
         defer block.deinit();
 
-        var compiler = Compiler.init(self.allocator);
+        var compiler = Compiler.init(self.allocator, self);
         compiler.compile(source, &block) catch return ResultError.compile;
 
         self.block = &block;
@@ -54,7 +67,7 @@ pub const VirtualMachine = struct {
                 .op_ne => self.push(Val{ .boolean = false }),
                 .op_nic => self.push(Val.nic),
 
-                .op_add => self.binary(.add),
+                .op_add => self.add(),
                 .op_sub => self.binary(.sub),
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
@@ -118,6 +131,37 @@ pub const VirtualMachine = struct {
         return val == .nic or (val == .boolean and !val.boolean);
     }
 
+    inline fn concat(self: *Self) void {
+        const b = self.pop().obj;
+        const a = self.pop().obj;
+        defer {
+            a.deinit(a, self);
+            b.deinit(b, self);
+        }
+
+        const new = std.mem.concat(self.allocator, u8, &.{ a.toString().repre, b.toString().repre }) catch {
+            @panic("Nedostatečné množství paměti");
+            // todo
+        };
+
+        const val = Val{ .obj = Object.String.take(self, new) };
+        self.push(val);
+    }
+
+    inline fn add(self: *Self) ResultError!void {
+        if (self.peek(0) == .number and self.peek(1) == .number) {
+            const b = self.pop().number;
+            const a = self.pop().number;
+
+            self.push(Val{ .number = a + b });
+        } else if (self.peek(0) == .obj and self.peek(1) == .obj) {
+            self.concat();
+        } else {
+            self.runtimeErr("", .{});
+            return ResultError.runtime;
+        }
+    }
+
     inline fn binary(self: *Self, operation: BinaryOp) ResultError!void {
         if (self.peek(0) != .number or self.peek(1) != .number) {
             std.debug.print("runtime error", .{});
@@ -129,7 +173,6 @@ pub const VirtualMachine = struct {
         const a = self.pop().number;
 
         const result = switch (operation) {
-            .add => a + b,
             .sub => a - b,
             .mult => a * b,
             .div => a / b,

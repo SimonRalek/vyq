@@ -10,17 +10,19 @@ const Scanner = @import("scanner.zig").Scanner;
 const Parser = @import("parser.zig").Parser;
 const Token = @import("token.zig").Token;
 const Block = @import("block.zig").Block;
+const VM = @import("virtualmachine.zig").VirtualMachine;
 
 pub const Compiler = struct {
     const Self = @This();
 
     allocator: Allocator,
+    vm: *VM,
     parser: ?Parser = null,
     block: ?*Block = null,
     reporter: Reporter,
 
-    pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator, .reporter = Reporter{ .allocator = allocator } };
+    pub fn init(allocator: Allocator, vm: *VM) Self {
+        return .{ .allocator = allocator, .vm = vm, .reporter = Reporter{ .allocator = allocator } };
     }
 
     pub fn deinit(self: *Self) void {
@@ -31,7 +33,7 @@ pub const Compiler = struct {
     }
 
     pub fn compile(self: *Self, source: []const u8, block: *Block) ResultError!void {
-        self.parser = Parser.init(self.allocator, self, &self.reporter);
+        self.parser = Parser.init(self.allocator, self, self.vm, &self.reporter);
         self.block = block;
         self.parser.?.parse(source);
 
