@@ -79,6 +79,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     vm.interpret(source) catch {
         std.debug.print("err\n", .{}); // TODO
     };
+    defer vm.deinit();
 }
 
 fn arguments() !void {

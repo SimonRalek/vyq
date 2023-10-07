@@ -38,7 +38,7 @@ pub const Parser = struct {
         self.scanner = Scanner.init(source);
         self.advance();
         self.expression();
-        self.eat(.semicolon, "Očekávaný konec souboru");
+        self.eat(.eof, "Očekávaný konec souboru");
     }
 
     fn advance(self: *Self) void {

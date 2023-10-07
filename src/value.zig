@@ -42,18 +42,20 @@ pub const Object = struct {
     const ObjectType = enum { string };
 
     type: ObjectType,
-    deinit: ?DeinitFn,
+    deinit: DeinitFn,
+    next: ?*Object = null,
 
-    pub fn alloc(vm: *VM, comptime T: type, obj_type: Object.ObjectType) *Object {
-        const descendent = vm.allocator.create(T);
+    pub fn alloc(vm: *VM, comptime T: type, obj_type: Object.ObjectType) *T {
+        const descendent = vm.allocator.create(T) catch {
+            @panic("");
+        };
 
-        descendent.obj = .{ .type = obj_type };
+        descendent.obj = .{ .type = obj_type, .deinit = T.deinit };
 
-        return &descendent.obj;
-    }
+        descendent.obj.next = vm.objects;
+        vm.objects = &descendent.obj;
 
-    pub fn deinit(self: *Object, vm: *VM) void {
-        self.deinit(self, vm);
+        return descendent;
     }
 
     pub fn print(self: *const Object) !void {
@@ -77,9 +79,7 @@ pub const Object = struct {
         repre: []const u8,
 
         fn alloc(vm: *VM, buff: []const u8) *Object {
-            const string: *Self = vm.allocator.create(Self) catch {
-                std.process.exit(71);
-            };
+            const string = Object.alloc(vm, Self, .string);
 
             string.repre = buff;
             string.obj = .{ .type = .string, .deinit = Self.deinit };

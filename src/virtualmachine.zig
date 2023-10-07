@@ -20,14 +20,25 @@ pub const VirtualMachine = struct {
     stack: [256]Val = undefined,
     stack_top: usize,
 
+    objects: ?*Object = null,
+
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator, .ip = 0, .stack_top = 0 };
+        return .{ .allocator = allocator, .ip = 0, .stack_top = 0, .objects = null };
     }
 
     pub fn deinit(self: *Self) void {
-        self.block.deinit();
+        self.deinitObjs();
+    }
+
+    fn deinitObjs(self: *Self) void {
+        var obj = self.objects;
+        while (obj) |curr| {
+            const next = curr.next;
+            curr.deinit(curr, self);
+            obj = next;
+        }
     }
 
     pub fn interpret(self: *Self, source: []const u8) ResultError!void {
@@ -121,10 +132,14 @@ pub const VirtualMachine = struct {
     }
 
     inline fn concat(self: *Self) void {
-        const b = self.pop().obj.toString().repre;
-        const a = self.pop().obj.toString().repre;
+        const b = self.pop().obj;
+        const a = self.pop().obj;
+        defer {
+            a.deinit(a, self);
+            b.deinit(b, self);
+        }
 
-        const new = std.mem.concat(self.allocator, u8, &.{ a, b }) catch {
+        const new = std.mem.concat(self.allocator, u8, &.{ a.toString().repre, b.toString().repre }) catch {
             @panic("Nedostatečné množství paměti");
             // todo
         };
