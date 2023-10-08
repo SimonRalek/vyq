@@ -9,7 +9,7 @@ const Val = @import("value.zig").Val;
 const Token = @import("token.zig").Token;
 const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
-const Compiler = @import("compiler.zig").Compiler;
+const Emitter = @import("emitter.zig").Emitter;
 const Reporter = @import("reporter.zig");
 const Object = @import("value.zig").Object;
 
@@ -26,12 +26,12 @@ pub const Parser = struct {
     previous: Token,
     current: Token,
     scanner: ?Scanner = null,
-    compiler: ?*Compiler = null,
+    emitter: ?*Emitter = null,
     vm: ?*VM = null,
     reporter: *Reporter,
 
-    pub fn init(allocator: Allocator, compiler: *Compiler, vm: *VM, reporter: *Reporter) Parser {
-        return .{ .allocator = allocator, .compiler = compiler, .vm = vm, .reporter = reporter, .current = undefined, .previous = undefined };
+    pub fn init(allocator: Allocator, emitter: *Emitter, vm: *VM, reporter: *Reporter) Parser {
+        return .{ .allocator = allocator, .emitter = emitter, .vm = vm, .reporter = reporter, .current = undefined, .previous = undefined };
     }
 
     pub fn parse(self: *Self, source: []const u8) void {
@@ -76,7 +76,7 @@ pub const Parser = struct {
     }
 
     fn emitOpCode(self: *Self, op_code: Block.OpCode) void {
-        self.compiler.?.emitOpCode(op_code, self.previous.line);
+        self.emitter.?.emitOpCode(op_code, self.previous.line);
     }
 
     fn report(self: *Self, token: *Token, message: []const u8) !void {
@@ -121,29 +121,49 @@ pub const Parser = struct {
         self.defineVar(glob);
     }
 
+    fn constDeclaration(self: *Self) !void {
+        const glob = try self.parseVar("");
+
+        if (self.match(.assign)) {
+            self.expression();
+        } else {
+            // TODO warn
+            self.emitOpCode(.op_nic);
+        }
+
+        self.eat(.semicolon, "");
+
+        self.defineConst(glob);
+    }
+
     fn defineVar(self: *Self, glob: u8) void {
-        return self.compiler.?.emitOpCodes(.op_define_global, glob, self.previous.line);
+        return self.emitter.?.emitOpCodes(.op_def_glob_var, glob, self.previous.line);
+    }
+
+    fn defineConst(self: *Self, glob: u8) void {
+        return self.emitter.?.emitOpCodes(.op_def_glob_const, glob, self.previous.line);
     }
 
     fn parseVar(self: *Self, message: []const u8) !u8 {
         self.eat(.identifier, message);
         const token = self.previous;
-        return self.compiler.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+        return self.emitter.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
     }
 
     fn variable(self: *Self, canAssign: bool) !void {
+        self.advance();
         const token = &self.previous;
         try self.namedVar(token, canAssign);
     }
 
     fn namedVar(self: *Self, token: *Token, canAssign: bool) !void {
-        const arg = try self.compiler.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+        const arg = try self.emitter.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
 
         if (canAssign and self.match(.assign)) {
             self.expression();
-            self.compiler.?.emitOpCodes(.op_set_global, arg, self.previous.line);
+            self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.line);
         } else {
-            self.compiler.?.emitOpCodes(.op_get_global, arg, self.previous.line);
+            self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.line);
         }
     }
 
@@ -187,10 +207,10 @@ pub const Parser = struct {
         self.parsePrecedence(.unary);
 
         switch (op_type) {
-            .minus => self.compiler.?.emitOpCode(.op_negate, self.previous.line),
-            .bang => self.compiler.?.emitOpCode(.op_not, self.previous.line),
+            .minus => self.emitter.?.emitOpCode(.op_negate, self.previous.line),
+            .bang => self.emitter.?.emitOpCode(.op_not, self.previous.line),
             .bw_not => {
-                self.compiler.?.emitOpCode(.op_bit_not, self.previous.line);
+                self.emitter.?.emitOpCode(.op_bit_not, self.previous.line);
             },
             else => unreachable,
         }
@@ -268,7 +288,7 @@ pub const Parser = struct {
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
         const converted: std.fmt.ParseFloatError!f64 = std.fmt.parseFloat(f64, buff);
         if (converted) |value| {
-            try self.compiler.?.emitValue(Val{ .number = value }, self.previous.line);
+            try self.emitter.?.emitValue(Val{ .number = value }, self.previous.line);
         } else |err| {
             try shared.logger.err("Nepovedlo se cislo zpracovat: {}", .{err});
         }
@@ -281,14 +301,14 @@ pub const Parser = struct {
             // reporter
             break :blk 0;
         };
-        try self.compiler.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
+        try self.emitter.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
     }
 
     fn string(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
         const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
-        try self.compiler.?.emitValue(Object.String.copy(self.vm.?, source).val(), self.previous.line);
+        try self.emitter.?.emitValue(Object.String.copy(self.vm.?, source).val(), self.previous.line);
     }
 
     fn literal(self: *Self, canAssign: bool) !void {
@@ -297,9 +317,9 @@ pub const Parser = struct {
         const line = self.previous.line;
 
         switch (self.previous.type) {
-            .ano => self.compiler.?.emitOpCode(.op_ano, line),
-            .ne => self.compiler.?.emitOpCode(.op_ne, line),
-            .nic => self.compiler.?.emitOpCode(.op_nic, line),
+            .ano => self.emitter.?.emitOpCode(.op_ano, line),
+            .ne => self.emitter.?.emitOpCode(.op_ne, line),
+            .nic => self.emitter.?.emitOpCode(.op_nic, line),
             else => unreachable,
         }
     }
@@ -350,13 +370,14 @@ pub const Parser = struct {
             .bw_and, .bw_or, .bw_xor => .{ .infix = Parser.binary, .precedence = .bit },
             .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
-            .identifier => .{ .prefix = Parser.variable },
+            .dot => .{ .prefix = Parser.variable },
+            .identifier => {
+                shared.stdout.print("Neznámý token - mysleli jste .identifier?\n", .{}) catch {};
+                std.process.exit(70);
+            }, // TODO
             .semicolon, .eof => .{},
 
-            else => {
-                shared.stdout.print("{}", .{t_type}) catch {};
-                std.process.exit(10);
-            },
+            else => unreachable,
         };
     }
 };

@@ -12,7 +12,7 @@ const Token = @import("token.zig").Token;
 const Block = @import("block.zig").Block;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 
-pub const Compiler = struct {
+pub const Emitter = struct {
     const Self = @This();
 
     allocator: Allocator,
@@ -61,7 +61,7 @@ pub const Compiler = struct {
     pub fn makeValue(self: *Self, val: Val) !u8 {
         const value = try self.getCurrentChunk().addValue(val);
         if (value > 255) {
-            std.debug.print("", .{}); //TODO
+            // TODO
             return 0;
         }
 

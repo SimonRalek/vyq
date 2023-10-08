@@ -33,9 +33,10 @@ pub const Block = struct {
         op_return,
 
         op_print,
-        op_define_global,
-        op_get_global,
-        op_set_global,
+        op_def_glob_var,
+        op_def_glob_const,
+        op_get_glob,
+        op_set_glob,
         op_pop,
     };
 

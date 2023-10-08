@@ -1,7 +1,6 @@
 const std = @import("std");
 const shared = @import("shared.zig");
 
-const Compiler = @import("compiler.zig").Compiler;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 
 pub const Val = union(enum) {
@@ -86,10 +85,17 @@ pub const Object = struct {
             string.repre = buff;
             string.obj = .{ .type = .string, .deinit = Self.deinit };
 
+            vm.strings.put(buff, string) catch {};
+
             return &string.obj;
         }
 
         pub fn copy(vm: *VM, chars: []const u8) *Object {
+            const interned_string = vm.strings.get(chars);
+            if (interned_string) |string| {
+                return &string.obj;
+            }
+
             const buff = vm.allocator.alloc(u8, chars.len) catch {
                 std.process.exit(71);
             };
