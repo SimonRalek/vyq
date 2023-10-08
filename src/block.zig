@@ -31,6 +31,11 @@ pub const Block = struct {
         op_mult,
         op_div,
         op_return,
+
+        op_print,
+        op_define_global,
+        op_get_global,
+        op_pop,
     };
 
     code: ArrayList(u8),

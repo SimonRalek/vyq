@@ -26,9 +26,11 @@ pub const Val = union(enum) {
     }
 
     pub fn print(self: Self) void {
-        if (self == .number) shared.stdout.print("value: {d}\n", .{self.number}) catch {};
+        if (self == .number) shared.stdout.print("{d}\n", .{self.number}) catch {};
 
-        if (self == .boolean) shared.stdout.print("{}\n", .{self.boolean}) catch {};
+        if (self == .boolean) {
+            (if (self.boolean) shared.stdout.print("ano\n", .{}) else shared.stdout.print("ne\n", .{})) catch {};
+        }
 
         if (self == .nic) shared.stdout.print("nic\n", .{}) catch {};
 
@@ -58,7 +60,7 @@ pub const Object = struct {
         return descendent;
     }
 
-    pub fn print(self: *const Object) !void {
+    pub fn print(self: *Object) !void {
         switch (self.type) {
             .string => try shared.stdout.print("{s}\n", .{self.toString().repre}),
         }
@@ -68,7 +70,7 @@ pub const Object = struct {
         return Val{ .obj = self };
     }
 
-    pub fn toString(self: *const Object) *const String {
+    pub fn toString(self: *Object) *String {
         return @fieldParentPtr(String, "obj", self);
     }
 

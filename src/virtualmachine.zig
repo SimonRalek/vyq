@@ -19,17 +19,19 @@ pub const VirtualMachine = struct {
     ip: usize,
     stack: [256]Val = undefined,
     stack_top: usize,
+    globals: std.AutoHashMap(*Object.String, Val),
 
     objects: ?*Object = null,
 
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator, .ip = 0, .stack_top = 0, .objects = null };
+        return .{ .allocator = allocator, .globals = std.AutoHashMap(*Object.String, Val).init(allocator), .ip = 0, .stack_top = 0, .objects = null };
     }
 
     pub fn deinit(self: *Self) void {
         self.deinitObjs();
+        self.globals.deinit();
     }
 
     fn deinitObjs(self: *Self) void {
@@ -102,6 +104,22 @@ pub const VirtualMachine = struct {
                     self.push(Val{ .number = result });
                 },
 
+                .op_print => self.pop().print(),
+                .op_pop => _ = self.pop(),
+                .op_get_global => {
+                    const name = self.readValue().obj.toString();
+                    if (self.globals.contains(name)) {
+                        self.runtimeErr("", .{});
+                        return ResultError.runtime;
+                    }
+                    self.push(self.globals.get(name).?);
+                },
+                .op_define_global => {
+                    const name = self.readValue().obj.toString();
+                    self.globals.put(name, self.peek(0)) catch return ResultError.runtime;
+                    _ = self.pop();
+                },
+
                 .op_return => return,
             };
         }
@@ -110,7 +128,6 @@ pub const VirtualMachine = struct {
     fn push(self: *Self, val: Val) void {
         defer self.stack_top += 1;
         self.stack[self.stack_top] = val;
-        val.print();
     }
 
     fn pop(self: *Self) Val {

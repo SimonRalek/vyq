@@ -27,7 +27,7 @@ pub const Compiler = struct {
 
     pub fn deinit(self: *Self) void {
         self.emitOpCode(.op_return, self.parser.?.previous.line);
-        if (!self.reporter.had_error) {
+        if (!self.reporter.had_error and debug.debugging) {
             debug.disassembleBlock(self.getCurrentChunk(), "code");
         }
     }

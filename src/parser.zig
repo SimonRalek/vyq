@@ -37,8 +37,10 @@ pub const Parser = struct {
     pub fn parse(self: *Self, source: []const u8) void {
         self.scanner = Scanner.init(source);
         self.advance();
-        self.expression();
-        self.eat(.eof, "Očekávaný konec souboru");
+
+        while (!self.match(.eof)) {
+            self.declaration();
+        }
     }
 
     fn advance(self: *Self) void {
@@ -61,6 +63,14 @@ pub const Parser = struct {
         self.report(&self.previous, message) catch {};
     }
 
+    fn match(self: *Self, expected: Token.Type) bool {
+        const result = self.check(expected);
+        defer {
+            if (result) self.advance();
+        }
+        return result;
+    }
+
     fn check(self: *Self, expected: Token.Type) bool {
         return expected == self.current.type;
     }
@@ -73,8 +83,81 @@ pub const Parser = struct {
         self.reporter.report(ResultError.parser, token, message);
     }
 
+    fn declaration(self: *Self) void {
+        if (self.match(.prm)) {
+            self.variableDeclaration() catch {};
+        } else {
+            self.statement();
+        }
+
+        if (self.reporter.panic_mode) self.synchronize();
+    }
+
     fn expression(self: *Self) void {
         self.parsePrecedence(.assign);
+    }
+
+    fn statement(self: *Self) void {
+        if (self.match(.tiskni)) {
+            self.printStmt();
+        } else {
+            self.exprStmt();
+        }
+    }
+
+    fn variableDeclaration(self: *Self) !void {
+        const glob = try self.parseVar("");
+
+        if (self.match(.equal)) {
+            self.expression();
+        } else {
+            self.emitOpCode(.op_nic);
+        }
+
+        self.eat(.semicolon, "");
+
+        self.defineVar(glob);
+    }
+
+    fn defineVar(self: *Self, glob: u8) void {
+        return self.compiler.?.emitOpCodes(.op_define_global, glob, self.previous.line);
+    }
+
+    fn parseVar(self: *Self, message: []const u8) !u8 {
+        self.eat(.identifier, message);
+        const token = self.previous;
+        return self.compiler.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+    }
+
+    fn variable(self: *Self) !void {
+        const token = &self.previous;
+        const arg = try self.compiler.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+        self.compiler.?.emitOpCodes(.op_get_global, arg, token.line);
+    }
+
+    fn printStmt(self: *Self) void {
+        self.expression();
+        self.eat(.semicolon, "Očekávaná ';' za ");
+        self.emitOpCode(.op_print);
+    }
+
+    fn exprStmt(self: *Self) void {
+        self.expression();
+        self.eat(.semicolon, "");
+        self.emitOpCode(.op_pop);
+    }
+
+    fn synchronize(self: *Self) void {
+        self.reporter.panic_mode = false;
+
+        while (self.current.type != .eof) {
+            if (self.previous.type == .semicolon) return;
+            switch (self.current.type) {
+                .trida, .funkce, .prm, .opakuj, .pokud, .dokud, .tiskni, .vrat => return,
+                else => {},
+            }
+            self.advance();
+        }
     }
 
     fn group(self: *Self) !void {
@@ -236,6 +319,7 @@ pub const Parser = struct {
             .bw_and, .bw_or, .bw_xor => .{ .infix = Parser.binary, .precedence = .bit },
             .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
+            .identifier => .{ .prefix = Parser.variable },
             .semicolon, .eof => .{},
 
             else => unreachable,
@@ -252,7 +336,7 @@ fn testParser(source: []const u8, expected: f64) !void {
 }
 
 test "simple expressions" {
-    try testParser("1 + 2", 3);
-    try testParser("7 - 2 * 3", 1);
-    try testParser("-(4 + (-6)) * 10 / 5", 4);
+    try testParser("1 + 2;", 3);
+    try testParser("7 - 2 * 3;", 1);
+    try testParser("-(4 + (-6)) * 10 /5;", 4);
 }
