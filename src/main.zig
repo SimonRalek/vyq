@@ -6,8 +6,6 @@ const shared = @import("shared.zig");
 
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
-const Compiler = @import("compiler.zig").Compiler;
-const Parser = @import("parser.zig").Parser;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 const Block = @import("block.zig").Block;
 
@@ -31,9 +29,9 @@ pub fn main() !void {
     try arguments();
     var vm = VM.init(allocator);
 
-    try switch (args.len) {
-        1 => repl(allocator, &vm),
-        2 => runFile(allocator, args[1], &vm),
+    switch (args.len) {
+        1 => repl(allocator, &vm) catch {},
+        2 => runFile(allocator, args[1], &vm) catch {},
         else => try shared.logger.err(
             \\Chyba: Neznámý počet argumentů
             \\
@@ -41,7 +39,7 @@ pub fn main() !void {
             \\> vyq [filepath] [argumenty]
             \\
         , .{}),
-    };
+    }
 }
 
 fn repl(allocator: Allocator, vm: *VM) !void {
@@ -62,7 +60,10 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         }
         const source = buf[0..input.len];
         // TODO defer?
-        vm.interpret(source) catch {};
+        vm.interpret(source) catch {
+            vm.deinit();
+            return;
+        };
     }
 }
 
@@ -76,9 +77,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     };
     defer allocator.free(source);
 
-    vm.interpret(source) catch {
-        std.debug.print("err\n", .{}); // TODO
-    };
+    vm.interpret(source) catch {};
     defer vm.deinit();
 }
 

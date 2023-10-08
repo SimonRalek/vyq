@@ -1,7 +1,6 @@
 const std = @import("std");
 const shared = @import("shared.zig");
 
-const Compiler = @import("compiler.zig").Compiler;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 
 pub const Val = union(enum) {
@@ -26,9 +25,11 @@ pub const Val = union(enum) {
     }
 
     pub fn print(self: Self) void {
-        if (self == .number) shared.stdout.print("value: {d}\n", .{self.number}) catch {};
+        if (self == .number) shared.stdout.print("{d}\n", .{self.number}) catch {};
 
-        if (self == .boolean) shared.stdout.print("{}\n", .{self.boolean}) catch {};
+        if (self == .boolean) {
+            (if (self.boolean) shared.stdout.print("ano\n", .{}) else shared.stdout.print("ne\n", .{})) catch {};
+        }
 
         if (self == .nic) shared.stdout.print("nic\n", .{}) catch {};
 
@@ -58,7 +59,7 @@ pub const Object = struct {
         return descendent;
     }
 
-    pub fn print(self: *const Object) !void {
+    pub fn print(self: *Object) !void {
         switch (self.type) {
             .string => try shared.stdout.print("{s}\n", .{self.toString().repre}),
         }
@@ -68,7 +69,7 @@ pub const Object = struct {
         return Val{ .obj = self };
     }
 
-    pub fn toString(self: *const Object) *const String {
+    pub fn toString(self: *Object) *String {
         return @fieldParentPtr(String, "obj", self);
     }
 
@@ -84,10 +85,17 @@ pub const Object = struct {
             string.repre = buff;
             string.obj = .{ .type = .string, .deinit = Self.deinit };
 
+            vm.strings.put(buff, string) catch {};
+
             return &string.obj;
         }
 
         pub fn copy(vm: *VM, chars: []const u8) *Object {
+            const interned_string = vm.strings.get(chars);
+            if (interned_string) |string| {
+                return &string.obj;
+            }
+
             const buff = vm.allocator.alloc(u8, chars.len) catch {
                 std.process.exit(71);
             };

@@ -9,13 +9,13 @@ const Val = @import("value.zig").Val;
 const Token = @import("token.zig").Token;
 const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
-const Compiler = @import("compiler.zig").Compiler;
+const Emitter = @import("emitter.zig").Emitter;
 const Reporter = @import("reporter.zig");
 const Object = @import("value.zig").Object;
 
-const Precedence = enum(u8) { none, assign, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
+const Precedence = enum(u8) { none, assignment, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
 
-const ParseFn = *const fn (self: *Parser) anyerror!void;
+const ParseFn = *const fn (self: *Parser, canAssign: bool) anyerror!void;
 
 const ParseRule = struct { infix: ?ParseFn = null, prefix: ?ParseFn = null, precedence: Precedence = .none };
 
@@ -26,19 +26,21 @@ pub const Parser = struct {
     previous: Token,
     current: Token,
     scanner: ?Scanner = null,
-    compiler: ?*Compiler = null,
+    emitter: ?*Emitter = null,
     vm: ?*VM = null,
     reporter: *Reporter,
 
-    pub fn init(allocator: Allocator, compiler: *Compiler, vm: *VM, reporter: *Reporter) Parser {
-        return .{ .allocator = allocator, .compiler = compiler, .vm = vm, .reporter = reporter, .current = undefined, .previous = undefined };
+    pub fn init(allocator: Allocator, emitter: *Emitter, vm: *VM, reporter: *Reporter) Parser {
+        return .{ .allocator = allocator, .emitter = emitter, .vm = vm, .reporter = reporter, .current = undefined, .previous = undefined };
     }
 
     pub fn parse(self: *Self, source: []const u8) void {
         self.scanner = Scanner.init(source);
         self.advance();
-        self.expression();
-        self.eat(.eof, "Očekávaný konec souboru");
+
+        while (!self.match(.eof)) {
+            self.declaration();
+        }
     }
 
     fn advance(self: *Self) void {
@@ -61,43 +63,162 @@ pub const Parser = struct {
         self.report(&self.previous, message) catch {};
     }
 
+    fn match(self: *Self, expected: Token.Type) bool {
+        const result = self.check(expected);
+        defer {
+            if (result) self.advance();
+        }
+        return result;
+    }
+
     fn check(self: *Self, expected: Token.Type) bool {
         return expected == self.current.type;
     }
 
     fn emitOpCode(self: *Self, op_code: Block.OpCode) void {
-        self.compiler.?.emitOpCode(op_code, self.previous.line);
+        self.emitter.?.emitOpCode(op_code, self.previous.line);
     }
 
     fn report(self: *Self, token: *Token, message: []const u8) !void {
         self.reporter.report(ResultError.parser, token, message);
     }
 
-    fn expression(self: *Self) void {
-        self.parsePrecedence(.assign);
+    fn declaration(self: *Self) void {
+        if (self.match(.prm)) {
+            self.variableDeclaration() catch {};
+        } else if (self.match(.konst)) {
+            self.constDeclaration() catch {};
+        } else {
+            self.statement();
+        }
+
+        if (self.reporter.panic_mode) self.synchronize();
     }
 
-    fn group(self: *Self) !void {
+    fn expression(self: *Self) void {
+        self.parsePrecedence(.assignment);
+    }
+
+    fn statement(self: *Self) void {
+        if (self.match(.tiskni)) {
+            self.printStmt();
+        } else {
+            self.exprStmt();
+        }
+    }
+
+    fn variableDeclaration(self: *Self) !void {
+        const glob = try self.parseVar("");
+
+        if (self.match(.assign)) {
+            self.expression();
+        } else {
+            self.emitOpCode(.op_nic);
+        }
+
+        self.eat(.semicolon, "");
+
+        self.defineVar(glob);
+    }
+
+    fn constDeclaration(self: *Self) !void {
+        const glob = try self.parseVar("");
+
+        if (self.match(.assign)) {
+            self.expression();
+        } else {
+            // TODO warn
+            self.emitOpCode(.op_nic);
+        }
+
+        self.eat(.semicolon, "");
+
+        self.defineConst(glob);
+    }
+
+    fn defineVar(self: *Self, glob: u8) void {
+        return self.emitter.?.emitOpCodes(.op_def_glob_var, glob, self.previous.line);
+    }
+
+    fn defineConst(self: *Self, glob: u8) void {
+        return self.emitter.?.emitOpCodes(.op_def_glob_const, glob, self.previous.line);
+    }
+
+    fn parseVar(self: *Self, message: []const u8) !u8 {
+        self.eat(.identifier, message);
+        const token = self.previous;
+        return self.emitter.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+    }
+
+    fn variable(self: *Self, canAssign: bool) !void {
+        self.advance();
+        const token = &self.previous;
+        try self.namedVar(token, canAssign);
+    }
+
+    fn namedVar(self: *Self, token: *Token, canAssign: bool) !void {
+        const arg = try self.emitter.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+
+        if (canAssign and self.match(.assign)) {
+            self.expression();
+            self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.line);
+        } else {
+            self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.line);
+        }
+    }
+
+    fn printStmt(self: *Self) void {
+        self.expression();
+        self.eat(.semicolon, "Očekávaná ';' za ");
+        self.emitOpCode(.op_print);
+    }
+
+    fn exprStmt(self: *Self) void {
+        self.expression();
+        self.eat(.semicolon, "");
+        self.emitOpCode(.op_pop);
+    }
+
+    fn synchronize(self: *Self) void {
+        self.reporter.panic_mode = false;
+
+        while (self.current.type != .eof) {
+            if (self.previous.type == .semicolon) return;
+            switch (self.current.type) {
+                .trida, .funkce, .prm, .opakuj, .pokud, .dokud, .tiskni, .vrat => return,
+                else => {},
+            }
+            self.advance();
+        }
+    }
+
+    fn group(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         self.expression();
         self.eat(.right_paren, "Ocekavana ')' zavorka nebyla nalezena");
     }
 
-    fn unary(self: *Self) !void {
+    fn unary(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const op_type = self.previous.type;
 
         self.parsePrecedence(.unary);
 
         switch (op_type) {
-            .minus => self.compiler.?.emitOpCode(.op_negate, self.previous.line),
-            .bang => self.compiler.?.emitOpCode(.op_not, self.previous.line),
+            .minus => self.emitter.?.emitOpCode(.op_negate, self.previous.line),
+            .bang => self.emitter.?.emitOpCode(.op_not, self.previous.line),
             .bw_not => {
-                self.compiler.?.emitOpCode(.op_bit_not, self.previous.line);
+                self.emitter.?.emitOpCode(.op_bit_not, self.previous.line);
             },
             else => unreachable,
         }
     }
 
-    fn binary(self: *Self) !void {
+    fn binary(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const op_type = self.previous.type;
         const rule = getRule(op_type);
 
@@ -158,39 +279,47 @@ pub const Parser = struct {
         }
     }
 
-    fn number(self: *Self) !void {
+    fn number(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
         const converted: std.fmt.ParseFloatError!f64 = std.fmt.parseFloat(f64, buff);
         if (converted) |value| {
-            try self.compiler.?.emitValue(Val{ .number = value }, self.previous.line);
+            try self.emitter.?.emitValue(Val{ .number = value }, self.previous.line);
         } else |err| {
             try shared.logger.err("Nepovedlo se cislo zpracovat: {}", .{err});
         }
     }
 
-    fn base(self: *Self) !void {
+    fn base(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch blk: {
             // reporter
             break :blk 0;
         };
-        try self.compiler.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
+        try self.emitter.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
     }
 
-    fn string(self: *Self) !void {
+    fn string(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
-        try self.compiler.?.emitValue(Object.String.copy(self.vm.?, source).val(), self.previous.line);
+        try self.emitter.?.emitValue(Object.String.copy(self.vm.?, source).val(), self.previous.line);
     }
 
-    fn literal(self: *Self) !void {
+    fn literal(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const line = self.previous.line;
 
         switch (self.previous.type) {
-            .ano => self.compiler.?.emitOpCode(.op_ano, line),
-            .ne => self.compiler.?.emitOpCode(.op_ne, line),
-            .nic => self.compiler.?.emitOpCode(.op_nic, line),
+            .ano => self.emitter.?.emitOpCode(.op_ano, line),
+            .ne => self.emitter.?.emitOpCode(.op_ne, line),
+            .nic => self.emitter.?.emitOpCode(.op_nic, line),
             else => unreachable,
         }
     }
@@ -202,11 +331,16 @@ pub const Parser = struct {
             return;
         };
 
-        prefix(self) catch {};
+        const canAssign = @intFromEnum(precedence) <= @intFromEnum(Precedence.assignment);
+        prefix(self, canAssign) catch {};
         while (@intFromEnum(precedence) <= @intFromEnum(getRule(self.current.type).precedence)) {
             self.advance();
             const infix = getRule(self.previous.type).infix orelse unreachable;
-            infix(self) catch {};
+            infix(self, canAssign) catch {};
+        }
+
+        if (canAssign and self.match(.assign)) {
+            self.report(&self.previous, "Invalid") catch {};
         }
     }
 
@@ -236,6 +370,11 @@ pub const Parser = struct {
             .bw_and, .bw_or, .bw_xor => .{ .infix = Parser.binary, .precedence = .bit },
             .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
+            .dot => .{ .prefix = Parser.variable },
+            .identifier => {
+                shared.stdout.print("Neznámý token - mysleli jste .identifier?\n", .{}) catch {};
+                std.process.exit(70);
+            }, // TODO
             .semicolon, .eof => .{},
 
             else => unreachable,
@@ -252,7 +391,7 @@ fn testParser(source: []const u8, expected: f64) !void {
 }
 
 test "simple expressions" {
-    try testParser("1 + 2", 3);
-    try testParser("7 - 2 * 3", 1);
-    try testParser("-(4 + (-6)) * 10 / 5", 4);
+    try testParser("1 + 2;", 3);
+    try testParser("7 - 2 * 3;", 1);
+    try testParser("-(4 + (-6)) * 10 /5;", 4);
 }

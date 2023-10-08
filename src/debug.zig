@@ -2,6 +2,7 @@ const std = @import("std");
 const _block = @import("block.zig");
 const Block = _block.Block;
 
+pub const debugging = false;
 pub const test_allocator = true;
 pub const allow_logging = true;
 
@@ -44,6 +45,12 @@ pub fn disassembleInstruction(block: *Block, offset: usize) usize {
         .op_shift_left => return simpleInstruction("op_shift_left", offset),
         .op_shift_right => return simpleInstruction("op_shift_right", offset),
         .op_bit_not => return simpleInstruction("op_bit_not", offset),
+        .op_print => return simpleInstruction("op_print", offset),
+        .op_def_glob_var => return simpleInstruction("op_define_global_var", offset),
+        .op_def_glob_const => return simpleInstruction("op_define_global_const", offset),
+        .op_get_glob => return simpleInstruction("op_get_global", offset),
+        .op_set_glob => return simpleInstruction("op_set_global", offset),
+        .op_pop => return simpleInstruction("op_pop", offset),
         .op_return => return simpleInstruction("op_return", offset),
         // else => {
         //     std.debug.print("Unknown opcode", .{});

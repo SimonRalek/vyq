@@ -1,4 +1,5 @@
 const std = @import("std");
+const shared = @import("shared.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -6,7 +7,8 @@ const _val = @import("value.zig");
 const Val = _val.Val;
 const Block = @import("block.zig").Block;
 const ResultError = @import("shared.zig").ResultError;
-const Compiler = @import("compiler.zig").Compiler;
+const Emitter = @import("emitter.zig").Emitter;
+const Storage = @import("storage.zig").Storage;
 const Object = _val.Object;
 
 const BinaryOp = enum { sub, mult, div, greater, less, bit_and, bit_or, bit_xor };
@@ -19,17 +21,21 @@ pub const VirtualMachine = struct {
     ip: usize,
     stack: [256]Val = undefined,
     stack_top: usize,
+    globals: std.StringHashMap(Storage),
+    strings: std.StringHashMap(*Object.String),
 
     objects: ?*Object = null,
 
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator, .ip = 0, .stack_top = 0, .objects = null };
+        return .{ .allocator = allocator, .globals = std.StringHashMap(Storage).init(allocator), .strings = std.StringHashMap(*Object.String).init(allocator), .ip = 0, .stack_top = 0, .objects = null };
     }
 
     pub fn deinit(self: *Self) void {
         self.deinitObjs();
+        self.globals.deinit();
+        self.strings.deinit();
     }
 
     fn deinitObjs(self: *Self) void {
@@ -45,8 +51,8 @@ pub const VirtualMachine = struct {
         var block = Block.init(self.allocator);
         defer block.deinit();
 
-        var compiler = Compiler.init(self.allocator, self);
-        compiler.compile(source, &block) catch return ResultError.compile;
+        var emitter = Emitter.init(self.allocator, self);
+        emitter.compile(source, &block) catch return ResultError.compile;
 
         self.block = &block;
         self.ip = 0;
@@ -102,6 +108,42 @@ pub const VirtualMachine = struct {
                     self.push(Val{ .number = result });
                 },
 
+                .op_print => self.pop().print(),
+                .op_pop => _ = self.pop(),
+                .op_get_glob => {
+                    const name = self.readValue().obj.toString();
+                    if (!self.globals.contains(name.repre)) {
+                        self.runtimeErr("", .{});
+                        return ResultError.runtime;
+                    }
+                    self.push(self.globals.get(name.repre).?.val);
+                },
+                .op_def_glob_var => {
+                    const name = self.readValue().obj.toString();
+                    self.globals.put(name.repre, Storage.init(.prm, self.peek(0))) catch return ResultError.runtime;
+                    _ = self.pop();
+                },
+                .op_set_glob => {
+                    const name = self.readValue().obj.toString();
+                    if (!self.globals.contains(name.repre)) {
+                        self.runtimeErr("Nedefinovana promenna {s}", .{name.repre});
+                        return ResultError.runtime;
+                    }
+
+                    if (self.globals.get(name.repre).?.type == .konst) {
+                        self.runtimeErr("Konstanty nelze změnit od inicializace - {s}", .{name.repre});
+                        return ResultError.runtime;
+                    }
+
+                    self.globals.put(name.repre, Storage.init(.prm, self.peek(0))) catch return ResultError.runtime;
+                },
+
+                .op_def_glob_const => {
+                    const name = self.readValue().obj.toString();
+                    self.globals.put(name.repre, Storage.init(.konst, self.peek(0))) catch return ResultError.runtime;
+                    _ = self.pop();
+                },
+
                 .op_return => return,
             };
         }
@@ -110,7 +152,6 @@ pub const VirtualMachine = struct {
     fn push(self: *Self, val: Val) void {
         defer self.stack_top += 1;
         self.stack[self.stack_top] = val;
-        val.print();
     }
 
     fn pop(self: *Self) Val {
@@ -236,9 +277,8 @@ pub const VirtualMachine = struct {
     }
 
     fn runtimeErr(self: *Self, comptime message: []const u8, args: anytype) void {
-        _ = args;
-        _ = message;
         _ = self;
+        shared.stdout.print(message ++ "\n", args) catch {};
         // reporter
     }
 };
