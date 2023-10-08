@@ -2,7 +2,7 @@ const std = @import("std");
 const _block = @import("block.zig");
 const Block = _block.Block;
 
-pub const debugging = true;
+pub const debugging = false;
 pub const test_allocator = true;
 pub const allow_logging = true;
 
@@ -48,6 +48,7 @@ pub fn disassembleInstruction(block: *Block, offset: usize) usize {
         .op_print => return simpleInstruction("op_print", offset),
         .op_define_global => return simpleInstruction("op_define_global", offset),
         .op_get_global => return simpleInstruction("op_get_global", offset),
+        .op_set_global => return simpleInstruction("op_set_global", offset),
         .op_pop => return simpleInstruction("op_pop", offset),
         .op_return => return simpleInstruction("op_return", offset),
         // else => {

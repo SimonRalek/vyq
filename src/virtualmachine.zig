@@ -19,14 +19,14 @@ pub const VirtualMachine = struct {
     ip: usize,
     stack: [256]Val = undefined,
     stack_top: usize,
-    globals: std.AutoHashMap(*Object.String, Val),
+    globals: std.StringHashMap(Val),
 
     objects: ?*Object = null,
 
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator, .globals = std.AutoHashMap(*Object.String, Val).init(allocator), .ip = 0, .stack_top = 0, .objects = null };
+        return .{ .allocator = allocator, .globals = std.StringHashMap(Val).init(allocator), .ip = 0, .stack_top = 0, .objects = null };
     }
 
     pub fn deinit(self: *Self) void {
@@ -108,16 +108,24 @@ pub const VirtualMachine = struct {
                 .op_pop => _ = self.pop(),
                 .op_get_global => {
                     const name = self.readValue().obj.toString();
-                    if (self.globals.contains(name)) {
+                    if (!self.globals.contains(name.repre)) {
                         self.runtimeErr("", .{});
                         return ResultError.runtime;
                     }
-                    self.push(self.globals.get(name).?);
+                    self.push(self.globals.get(name.repre).?);
                 },
                 .op_define_global => {
                     const name = self.readValue().obj.toString();
-                    self.globals.put(name, self.peek(0)) catch return ResultError.runtime;
+                    self.globals.put(name.repre, self.peek(0)) catch return ResultError.runtime;
                     _ = self.pop();
+                },
+                .op_set_global => {
+                    const name = self.readValue().obj.toString();
+                    if (!self.globals.contains(name.repre)) {
+                        self.runtimeErr("Nedefinovana promenna {s}", .{name.repre});
+                        return ResultError.runtime;
+                    }
+                    self.globals.put(name.repre, self.peek(0)) catch return ResultError.runtime;
                 },
 
                 .op_return => return,

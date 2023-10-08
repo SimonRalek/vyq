@@ -35,6 +35,7 @@ pub const Block = struct {
         op_print,
         op_define_global,
         op_get_global,
+        op_set_global,
         op_pop,
     };
 

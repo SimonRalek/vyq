@@ -13,9 +13,9 @@ const Compiler = @import("compiler.zig").Compiler;
 const Reporter = @import("reporter.zig");
 const Object = @import("value.zig").Object;
 
-const Precedence = enum(u8) { none, assign, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
+const Precedence = enum(u8) { none, assignment, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
 
-const ParseFn = *const fn (self: *Parser) anyerror!void;
+const ParseFn = *const fn (self: *Parser, canAssign: bool) anyerror!void;
 
 const ParseRule = struct { infix: ?ParseFn = null, prefix: ?ParseFn = null, precedence: Precedence = .none };
 
@@ -86,6 +86,8 @@ pub const Parser = struct {
     fn declaration(self: *Self) void {
         if (self.match(.prm)) {
             self.variableDeclaration() catch {};
+        } else if (self.match(.konst)) {
+            self.constDeclaration() catch {};
         } else {
             self.statement();
         }
@@ -94,7 +96,7 @@ pub const Parser = struct {
     }
 
     fn expression(self: *Self) void {
-        self.parsePrecedence(.assign);
+        self.parsePrecedence(.assignment);
     }
 
     fn statement(self: *Self) void {
@@ -108,7 +110,7 @@ pub const Parser = struct {
     fn variableDeclaration(self: *Self) !void {
         const glob = try self.parseVar("");
 
-        if (self.match(.equal)) {
+        if (self.match(.assign)) {
             self.expression();
         } else {
             self.emitOpCode(.op_nic);
@@ -129,10 +131,20 @@ pub const Parser = struct {
         return self.compiler.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
     }
 
-    fn variable(self: *Self) !void {
+    fn variable(self: *Self, canAssign: bool) !void {
         const token = &self.previous;
+        try self.namedVar(token, canAssign);
+    }
+
+    fn namedVar(self: *Self, token: *Token, canAssign: bool) !void {
         const arg = try self.compiler.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
-        self.compiler.?.emitOpCodes(.op_get_global, arg, token.line);
+
+        if (canAssign and self.match(.assign)) {
+            self.expression();
+            self.compiler.?.emitOpCodes(.op_set_global, arg, self.previous.line);
+        } else {
+            self.compiler.?.emitOpCodes(.op_get_global, arg, self.previous.line);
+        }
     }
 
     fn printStmt(self: *Self) void {
@@ -160,12 +172,16 @@ pub const Parser = struct {
         }
     }
 
-    fn group(self: *Self) !void {
+    fn group(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         self.expression();
         self.eat(.right_paren, "Ocekavana ')' zavorka nebyla nalezena");
     }
 
-    fn unary(self: *Self) !void {
+    fn unary(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const op_type = self.previous.type;
 
         self.parsePrecedence(.unary);
@@ -180,7 +196,9 @@ pub const Parser = struct {
         }
     }
 
-    fn binary(self: *Self) !void {
+    fn binary(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const op_type = self.previous.type;
         const rule = getRule(op_type);
 
@@ -241,7 +259,9 @@ pub const Parser = struct {
         }
     }
 
-    fn number(self: *Self) !void {
+    fn number(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
@@ -254,7 +274,9 @@ pub const Parser = struct {
         }
     }
 
-    fn base(self: *Self) !void {
+    fn base(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch blk: {
             // reporter
             break :blk 0;
@@ -262,12 +284,16 @@ pub const Parser = struct {
         try self.compiler.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
     }
 
-    fn string(self: *Self) !void {
+    fn string(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
         try self.compiler.?.emitValue(Object.String.copy(self.vm.?, source).val(), self.previous.line);
     }
 
-    fn literal(self: *Self) !void {
+    fn literal(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
         const line = self.previous.line;
 
         switch (self.previous.type) {
@@ -285,11 +311,16 @@ pub const Parser = struct {
             return;
         };
 
-        prefix(self) catch {};
+        const canAssign = @intFromEnum(precedence) <= @intFromEnum(Precedence.assignment);
+        prefix(self, canAssign) catch {};
         while (@intFromEnum(precedence) <= @intFromEnum(getRule(self.current.type).precedence)) {
             self.advance();
             const infix = getRule(self.previous.type).infix orelse unreachable;
-            infix(self) catch {};
+            infix(self, canAssign) catch {};
+        }
+
+        if (canAssign and self.match(.assign)) {
+            self.report(&self.previous, "Invalid") catch {};
         }
     }
 
@@ -322,7 +353,10 @@ pub const Parser = struct {
             .identifier => .{ .prefix = Parser.variable },
             .semicolon, .eof => .{},
 
-            else => unreachable,
+            else => {
+                shared.stdout.print("{}", .{t_type}) catch {};
+                std.process.exit(10);
+            },
         };
     }
 };
