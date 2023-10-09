@@ -51,7 +51,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
         try shared.stdout.print(">>> ", .{});
 
-        shared.stdin.streamUntilDelimiter(buf_stream.writer(), '\n', buf.len) catch {};
+        std.io.getStdIn().reader().streamUntilDelimiter(buf_stream.writer(), '\n', buf.len) catch {};
         const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
         if (input.len == buf.len) {
@@ -91,7 +91,7 @@ fn arguments() !void {
 
     var diag = clap.Diagnostic{};
     var res = clap.parse(clap.Help, &params, clap.parsers.default, .{ .diagnostic = &diag }) catch |err| {
-        diag.report(shared.stderr, err) catch {};
+        diag.report(shared.stdout, err) catch {};
         return err;
     };
     defer res.deinit();
