@@ -25,6 +25,14 @@ pub const Kind = enum {
             .hint => "Poznámka",
         };
     }
+
+    pub fn getColor(self: Self) u8 {
+        return switch (self) {
+            .err => 31,
+            .warn => 33,
+            .hint => 34,
+        };
+    }
 };
 
 pub const Item = struct { location: *Token, kind: Kind = .err, message: []const u8 };
@@ -39,7 +47,7 @@ pub const Report = struct {
     pub fn report(self: Self) !void {
         const item = self.items[0];
 
-        try shared.logger.err("{s}: ", .{item.kind.name()});
+        try shared.logger.err("\x1b[{}m{s}\x1b[m: ", .{ item.kind.getColor(), item.kind.name() });
         try shared.logger.err("{s} ", .{self.message});
 
         switch (item.location.type) {
@@ -48,22 +56,15 @@ pub const Report = struct {
             },
             .chyba => {},
             else => {
-                try shared.logger.err("v '{s}'", .{item.location.lexeme});
+                try shared.logger.err("v '{}'", .{std.zig.fmtEscapes(item.location.lexeme)});
             },
         }
 
         try shared.logger.err(", řádka {}:{} \n", .{ item.location.line, item.location.column });
-        // const first = self.items[0];
-        // _ = first;
-        //
-        // try shared.stdout.print("", .{});
-        //
-        // for (self.items) |item| {
-        //     _ = item;
-        // }
     }
 };
 
+/// Report při parsování
 pub fn report(self: *Reporter, err_type: ResultError, token: *Token, message: []const u8) void {
     if (self.panic_mode) {
         return;

@@ -3,31 +3,41 @@ const clap = @import("lib/zig-clap/clap.zig");
 
 const debug = @import("debug.zig");
 const shared = @import("shared.zig");
-
 const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 const Block = @import("block.zig").Block;
+const _benchmark = @import("utils/benchmark.zig");
+const BenchMark = _benchmark.BenchMark;
+const Timer = _benchmark.Timer;
 
 const File = std.fs.File;
 const Allocator = std.mem.Allocator;
 const SplitIterator = std.mem.SplitIterator;
 
+const GPA = std.heap.GeneralPurposeAllocator;
+const ArenaAlloc = std.heap.ArenaAllocator;
+
+/// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
-    var heap = if (debug.test_allocator)
-        std.heap.GeneralPurposeAllocator(.{}){}
-    else
-        std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer _ = heap.deinit();
+    var heap = getAllocatorType();
+    defer heap.deinit();
     const allocator = heap.allocator();
+
+    var vm = VM.init(allocator);
+
+    var bench: BenchMark = undefined;
+    var timer: *Timer = undefined;
+    if (debug.benchmark) {
+        bench = BenchMark.init(allocator);
+        timer = try bench.createMark("main");
+    }
 
     try shared.initLogger(allocator);
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
-
     try arguments();
-    var vm = VM.init(allocator);
 
     switch (args.len) {
         1 => repl(allocator, &vm) catch {},
@@ -40,10 +50,19 @@ pub fn main() !void {
             \\
         , .{}),
     }
+
+    if (debug.benchmark) {
+        timer.end();
+        try bench.printTimers();
+        defer {
+            bench.deinit();
+        }
+    }
 }
 
+/// Read-Eval-Print loop mod
 fn repl(allocator: Allocator, vm: *VM) !void {
-    _ = allocator;
+    _ = allocator; // TODO?
 
     while (true) {
         var buf: [256]u8 = undefined;
@@ -59,14 +78,12 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             continue;
         }
         const source = buf[0..input.len];
-        // TODO defer?
-        vm.interpret(source) catch {
-            vm.deinit();
-            return;
-        };
+        vm.interpret(source) catch {};
     }
+    defer vm.deinit();
 }
 
+/// Spustit program ze souboru
 fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     const source = std.fs.cwd().readFileAlloc(allocator, filename, 1_000_000) catch {
         try shared.logger.err(
@@ -81,6 +98,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     defer vm.deinit();
 }
 
+/// Parsování argumentů při spuštení programu
 fn arguments() !void {
     const params = comptime clap.parseParamsComptime(
         \\-h, --help             Zobraz pomoc a použití 
@@ -113,4 +131,12 @@ fn arguments() !void {
         , .{});
         std.process.exit(74);
     }
+}
+
+/// Získat podle debug modu přiřazený allocator
+fn getAllocatorType() if (debug.test_alloc) GPA(.{}) else ArenaAlloc {
+    return if (debug.test_alloc)
+        GPA(.{}){}
+    else
+        ArenaAlloc.init(std.heap.page_allocator);
 }

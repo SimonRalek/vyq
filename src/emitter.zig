@@ -21,10 +21,12 @@ pub const Emitter = struct {
     block: ?*Block = null,
     reporter: Reporter,
 
+    /// Inicializace Emitteru
     pub fn init(allocator: Allocator, vm: *VM) Self {
         return .{ .allocator = allocator, .vm = vm, .reporter = Reporter{ .allocator = allocator } };
     }
 
+    // Emit returnu a disassemble pokud debug mod
     pub fn deinit(self: *Self) void {
         self.emitOpCode(.op_return, self.parser.?.previous.line);
         if (!self.reporter.had_error and debug.debugging) {
@@ -32,6 +34,7 @@ pub const Emitter = struct {
         }
     }
 
+    // Kompilace
     pub fn compile(self: *Self, source: []const u8, block: *Block) ResultError!void {
         self.parser = Parser.init(self.allocator, self, self.vm, &self.reporter);
         self.block = block;
@@ -46,23 +49,25 @@ pub const Emitter = struct {
     }
 
     pub fn emitOpCode(self: *Self, op_code: Block.OpCode, line: u32) void {
-        self.getCurrentChunk().writeOpCode(op_code, line) catch {};
+        self.getCurrentChunk().writeOp(op_code, line) catch {};
     }
 
     pub fn emitValue(self: *Self, val: Val, line: u32) !void {
         self.emitOpCodes(.op_value, try self.makeValue(val), line);
     }
 
+    ///
     pub fn emitOpCodes(self: *Self, op1: Block.OpCode, op2: u8, line: u32) void {
-        self.getCurrentChunk().writeOpCode(op1, line) catch {};
-        self.getCurrentChunk().writeByte(op2, line) catch {};
+        self.getCurrentChunk().writeOp(op1, line) catch {};
+        self.getCurrentChunk().writeOpByte(op2, line) catch {};
     }
 
+    /// Přidání hodnoty do aktuálního bloku
     pub fn makeValue(self: *Self, val: Val) !u8 {
         const value = try self.getCurrentChunk().addValue(val);
         if (value > 255) {
             // TODO
-            return 0;
+            @panic("Overflow");
         }
 
         return value;

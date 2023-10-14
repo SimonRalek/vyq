@@ -1,4 +1,4 @@
 zig-cache/*
 zig-out/*
 todo.txt
-logs/*
+logs/log

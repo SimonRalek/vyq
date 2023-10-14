@@ -3,7 +3,8 @@ const _block = @import("block.zig");
 const Block = _block.Block;
 
 pub const debugging = false;
-pub const test_allocator = true;
+pub const benchmark = true;
+pub const test_alloc = false;
 pub const allow_logging = true;
 
 pub fn disassembleBlock(block: *Block, name: []const u8) void {
@@ -19,9 +20,9 @@ pub fn disassembleInstruction(block: *Block, offset: usize) usize {
     std.debug.print("{} ", .{offset});
 
     if (offset > 0 and block.*.lines.items[offset] == block.*.lines.items[offset - 1]) {
-        std.debug.print("| ", .{});
+        std.debug.print("|    ", .{});
     } else {
-        std.debug.print("{} ", .{block.*.lines.items[offset]});
+        std.debug.print("{:0>4} ", .{block.*.lines.items[offset]});
     }
 
     const instruction: Block.OpCode = @enumFromInt(block.*.code.items[offset]);
@@ -67,6 +68,6 @@ fn simpleInstruction(name: []const u8, offset: usize) usize {
 fn valueInstruction(name: []const u8, block: *Block, offset: usize) usize {
     var val = block.*.code.items[offset + 1];
     std.debug.print("{s} {} ", .{ name, val });
-    std.debug.print("{}\n", .{block.*.constants.items[val]});
+    std.debug.print("{}\n", .{block.*.values.items[val]});
     return offset + 2;
 }

@@ -4,6 +4,7 @@ const Val = @import("value.zig").Val;
 
 const storeType = enum { prm, konst };
 
+/// Ukládání hodnot, aby se dalo poznat jestli je to konstanta nebo proměnná
 pub const Storage = struct {
     const Self = @This();
 

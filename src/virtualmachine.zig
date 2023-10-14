@@ -28,16 +28,19 @@ pub const VirtualMachine = struct {
 
     allocator: Allocator,
 
+    /// Inicializace virtuální mašiny
     pub fn init(allocator: Allocator) Self {
         return .{ .allocator = allocator, .globals = std.StringHashMap(Storage).init(allocator), .strings = std.StringHashMap(*Object.String).init(allocator), .ip = 0, .stack_top = 0, .objects = null };
     }
 
+    /// "Free"nout objekty a listy
     pub fn deinit(self: *Self) void {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
     }
 
+    /// Projíždění objekt linked listu a free každý objekt
     fn deinitObjs(self: *Self) void {
         var obj = self.objects;
         while (obj) |curr| {
@@ -47,6 +50,7 @@ pub const VirtualMachine = struct {
         }
     }
 
+    /// Setup programu - spuštění kompilace a parsování
     pub fn interpret(self: *Self, source: []const u8) ResultError!void {
         var block = Block.init(self.allocator);
         defer block.deinit();
@@ -60,6 +64,7 @@ pub const VirtualMachine = struct {
         return self.run();
     }
 
+    /// Běh programu
     fn run(self: *Self) ResultError!void {
         while (true) {
             const instruction: Block.OpCode = @enumFromInt(self.readByte());
@@ -90,7 +95,7 @@ pub const VirtualMachine = struct {
                 .op_not => self.push(Val{ .boolean = isFalsey(self.pop()) }),
                 .op_negate => {
                     if (self.peek(0) != .number) {
-                        self.runtimeErr("", .{});
+                        self.runtimeErr("Negace nelze provést na nečíselné hodnotě", .{});
                         return ResultError.runtime;
                     }
                     const val = Val{ .number = -(self.pop().number) };
@@ -113,34 +118,40 @@ pub const VirtualMachine = struct {
                 .op_get_glob => {
                     const name = self.readValue().obj.toString();
                     if (!self.globals.contains(name.repre)) {
-                        self.runtimeErr("", .{});
+                        self.runtimeErr("Neexistující prvek", .{});
                         return ResultError.runtime;
                     }
                     self.push(self.globals.get(name.repre).?.val);
                 },
                 .op_def_glob_var => {
                     const name = self.readValue().obj.toString();
-                    self.globals.put(name.repre, Storage.init(.prm, self.peek(0))) catch return ResultError.runtime;
+                    self.globals.put(name.repre, Storage.init(.prm, self.peek(0))) catch {
+                        @panic("Nepodařilo se hodnotu alokovat");
+                    };
                     _ = self.pop();
                 },
                 .op_set_glob => {
                     const name = self.readValue().obj.toString();
                     if (!self.globals.contains(name.repre)) {
-                        self.runtimeErr("Nedefinovana promenna {s}", .{name.repre});
+                        self.runtimeErr("Neexistující prvek '{s}'", .{name.repre}); // TODO NOTE
                         return ResultError.runtime;
                     }
 
                     if (self.globals.get(name.repre).?.type == .konst) {
-                        self.runtimeErr("Konstanty nelze změnit od inicializace - {s}", .{name.repre});
+                        self.runtimeErr("Nelze změnit hodnotu konstanty '{s}'", .{name.repre});
                         return ResultError.runtime;
                     }
 
-                    self.globals.put(name.repre, Storage.init(.prm, self.peek(0))) catch return ResultError.runtime;
+                    self.globals.put(name.repre, Storage.initPrm(self.peek(0))) catch {
+                        @panic("Nepodařilo se hodnotu alokovat");
+                    };
                 },
 
                 .op_def_glob_const => {
                     const name = self.readValue().obj.toString();
-                    self.globals.put(name.repre, Storage.init(.konst, self.peek(0))) catch return ResultError.runtime;
+                    self.globals.put(name.repre, Storage.initKonst(self.peek(0))) catch {
+                        @panic("Nepodařilo se hodnotu alokovat");
+                    };
                     _ = self.pop();
                 },
 
@@ -149,30 +160,36 @@ pub const VirtualMachine = struct {
         }
     }
 
+    /// Přidání hodnoty do stacku
     fn push(self: *Self, val: Val) void {
         defer self.stack_top += 1;
         self.stack[self.stack_top] = val;
     }
 
+    /// Odstranění hodnoty ze stacku
     fn pop(self: *Self) Val {
         self.stack_top -= 1;
         return self.stack[self.stack_top];
     }
 
+    /// Dostat hodnotu ze stacku podle vzdálenosti od stack_top
     fn peek(self: *Self, distance: u16) Val {
         return self.stack[self.stack_top - 1 - distance];
     }
 
+    /// Resetovat stack
     fn resetStack(self: *Self) void {
         self.stack_top = 0;
         self.ip = 0;
     }
 
+    /// Pro získání jestli je hodnota nepravdivá
     fn isFalsey(val: Val) bool {
         return val == .nic or (val == .boolean and !val.boolean);
     }
 
-    inline fn concat(self: *Self) void {
+    // Spojení dvou stringů
+    inline fn concatObj(self: *Self) void {
         const b = self.pop().obj;
         const a = self.pop().obj;
         defer {
@@ -189,24 +206,72 @@ pub const VirtualMachine = struct {
         self.push(val);
     }
 
+    /// Spojení hodnoty se stringem
+    inline fn concatWithString(self: *Self) void {
+        const second = self.pop();
+        const first = self.pop();
+
+        var new: []const u8 = undefined;
+
+        if (first.obj.type == .string) {
+            new = switch (second) {
+                .number => std.fmt.allocPrint(self.allocator, "{s}{d}", .{ first.obj.toString().repre, second.number }) catch {
+                    @panic("");
+                },
+                .boolean => std.fmt.allocPrint(self.allocator, "{s}{s}", .{ first.obj.toString().repre, if (second.boolean) "ano" else "ne" }) catch {
+                    @panic("");
+                },
+                .nic => std.fmt.allocPrint(self.allocator, "{s}{s}", .{ first.obj.toString().repre, "nic" }) catch {
+                    @panic("");
+                },
+                else => unreachable,
+            };
+            self.push(Val{ .obj = Object.String.take(self, new) });
+            return;
+        }
+
+        if (second.obj.type == .string) {
+            new = switch (first) {
+                .number => std.fmt.allocPrint(self.allocator, "{s}{d}", .{ first.obj.toString().repre, second.number }) catch {
+                    @panic("");
+                },
+                .boolean => std.fmt.allocPrint(self.allocator, "{s}{s}", .{ first.obj.toString().repre, if (second.boolean) "ano" else "ne" }) catch {
+                    @panic("");
+                },
+                .nic => std.fmt.allocPrint(self.allocator, "{s}{s}", .{ first.obj.toString().repre, "nic" }) catch {
+                    @panic("");
+                },
+                else => unreachable,
+            };
+            self.push(Val{ .obj = Object.String.take(self, new) });
+            return;
+        }
+    }
+
+    // Spojení dvou hodnot
     inline fn add(self: *Self) ResultError!void {
-        if (self.peek(0) == .number and self.peek(1) == .number) {
+        const second = self.peek(0);
+        const first = self.peek(1);
+
+        if (first == .number and second == .number) {
             const b = self.pop().number;
             const a = self.pop().number;
 
             self.push(Val{ .number = a + b });
-        } else if (self.peek(0) == .obj and self.peek(1) == .obj) {
-            self.concat();
+        } else if (first == .obj and second == .obj) { // TODO
+            self.concatObj();
+        } else if (first == .obj or second == .obj) {
+            self.concatWithString();
         } else {
-            self.runtimeErr("", .{});
+            self.runtimeErr("Operace + není povolena pro tuto kombinaci hodnot", .{});
             return ResultError.runtime;
         }
     }
 
+    /// "Binární" operace podle operátoru
     inline fn binary(self: *Self, operation: BinaryOp) ResultError!void {
         if (self.peek(0) != .number or self.peek(1) != .number) {
-            std.debug.print("runtime error", .{});
-            self.runtimeErr("", .{});
+            self.runtimeErr("Nesprávný datový typ", .{}); // Binární operace může být prováděna pouze na číselných hodnotách. Zkontrolujte, zda je váš datový typ kompatibilní s touto operací."
             return ResultError.runtime;
         }
 
@@ -245,16 +310,23 @@ pub const VirtualMachine = struct {
         }
     }
 
+    // Bit shift dvě čísla
     inline fn shift(self: *Self, operation: ShiftOp) ResultError!void {
-        const b = self.pop().number;
+        const a = self.pop();
+        const b = self.pop();
 
-        if (b >= 64.0 or b < 0.0) {
-            // report
+        if (a != .number or b != .number) {
+            self.runtimeErr("Binární posun lze provádět jen na číselných hodnotách", .{});
             return ResultError.runtime;
         }
 
-        const a_bit: i64 = @intFromFloat(self.pop().number);
-        const b_bit: u6 = @intFromFloat(b);
+        if (b.number >= 64.0 or b.number < 0.0) {
+            self.runtimeErr("Neplatné číslo pro binární posun", .{});
+            return ResultError.runtime;
+        }
+
+        const a_bit: i64 = @intFromFloat(a.number);
+        const b_bit: u6 = @intFromFloat(b.number);
 
         const op = switch (operation) {
             .right => a_bit >> b_bit,
@@ -266,19 +338,23 @@ pub const VirtualMachine = struct {
         self.push(Val{ .number = result });
     }
 
+    // Dostat op_code dle IP
     inline fn readByte(self: *Self) u8 {
         const byte = self.block.code.items[self.ip];
         self.ip += 1;
         return byte;
     }
 
+    /// Dostat hodnotu dle IP
     inline fn readValue(self: *Self) Val {
-        return self.block.constants.items[self.readByte()];
+        return self.block.values.items[self.readByte()];
     }
 
+    /// Vypisování run-time errorů s trace stackem
     fn runtimeErr(self: *Self, comptime message: []const u8, args: anytype) void {
-        _ = self;
-        shared.stdout.print(message ++ "\n", args) catch {};
-        // reporter
+        shared.stdout.print("\x1b[31mChyba\x1b[m: ", .{}) catch {};
+        shared.stdout.print(message, args) catch {};
+        const line = self.block.lines.items[self.ip - 1];
+        shared.stdout.print(" na řádce {} ve skriptu\n", .{line}) catch {};
     }
 };
