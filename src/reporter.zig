@@ -35,32 +35,51 @@ pub const Kind = enum {
     }
 };
 
-pub const Item = struct { location: *Token, kind: Kind = .err, message: []const u8 };
+pub const Item = struct { location: ?*Token = null, kind: Kind = .err, message: []const u8 };
+pub const Note = struct { message: []const u8, kind: Kind = .hint };
 
 pub const Report = struct {
     const Self = @This();
 
-    items: []const Item,
+    item: Item,
     type: ResultError,
-    message: []const u8,
+    notes: []const Note,
 
-    pub fn report(self: Self) !void {
-        const item = self.items[0];
+    pub fn reportCompile(self: *Self) !void {
+        try self.report();
 
-        try shared.logger.err("\x1b[{}m{s}\x1b[m: ", .{ item.kind.getColor(), item.kind.name() });
-        try shared.logger.err("{s} ", .{self.message});
-
-        switch (item.location.type) {
+        switch (self.item.location.?.type) {
             .eof => {
                 try shared.logger.err("na konci", .{});
             },
-            .chyba => {},
+            .chyba => {
+                try shared.logger.err("'{s}'", .{self.item.location.?.lexeme});
+            },
             else => {
-                try shared.logger.err("v '{}'", .{std.zig.fmtEscapes(item.location.lexeme)});
+                try shared.logger.err("v '{}'", .{std.zig.fmtEscapes(self.item.location.?.lexeme)});
             },
         }
 
-        try shared.logger.err(", řádka {}:{} \n", .{ item.location.line, item.location.column });
+        try shared.logger.err(", řádka {}:{} \n", .{ self.item.location.?.line, self.item.location.?.column });
+    }
+
+    pub fn reportRuntime(self: *Self, line: u32) !void {
+        try self.report();
+
+        try shared.stdout.print("na řádce {} ve skriptu\n", .{line});
+        try self.printNotes();
+    }
+
+    fn printNotes(self: *Self) !void {
+        for (self.notes) |note| {
+            try shared.stdout.print("\x1b[{}mpoznámka\x1b[m", .{note.kind.getColor()});
+            try shared.stdout.print(": {s}\n", .{note.message});
+        }
+    }
+
+    fn report(self: *Self) !void {
+        try shared.logger.err("\x1b[{}m{s}\x1b[m: ", .{ self.item.kind.getColor(), self.item.kind.name() });
+        try shared.logger.err("{s} ", .{self.item.message});
     }
 };
 
@@ -73,7 +92,7 @@ pub fn report(self: *Reporter, err_type: ResultError, token: *Token, message: []
     self.panic_mode = true;
     self.had_error = true;
 
-    const rep = Report{ .message = message, .type = err_type, .items = &.{.{ .location = token, .message = message }} };
+    var rep = Report{ .type = err_type, .item = .{ .location = token, .message = message }, .notes = &.{} };
 
-    rep.report() catch {};
+    rep.reportCompile() catch {};
 }

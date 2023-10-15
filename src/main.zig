@@ -42,7 +42,7 @@ pub fn main() !void {
     switch (args.len) {
         1 => repl(allocator, &vm) catch {},
         2 => runFile(allocator, args[1], &vm) catch {},
-        else => try shared.logger.err(
+        else => try shared.logger.err( // TODO
             \\Chyba: Neznámý počet argumentů
             \\
             \\Použití:
@@ -74,7 +74,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
         if (input.len == buf.len) {
-            try shared.logger.err("Chyba: Vstup je příliš dlouhý\n", .{});
+            try printErr("Vstup je příliš dlouhý", .{});
             continue;
         }
         const source = buf[0..input.len];
@@ -86,10 +86,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 /// Spustit program ze souboru
 fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     const source = std.fs.cwd().readFileAlloc(allocator, filename, 1_000_000) catch {
-        try shared.logger.err(
-            \\Chyba: Soubor nebyl nalezen
-            \\
-        , .{});
+        try printErr("Soubor nebyl nalezen", .{});
         std.process.exit(70);
     };
     defer allocator.free(source);
@@ -131,6 +128,11 @@ fn arguments() !void {
         , .{});
         std.process.exit(74);
     }
+}
+
+fn printErr(comptime message: []const u8, args: anytype) !void {
+    try shared.stdout.print("\x1b[31mChyba\x1b[m: ", .{});
+    try shared.stdout.print(message ++ "\n", args);
 }
 
 /// Získat podle debug modu přiřazený allocator

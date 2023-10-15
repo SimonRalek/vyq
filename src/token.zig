@@ -11,4 +11,5 @@ pub const Token = struct {
     lexeme: []const u8,
     line: u32,
     column: usize,
+    message: ?[]const u8 = null,
 };

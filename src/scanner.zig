@@ -10,7 +10,7 @@ pub const Scanner = struct {
     const Self = @This();
 
     buf: []const u8,
-    location: Location = .{ .current = 0, .line = 1, .column = 0 },
+    location: Location = .{ .current = 0, .line = 1, .column = 1 },
 
     pub fn init(source: []const u8) Self {
         return .{ .buf = source };
@@ -192,7 +192,7 @@ pub const Scanner = struct {
     }
 
     fn errorToken(self: Self, message: []const u8) Token {
-        return .{ .type = .chyba, .lexeme = message, .line = self.location.line, .column = self.location.column };
+        return .{ .type = .chyba, .lexeme = self.buf[0..self.location.current], .line = self.location.line, .column = self.location.column, .message = message };
     }
 
     fn identifierOrKeyword(self: *Self) Token.Type {

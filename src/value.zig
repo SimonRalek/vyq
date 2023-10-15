@@ -2,6 +2,7 @@ const std = @import("std");
 const shared = @import("shared.zig");
 
 const VM = @import("virtualmachine.zig").VirtualMachine;
+const Allocator = std.mem.Allocator;
 
 pub const Val = union(enum) {
     const Self = @This();
@@ -34,6 +35,21 @@ pub const Val = union(enum) {
         if (self == .nic) shared.stdout.print("nic\n", .{}) catch {};
 
         if (self == .obj) self.obj.print() catch {};
+    }
+
+    pub fn stringVal(self: Self, allocator: Allocator) ![]const u8 {
+        return switch (self) {
+            .number => |val| blk: {
+                const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
+                // var buff: []u8 = undefined;
+                var buff = try allocator.alloc(u8, number.len);
+                _ = std.mem.replace(u8, number, ".", ",", buff);
+                break :blk buff;
+            },
+            .nic => "nic",
+            .boolean => |val| if (val) "ano" else "ne",
+            else => unreachable, // TODO?
+        };
     }
 };
 

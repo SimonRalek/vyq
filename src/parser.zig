@@ -50,7 +50,7 @@ pub const Parser = struct {
             self.current = self.scanner.?.scan();
             if (self.current.type != .chyba) break;
 
-            self.report(&self.previous, self.current.lexeme) catch {};
+            self.report(&self.current, self.current.message.?);
         }
     }
 
@@ -60,7 +60,7 @@ pub const Parser = struct {
             return;
         }
 
-        self.report(&self.previous, message) catch {};
+        self.report(&self.previous, message);
     }
 
     fn match(self: *Self, expected: Token.Type) bool {
@@ -79,7 +79,7 @@ pub const Parser = struct {
         self.emitter.?.emitOpCode(op_code, self.previous.line);
     }
 
-    fn report(self: *Self, token: *Token, message: []const u8) !void {
+    fn report(self: *Self, token: *Token, message: []const u8) void {
         self.reporter.report(ResultError.parser, token, message);
     }
 
@@ -175,7 +175,7 @@ pub const Parser = struct {
 
     fn exprStmt(self: *Self) void {
         self.expression();
-        self.eat(.semicolon, "");
+        self.eat(.semicolon, "Očekávaná ';' za výrazem");
         self.emitOpCode(.op_pop);
     }
 
@@ -327,7 +327,7 @@ pub const Parser = struct {
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
         const prefix = getRule(self.previous.type).prefix orelse {
-            // TODO
+            self.report(&self.previous, "Neznama");
             return;
         };
 
@@ -340,16 +340,15 @@ pub const Parser = struct {
         }
 
         if (canAssign and self.match(.assign)) {
-            self.report(&self.previous, "Invalid") catch {};
+            self.report(&self.previous, "Invalid");
         }
     }
 
     fn getRule(t_type: Token.Type) ParseRule {
         return switch (t_type) {
             .left_paren => .{ .prefix = Parser.group },
-            .right_paren => .{},
-            .left_brace => .{},
-            .right_brace => .{},
+            .right_paren, .left_brace, .right_brace => .{},
+            .identifier => .{},
 
             .number => .{ .prefix = Parser.number },
             .binary, .octal, .hexadecimal => .{ .prefix = Parser.base },
@@ -371,10 +370,6 @@ pub const Parser = struct {
             .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
             .dot => .{ .prefix = Parser.variable },
-            .identifier => {
-                shared.stdout.print("Neznámý token - mysleli jste .identifier?\n", .{}) catch {};
-                std.process.exit(70);
-            }, // TODO
             .semicolon, .eof => .{},
 
             else => unreachable,
