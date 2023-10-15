@@ -108,7 +108,7 @@ pub const Parser = struct {
     }
 
     fn variableDeclaration(self: *Self) !void {
-        const glob = try self.parseVar("");
+        const glob = try self.parseVar("Očekávané jméno prvku po 'prm'");
 
         if (self.match(.assign)) {
             self.expression();
@@ -116,22 +116,22 @@ pub const Parser = struct {
             self.emitOpCode(.op_nic);
         }
 
-        self.eat(.semicolon, "");
+        self.eat(.semicolon, "Očekávaná ';' za výrazem");
 
         self.defineVar(glob);
     }
 
     fn constDeclaration(self: *Self) !void {
-        const glob = try self.parseVar("");
+        const glob = try self.parseVar("Očekávané jméno prvku po 'konst'");
 
         if (self.match(.assign)) {
             self.expression();
         } else {
-            // TODO warn
+            self.reporter.warn(&self.previous, "Incializace konstanty s prázdnou hodnotou");
             self.emitOpCode(.op_nic);
         }
 
-        self.eat(.semicolon, "");
+        self.eat(.semicolon, "Chybí ';' za příkazem");
 
         self.defineConst(glob);
     }
@@ -169,13 +169,13 @@ pub const Parser = struct {
 
     fn printStmt(self: *Self) void {
         self.expression();
-        self.eat(.semicolon, "Očekávaná ';' za ");
+        self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(.op_print);
     }
 
     fn exprStmt(self: *Self) void {
         self.expression();
-        self.eat(.semicolon, "Očekávaná ';' za výrazem");
+        self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(.op_pop);
     }
 
@@ -196,7 +196,7 @@ pub const Parser = struct {
         _ = canAssign;
 
         self.expression();
-        self.eat(.right_paren, "Ocekavana ')' zavorka nebyla nalezena");
+        self.eat(.right_paren, "Očekávaná ')' nebyla nalezena");
     }
 
     fn unary(self: *Self, canAssign: bool) !void {
@@ -290,16 +290,15 @@ pub const Parser = struct {
         if (converted) |value| {
             try self.emitter.?.emitValue(Val{ .number = value }, self.previous.line);
         } else |err| {
-            try shared.logger.err("Nepovedlo se cislo zpracovat: {}", .{err});
+            try shared.stdout.print("Nepovedlo se cislo zpracovat: {}", .{err});
         }
     }
 
     fn base(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch blk: {
-            // reporter
-            break :blk 0;
+        const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch {
+            @panic("Parsování nešlo");
         };
         try self.emitter.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
     }

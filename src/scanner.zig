@@ -129,8 +129,6 @@ pub const Scanner = struct {
             _ = self.advance();
         }
 
-        // self.skipSpace(2);
-
         return self.createToken(.hexadecimal);
     }
 
@@ -146,8 +144,6 @@ pub const Scanner = struct {
         while (self.peek() == '1' or self.peek() == '0') {
             _ = self.advance();
         }
-
-        // self.skipSpace(2);
 
         return self.createToken(.binary);
     }

@@ -42,27 +42,29 @@ pub const Report = struct {
     const Self = @This();
 
     item: Item,
-    type: ResultError,
+    type: ?ResultError,
     notes: []const Note,
 
+    /// Report pro kompilační chyby
     pub fn reportCompile(self: *Self) !void {
         try self.report();
 
         switch (self.item.location.?.type) {
             .eof => {
-                try shared.logger.err("na konci", .{});
+                try shared.stdout.print("na konci", .{});
             },
             .chyba => {
-                try shared.logger.err("'{s}'", .{self.item.location.?.lexeme});
+                try shared.stdout.print("'{s}'", .{self.item.location.?.lexeme});
             },
             else => {
-                try shared.logger.err("v '{}'", .{std.zig.fmtEscapes(self.item.location.?.lexeme)});
+                try shared.stdout.print("v '{}'", .{std.zig.fmtEscapes(self.item.location.?.lexeme)});
             },
         }
 
-        try shared.logger.err(", řádka {}:{} \n", .{ self.item.location.?.line, self.item.location.?.column });
+        try shared.stdout.print(", řádka {}:{} \n", .{ self.item.location.?.line, self.item.location.?.column });
     }
 
+    /// Report pro runtime chyby
     pub fn reportRuntime(self: *Self, line: u32) !void {
         try self.report();
 
@@ -70,6 +72,7 @@ pub const Report = struct {
         try self.printNotes();
     }
 
+    /// Vytisknout poznámky
     fn printNotes(self: *Self) !void {
         for (self.notes) |note| {
             try shared.stdout.print("\x1b[{}mpoznámka\x1b[m", .{note.kind.getColor()});
@@ -77,9 +80,10 @@ pub const Report = struct {
         }
     }
 
+    /// Vytisknout zprávu
     fn report(self: *Self) !void {
-        try shared.logger.err("\x1b[{}m{s}\x1b[m: ", .{ self.item.kind.getColor(), self.item.kind.name() });
-        try shared.logger.err("{s} ", .{self.item.message});
+        try shared.stdout.print("\x1b[{}m{s}\x1b[m: ", .{ self.item.kind.getColor(), self.item.kind.name() });
+        try shared.stdout.print("{s} ", .{self.item.message});
     }
 };
 
@@ -93,6 +97,14 @@ pub fn report(self: *Reporter, err_type: ResultError, token: *Token, message: []
     self.had_error = true;
 
     var rep = Report{ .type = err_type, .item = .{ .location = token, .message = message }, .notes = &.{} };
+
+    rep.reportCompile() catch {};
+}
+
+/// Varování
+pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
+    _ = self;
+    var rep = Report{ .type = null, .item = .{ .kind = .warn, .location = token, .message = message }, .notes = &.{} };
 
     rep.reportCompile() catch {};
 }

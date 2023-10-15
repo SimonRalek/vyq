@@ -48,25 +48,30 @@ pub const Block = struct {
     lines: intList,
     values: valList,
 
+    /// Inicializace bloku
     pub fn init(allocator: Allocator) Self {
         return .{ .code = charList.init(allocator), .lines = intList.init(allocator), .values = valList.init(allocator) };
     }
 
+    /// Free blok
     pub fn deinit(self: *Self) void {
         self.code.deinit();
         self.lines.deinit();
         self.values.deinit();
     }
 
+    /// Zapsat instrukci
     pub fn writeOp(self: *Self, op_code: OpCode, line: u32) !void {
         try self.writeOpByte(@intFromEnum(op_code), line);
     }
 
+    /// Zapsat instrukce
     pub fn writeOpByte(self: *Block, byte: u8, line: u32) !void {
         try self.code.append(byte);
         try self.lines.append(line);
     }
 
+    /// Přidat hodnotu do bloku
     pub fn addValue(self: *Self, value: Val) !u8 {
         const index = self.values.items.len;
         try self.values.append(value);

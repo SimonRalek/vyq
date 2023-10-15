@@ -193,7 +193,7 @@ pub const VirtualMachine = struct {
         return val == .nic or (val == .boolean and !val.boolean);
     }
 
-    // Spojení dvou stringů
+    /// Spojení dvou stringů
     inline fn concatObj(self: *Self) void {
         const b = self.pop().obj;
         const a = self.pop().obj;
@@ -204,7 +204,6 @@ pub const VirtualMachine = struct {
 
         const new = std.mem.concat(self.allocator, u8, &.{ a.toString().repre, b.toString().repre }) catch {
             @panic("Nedostatečné množství paměti");
-            // todo
         };
 
         const val = Val{ .obj = Object.String.take(self, new) };
@@ -237,7 +236,7 @@ pub const VirtualMachine = struct {
         self.push(Val{ .obj = Object.String.take(self, new) });
     }
 
-    // Spojení dvou hodnot
+    /// Spojení dvou hodnot
     inline fn add(self: *Self) ResultError!void {
         const second = self.peek(0);
         const first = self.peek(1);
@@ -299,7 +298,7 @@ pub const VirtualMachine = struct {
         }
     }
 
-    // Bit shift dvě čísla
+    /// Bit shift dvě čísla
     inline fn shift(self: *Self, operation: ShiftOp) ResultError!void {
         const b = self.pop();
         const a = self.pop();
@@ -327,7 +326,7 @@ pub const VirtualMachine = struct {
         self.push(Val{ .number = result });
     }
 
-    // Dostat op_code dle IP
+    /// Dostat op_code dle IP
     inline fn readByte(self: *Self) u8 {
         const byte = self.block.code.items[self.ip];
         self.ip += 1;

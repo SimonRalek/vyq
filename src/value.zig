@@ -12,6 +12,7 @@ pub const Val = union(enum) {
     number: f64,
     obj: *Object,
 
+    /// Rovnají se hodnoty
     pub fn isEqual(a: Val, b: Val) bool {
         return switch (a) {
             .nic => b == .nic,
@@ -25,6 +26,7 @@ pub const Val = union(enum) {
         };
     }
 
+    /// Vytisknout hodnotu
     pub fn print(self: Self) void {
         if (self == .number) shared.stdout.print("{d}\n", .{self.number}) catch {};
 
@@ -37,11 +39,11 @@ pub const Val = union(enum) {
         if (self == .obj) self.obj.print() catch {};
     }
 
+    /// Hodnot
     pub fn stringVal(self: Self, allocator: Allocator) ![]const u8 {
         return switch (self) {
             .number => |val| blk: {
                 const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
-                // var buff: []u8 = undefined;
                 var buff = try allocator.alloc(u8, number.len);
                 _ = std.mem.replace(u8, number, ".", ",", buff);
                 break :blk buff;

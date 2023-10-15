@@ -33,22 +33,17 @@ pub fn main() !void {
         timer = try bench.createMark("main");
     }
 
-    try shared.initLogger(allocator);
-
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
-    try arguments();
+    try arguments(allocator);
 
     switch (args.len) {
         1 => repl(allocator, &vm) catch {},
         2 => runFile(allocator, args[1], &vm) catch {},
-        else => try shared.logger.err( // TODO
-            \\Chyba: Neznámý počet argumentů
-            \\
-            \\Použití:
-            \\> vyq [filepath] [argumenty]
-            \\
-        , .{}),
+        else => {
+            try printErr("Neznámý počet argumentů\n", .{});
+            try shared.stdout.print("\x1b[34mPoužití\x1b[m:\n> vyq [cesta k souboru] [argumenty]\n", .{});
+        },
     }
 
     if (debug.benchmark) {
@@ -96,7 +91,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
 }
 
 /// Parsování argumentů při spuštení programu
-fn arguments() !void {
+fn arguments(allocator: Allocator) !void {
     const params = comptime clap.parseParamsComptime(
         \\-h, --help             Zobraz pomoc a použití 
         \\-v, --version          Zobraz verzi
@@ -112,7 +107,13 @@ fn arguments() !void {
     defer res.deinit();
 
     if (res.args.version == 1) {
-        try shared.stdout.print("{s}\n", .{shared.version});
+        const version = (std.ChildProcess.exec(.{
+            .allocator = allocator,
+            .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
+        }) catch {
+            unreachable;
+        }).stdout;
+        try shared.stdout.print("{s}", .{version});
         std.process.exit(74);
     }
 
@@ -130,6 +131,7 @@ fn arguments() !void {
     }
 }
 
+/// Vytisknout chybu
 fn printErr(comptime message: []const u8, args: anytype) !void {
     try shared.stdout.print("\x1b[31mChyba\x1b[m: ", .{});
     try shared.stdout.print(message ++ "\n", args);
