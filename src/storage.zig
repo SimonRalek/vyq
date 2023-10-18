@@ -31,3 +31,8 @@ pub const Storage = struct {
         return self.type;
     }
 };
+
+pub const Local = struct {
+    name: Token,
+    depth: u32
+};

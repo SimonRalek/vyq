@@ -20,7 +20,7 @@ pub const Val = union(enum) {
             .number => |val| b == .number and b.number == val,
             .obj => |val| blk: {
                 if (b == .obj and val.type == .string and b.obj.type == .string) {
-                    break :blk std.mem.eql(u8, val.toString().repre, b.obj.toString().repre);
+                    break :blk std.mem.eql(u8, val.string().repre, b.obj.string().repre);
                 }
             },
         };
@@ -28,18 +28,18 @@ pub const Val = union(enum) {
 
     /// Vytisknout hodnotu
     pub fn print(self: Self) void {
-        if (self == .number) shared.stdout.print("{d}\n", .{self.number}) catch {};
+        if (self == .number) shared.stdout.print("{d}\n", .{self.number}) catch @panic("Nepodařilo se hodnotu vypsat");
 
         if (self == .boolean) {
-            (if (self.boolean) shared.stdout.print("ano\n", .{}) else shared.stdout.print("ne\n", .{})) catch {};
+            (if (self.boolean) shared.stdout.print("ano\n", .{}) else shared.stdout.print("ne\n", .{})) catch @panic("Nepodařilo se hodnotu vypsat");
         }
 
-        if (self == .nic) shared.stdout.print("nic\n", .{}) catch {};
+        if (self == .nic) shared.stdout.print("nic\n", .{}) catch @panic("Nepodařilo se hodnotu vypsat");
 
-        if (self == .obj) self.obj.print() catch {};
+        if (self == .obj) self.obj.print() catch @panic("Nepodařilo se hodnotu vypsat");
     }
 
-    /// Hodnot
+    /// Stringová reprezentace hodnoty
     pub fn stringVal(self: Self, allocator: Allocator) ![]const u8 {
         return switch (self) {
             .number => |val| blk: {
@@ -66,7 +66,7 @@ pub const Object = struct {
 
     pub fn alloc(vm: *VM, comptime T: type, obj_type: Object.ObjectType) *T {
         const descendent = vm.allocator.create(T) catch {
-            @panic("");
+            @panic("Nepodařilo se alokovat");
         };
 
         descendent.obj = .{ .type = obj_type, .deinit = T.deinit };
@@ -77,17 +77,20 @@ pub const Object = struct {
         return descendent;
     }
 
+    /// Vytisknout objekt
     pub fn print(self: *Object) !void {
         switch (self.type) {
-            .string => try shared.stdout.print("{s}\n", .{self.toString().repre}),
+            .string => try shared.stdout.print("{s}\n", .{self.string().repre}),
         }
     }
 
+    /// Jako hodnota
     pub fn val(self: *Object) Val {
         return Val{ .obj = self };
     }
 
-    pub fn toString(self: *Object) *String {
+    /// Převedení objektu na string s tím spojený
+    pub fn string(self: *Object) *String {
         return @fieldParentPtr(String, "obj", self);
     }
 
@@ -97,21 +100,23 @@ pub const Object = struct {
         obj: Object,
         repre: []const u8,
 
+        /// Alokace s objektem
         fn alloc(vm: *VM, buff: []const u8) *Object {
-            const string = Object.alloc(vm, Self, .string);
+            const alloc_string = Object.alloc(vm, Self, .string);
 
-            string.repre = buff;
-            string.obj = .{ .type = .string, .deinit = Self.deinit };
+            alloc_string.repre = buff;
+            alloc_string.obj = .{ .type = .string, .deinit = Self.deinit };
 
-            vm.strings.put(buff, string) catch {};
+            vm.strings.put(buff, alloc_string) catch @panic("Nepodařilo se alokovat");
 
-            return &string.obj;
+            return &alloc_string.obj;
         }
 
+        /// Kopírovat string
         pub fn copy(vm: *VM, chars: []const u8) *Object {
             const interned_string = vm.strings.get(chars);
-            if (interned_string) |string| {
-                return &string.obj;
+            if (interned_string) |interned| {
+                return &interned.obj;
             }
 
             const buff = vm.allocator.alloc(u8, chars.len) catch {
@@ -123,14 +128,17 @@ pub const Object = struct {
             return Self.alloc(vm, buff);
         }
 
+        /// Alokace stringu
         pub fn take(vm: *VM, chars: []const u8) *Object {
             return Self.alloc(vm, chars);
         }
 
+        /// String se rovná jinému stringu
         pub fn isEqual(self: *Self, expected: Self) bool {
             return std.mem.eql(u8, self.repre, expected.repre);
         }
 
+        /// Free string
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Self, "obj", object);
             vm.allocator.free(self.repre);

@@ -2,6 +2,7 @@ const std = @import("std");
 
 const _scanner = @import("scanner.zig");
 const Scanner = _scanner.Scanner;
+const Location = _scanner.Location;
 
 pub const Token = struct {
     pub const Type = enum(u8) { left_paren, right_paren, left_brace, right_brace, comma, dot, minus, decrement, plus, increment, semicolon, slash, star, bang, not_equal, assign, equal, greater, greater_equal, less, less_equal, identifier, string, number, hexadecimal, octal, binary, zaroven, nebo, tiskni, vrat, super, this, ano, ne, trida, jinak, opakuj, funkce, pokud, nic, prm, konst, dokud, eof, chyba, pokracuj, vlastni, colon, question_mark, zastav, shift_right, shift_left, bw_and, bw_or, bw_xor, bw_not };
@@ -9,7 +10,6 @@ pub const Token = struct {
 
     type: Type,
     lexeme: []const u8,
-    line: u32,
-    column: usize,
+    location: Location,
     message: ?[]const u8 = null,
 };
