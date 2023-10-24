@@ -25,9 +25,9 @@ pub const BenchMark = struct {
     }
 
     /// Nový timer
-    pub fn createMark(self: *Self, name: []const u8) !*Timer {
-        var gop = try self.timers.getOrPut(name);
-        if (!gop.found_existing) gop.value_ptr.* = try Timer.start();
+    pub fn createMark(self: *Self, name: []const u8) *Timer {
+        var gop = self.timers.getOrPut(name) catch @panic("Nepodařilo se alokovat");
+        if (!gop.found_existing) gop.value_ptr.* = Timer.start();
         return gop.value_ptr;
     }
 
@@ -52,8 +52,8 @@ pub const Timer = struct {
     ended: Instant = undefined,
 
     /// Odstartovat časovač
-    pub fn start() !Self {
-        return .{ .started = Instant.now() catch |err| return err };
+    pub fn start() Self {
+        return .{ .started = Instant.now() catch @panic("Nepodporovaná funkce") };
     }
 
     /// Ukončit časovač

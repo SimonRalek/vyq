@@ -3,6 +3,7 @@ const shared = @import("shared.zig");
 const Allocator = std.mem.Allocator;
 
 const Token = @import("token.zig").Token;
+const Location = @import("scanner.zig").Location;
 const ResultError = shared.ResultError;
 
 const Reporter = @This();
@@ -10,6 +11,8 @@ const Reporter = @This();
 allocator: Allocator,
 had_error: bool = false,
 panic_mode: bool = false,
+file: []const u8 = undefined,
+source: []const u8 = undefined,
 
 pub const Kind = enum {
     const Self = @This();
@@ -35,41 +38,93 @@ pub const Kind = enum {
     }
 };
 
-pub const Item = struct { location: ?*Token = null, kind: Kind = .err, message: []const u8 };
+pub const Item = struct { token: ?*Token = null, kind: Kind = .err, message: []const u8 };
 pub const Note = struct { message: []const u8, kind: Kind = .hint };
 
 pub const Report = struct {
     const Self = @This();
 
+    reporter: *Reporter = undefined,
     item: Item,
-    type: ?ResultError,
+    type: ?ResultError = null,
     notes: []const Note,
 
     /// Report pro kompilační chyby
-    pub fn reportCompile(self: *Self) !void {
-        try self.report();
+    fn reportCompile(self: *Self) !void {
+        try shared.stdout.print("\"{s}\"\n - ", .{self.item.message});
 
-        switch (self.item.location.?.type) {
+        switch (self.item.token.?.type) {
             .eof => {
-                try shared.stdout.print("na konci", .{});
+                try shared.stdout.print("na konci\n", .{});
             },
             .chyba => {
-                try shared.stdout.print("'{s}'", .{self.item.location.?.lexeme});
+                try shared.stdout.print("'{s}'\n", .{self.item.token.?.lexeme});
             },
             else => {
-                try shared.stdout.print("v '{}'", .{std.zig.fmtEscapes(self.item.location.?.lexeme)});
+                try shared.stdout.print("v '{}'\n", .{std.zig.fmtEscapes(self.item.token.?.lexeme)});
             },
         }
 
-        try shared.stdout.print(", řádka {}:{} \n", .{ self.item.location.?.line, self.item.location.?.column });
+        // try self.getSource(self.item.token.?.location);
     }
 
     /// Report pro runtime chyby
-    pub fn reportRuntime(self: *Self, line: u32) !void {
-        try self.report();
+    fn reportRuntime(self: *Self, loc: Location) !void {
+        _ = loc;
+        try shared.stdout.print("\"{s}\"\n", .{self.item.message});
 
-        try shared.stdout.print("na řádce {} ve skriptu\n", .{line});
+        // TODO callstack
         try self.printNotes();
+        // try self.getSource(loc);
+    }
+
+    fn getSource(self: *Self, loc: Location) !void {
+        var it = std.mem.splitSequence(u8, self.reporter.source, "\n");
+
+        var count: usize = 1;
+        while (it.next()) |line| : (count += 1) {
+            if (count == loc.line) {
+                var arr = std.ArrayList(u8).init(self.reporter.allocator);
+
+                for (line, 0..line.len) |char, i| {
+                    if (i == loc.start_column - 1) {
+                        try arr.append('\x1b');
+                        try arr.append('[');
+                        try arr.append('3');
+                        try arr.append('2');
+                        try arr.append('m');
+                    }
+
+                    try arr.append(char);
+
+                    if (i == loc.end_column - 1) {
+                        try arr.append('\x1b');
+                        try arr.append('[');
+                        try arr.append('m');
+                    }
+                }
+
+                const new = try arr.toOwnedSlice();
+                try shared.stdout.print("   {s}\n", .{new});
+
+                for (0..loc.start_column - 1) |_| {
+                    try arr.append('-');
+                }
+
+                for (loc.start_column..loc.end_column + 1) |_| {
+                    try arr.append('^');
+                }
+
+                for (loc.end_column..line.len) |_| {
+                    try arr.append('-');
+                }
+
+                const underline = try arr.toOwnedSlice();
+                try shared.stdout.print("   {s}\n", .{underline});
+
+                break;
+            }
+        }
     }
 
     /// Vytisknout poznámky
@@ -81,9 +136,19 @@ pub const Report = struct {
     }
 
     /// Vytisknout zprávu
-    fn report(self: *Self) !void {
+    fn report(self: *Self, loc: Location) !void {
+        try shared.stdout.print("{s}:{}:{} ", .{ self.reporter.file, loc.line, loc.end_column });
         try shared.stdout.print("\x1b[{}m{s}\x1b[m: ", .{ self.item.kind.getColor(), self.item.kind.name() });
-        try shared.stdout.print("{s} ", .{self.item.message});
+
+        switch (self.type.?) {
+            ResultError.runtime => {
+                try self.reportRuntime(loc);
+            },
+            ResultError.parser => {
+                try self.reportCompile();
+            },
+            else => unreachable,
+        }
     }
 };
 
@@ -96,15 +161,18 @@ pub fn report(self: *Reporter, err_type: ResultError, token: *Token, message: []
     self.panic_mode = true;
     self.had_error = true;
 
-    var rep = Report{ .type = err_type, .item = .{ .location = token, .message = message }, .notes = &.{} };
+    var rep = Report{ .reporter = self, .type = err_type, .item = .{ .token = token, .message = message }, .notes = &.{} };
+    rep.report(token.location) catch @panic("Nepodařilo se hodnotu vypsat");
+}
 
-    rep.reportCompile() catch {};
+/// Report při běhu programu
+pub fn reportRuntime(self: *Reporter, message: []const u8, notes: []const Note, loc: Location) void {
+    var rep = Report{ .reporter = self, .type = ResultError.runtime, .item = .{ .message = message }, .notes = notes };
+    rep.report(loc) catch @panic("Nepodařilo se hodnotu vypsat");
 }
 
 /// Varování
 pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
-    _ = self;
-    var rep = Report{ .type = null, .item = .{ .kind = .warn, .location = token, .message = message }, .notes = &.{} };
-
-    rep.reportCompile() catch {};
+    var rep = Report{ .reporter = self, .type = ResultError.parser, .item = .{ .kind = .warn, .token = token, .message = message }, .notes = &.{} };
+    rep.report(token.location) catch {};
 }

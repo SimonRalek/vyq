@@ -4,38 +4,55 @@ const isDigit = std.ascii.isDigit;
 
 const Token = @import("token.zig").Token;
 
-pub const Location = struct { current: usize, line: u32, column: usize };
+pub const Location = struct {
+    line: u32,
+    start_column: usize,
+    end_column: usize,
+
+    pub fn init(line: u32, start_column: usize, end_column: usize) Location {
+        return Location{ .line = line, .start_column = start_column, .end_column = end_column };
+    }
+};
 
 pub const Scanner = struct {
     const Self = @This();
 
     buf: []const u8,
-    location: Location = .{ .current = 0, .line = 1, .column = 1 },
+    current: usize,
+    location: Location = .{ .line = 1, .start_column = 1, .end_column = 0 },
 
+    /// Inicializace scanneru
     pub fn init(source: []const u8) Self {
-        return .{ .buf = source };
+        return .{ .buf = source, .current = 0 };
     }
 
+    /// Skenovat a vrátit token
     pub fn scan(self: *Self) Token {
         self.skipWhiteSpace();
-        self.resetPointers();
 
         if (self.isEof()) return self.createToken(.eof);
+        self.resetPointers();
 
         const char = self.peek();
         _ = self.advance();
 
         return switch (char) {
-            '+' => self.createToken(if (self.match('+'))
-                .increment
+            '+' => self.createToken(if (self.match('='))
+                .add_operator
             else
                 .plus),
-            '-' => self.createToken(if (self.match('-'))
-                .decrement
+            '-' => self.createToken(if (self.match('='))
+                .min_operator
             else
                 .minus),
-            '*' => self.createToken(.star),
-            '/' => self.createToken(.slash),
+            '*' => self.createToken(if (self.match('='))
+                .mul_operator
+            else
+                .star),
+            '/' => self.createToken(if (self.match('='))
+                .div_operator
+            else
+                .slash),
             ';' => self.createToken(.semicolon),
             ':' => self.createToken(.colon),
             ',' => self.createToken(.comma),
@@ -82,36 +99,40 @@ pub const Scanner = struct {
             else => {
                 if (isDigit(char)) return self.number();
                 if (isAlpha(char)) return self.identifier();
-                if (char == 0) return self.createToken(.eof);
                 return self.errorToken("Neznámý znak");
             },
         };
     }
 
+    /// Posunout ukazatele
     fn advance(self: *Self) u8 {
-        defer self.location.current += 1;
-        return self.buf[self.location.current];
+        defer self.current += 1;
+        return self.buf[self.current];
     }
 
+    /// Zjistit znak na aktuálním ukazateli
     fn peek(self: *Self) u8 {
         if (self.isEof()) return '\x00';
 
-        return self.buf[self.location.current];
+        return self.buf[self.current];
     }
 
+    /// Zjistit znak na následující pozici
     fn peekNext(self: *Self) u8 {
-        if (self.location.current + 1 > self.buf.len) return '\x00';
-        return self.buf[self.location.current + 1];
+        if (self.current + 1 > self.buf.len) return '\x00';
+        return self.buf[self.current + 1];
     }
 
+    /// Posunout ukazatele jestli je token jako očekávaný
     fn match(self: *Self, expected: u8) bool {
         if (self.isEof()) return false;
-        if (self.buf[self.location.current] != expected) return false;
+        if (self.buf[self.current] != expected) return false;
 
         _ = self.advance();
         return true;
     }
 
+    /// Skenovat číslo do tokenu
     fn number(self: *Self) Token {
         while (isDigit(self.peek())) _ = self.advance();
 
@@ -124,6 +145,7 @@ pub const Scanner = struct {
         return self.createToken(.number);
     }
 
+    /// Skenovat hexadecimální číslo do tokenu
     fn hexadecimal(self: *Self) Token {
         while (isHexa(self.peek())) {
             _ = self.advance();
@@ -132,6 +154,7 @@ pub const Scanner = struct {
         return self.createToken(.hexadecimal);
     }
 
+    /// Skenovat oktální číslo do tokenu
     fn octal(self: *Self) Token {
         while (isOctal(self.peek())) {
             _ = self.advance();
@@ -140,6 +163,7 @@ pub const Scanner = struct {
         return self.createToken(.octal);
     }
 
+    /// Skenovat binární číslo do tokenu
     fn binary(self: *Self) Token {
         while (self.peek() == '1' or self.peek() == '0') {
             _ = self.advance();
@@ -148,6 +172,7 @@ pub const Scanner = struct {
         return self.createToken(.binary);
     }
 
+    /// Skenovat string do tokenu
     fn string(self: *Self, isMultiline: bool) Token {
         const deli: u8 = if (isMultiline) '"' else '\'';
         var hadMultilineError = false;
@@ -179,6 +204,7 @@ pub const Scanner = struct {
         return self.createToken(.string);
     }
 
+    /// Skenovat identifikátor
     fn identifier(self: *Self) Token {
         while (isAlpha(self.peek()) or isDigit(self.peek())) {
             _ = self.advance();
@@ -187,12 +213,14 @@ pub const Scanner = struct {
         return self.createToken(self.identifierOrKeyword());
     }
 
+    /// Vytvořit token s errorem
     fn errorToken(self: Self, message: []const u8) Token {
-        return .{ .type = .chyba, .lexeme = self.buf[0..self.location.current], .line = self.location.line, .column = self.location.column, .message = message };
+        return .{ .type = .chyba, .lexeme = self.buf[0..self.current], .location = Location.init(self.location.line, self.location.start_column, self.location.end_column), .message = message };
     }
 
+    /// Získat typ tokenu, buď identifikátor nebo klíčové slovo
     fn identifierOrKeyword(self: *Self) Token.Type {
-        const lexeme = self.buf[0..self.location.current];
+        const lexeme = self.buf[0..self.current];
 
         const isKeyword = Token.Keywords.get(lexeme);
         return if (isKeyword) |keyword|
@@ -201,6 +229,7 @@ pub const Scanner = struct {
             .identifier;
     }
 
+    /// Přeskočit prázdné místo
     fn skipWhiteSpace(self: *Self) void {
         while (true) {
             var char = self.peek();
@@ -208,15 +237,15 @@ pub const Scanner = struct {
             switch (char) {
                 '\n' => {
                     self.location.line += 1;
-                    self.location.column = 0;
+                    self.location.end_column = 0;
                     _ = self.advance();
                 },
                 ' ', '\r' => {
-                    self.location.column += 1;
+                    self.location.end_column += 1;
                     _ = self.advance();
                 },
                 '\t' => {
-                    self.location.column += 4;
+                    self.location.end_column += 4;
                     _ = self.advance();
                 },
                 '/' => {
@@ -239,27 +268,33 @@ pub const Scanner = struct {
         }
     }
 
+    /// Přeskočit znaky
     fn skipSpace(self: *Self, space: u8) void {
         self.buf = self.buf[space..];
-        self.location.current -= space;
+        self.current -= space;
     }
 
+    /// Je ukazatel na konci souboru
     fn isEof(self: Self) bool {
-        return self.buf.len <= self.location.current;
+        return self.buf.len <= self.current;
     }
 
+    /// Vytvořit token dle typu
     fn createToken(self: *Self, token_type: Token.Type) Token {
-        const lexeme = self.buf[0..self.location.current];
-        self.location.column += lexeme.len;
-        return Token{ .type = token_type, .lexeme = self.buf[0..self.location.current], .line = self.location.line, .column = self.location.column };
+        const lexeme = self.buf[0..self.current];
+        self.location.end_column += lexeme.len;
+        return Token{ .type = token_type, .lexeme = self.buf[0..self.current], .location = Location.init(self.location.line, self.location.start_column, self.location.end_column) };
     }
 
+    /// Resetovat ukazatele
     fn resetPointers(self: *Self) void {
-        self.buf = self.buf[self.location.current..];
-        self.location.current = 0;
+        self.buf = self.buf[self.current..];
+        self.current = 0;
+        self.location.start_column = self.location.end_column + 1;
     }
 };
 
+/// Je znak hexadecimální
 fn isHexa(c: u8) bool {
     return switch (c) {
         '0'...'9', 'A'...'F', 'a'...'f' => true,
@@ -267,6 +302,7 @@ fn isHexa(c: u8) bool {
     };
 }
 
+/// Je znak oktální
 fn isOctal(c: u8) bool {
     return switch (c) {
         '0'...'7' => true,
@@ -274,10 +310,12 @@ fn isOctal(c: u8) bool {
     };
 }
 
+/// Je znak písmeno či '_'
 fn isAlpha(c: u8) bool {
     return std.ascii.isAlphabetic(c) or c == '_';
 }
 
+/// Testování scanneru
 fn testScanner(source: []const u8, types: []const Token.Type) !void {
     var scanner: Scanner = Scanner.init(source);
     for (types) |token_type| {
