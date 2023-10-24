@@ -177,8 +177,8 @@ pub const Parser = struct {
         } else if (canAssign and (self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator))) {
             const operator = self.previous.type;
 
-            self.expression();
             self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.location);
+            self.expression();
 
             self.emitOpCode(switch (operator) {
                 .add_operator => .op_add,
