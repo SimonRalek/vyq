@@ -26,14 +26,9 @@ pub const Emitter = struct {
     block: ?*Block = null,
     reporter: *Reporter,
 
-    current: *Emitter,
-
-    locals: localArray,
-    scope_depth: u32,
-
     /// Inicializace Emitteru
-    pub fn init(allocator: Allocator, vm: *VM, compiler: *Self) Self {
-        return .{ .allocator = allocator, .vm = vm, .reporter = vm.reporter, .locals = localArray.init(allocator), .scope_depth = 0, .current = compiler };
+    pub fn init(allocator: Allocator, vm: *VM) Self {
+        return .{ .allocator = allocator, .vm = vm, .reporter = vm.reporter };
     }
 
     // Emit returnu a disassemble pokud debug mod

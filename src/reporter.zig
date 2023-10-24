@@ -65,16 +65,17 @@ pub const Report = struct {
             },
         }
 
-        try self.getSource(self.item.token.?.location);
+        // try self.getSource(self.item.token.?.location);
     }
 
     /// Report pro runtime chyby
     fn reportRuntime(self: *Self, loc: Location) !void {
+        _ = loc;
         try shared.stdout.print("\"{s}\"\n", .{self.item.message});
 
         // TODO callstack
         try self.printNotes();
-        try self.getSource(loc);
+        // try self.getSource(loc);
     }
 
     fn getSource(self: *Self, loc: Location) !void {

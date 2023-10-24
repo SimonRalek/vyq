@@ -174,6 +174,21 @@ pub const Parser = struct {
         if (canAssign and self.match(.assign)) {
             self.expression();
             self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.location);
+        } else if (canAssign and (self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator))) {
+            const operator = self.previous.type;
+
+            self.expression();
+            self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.location);
+
+            self.emitOpCode(switch (operator) {
+                .add_operator => .op_add,
+                .min_operator => .op_sub,
+                .div_operator => .op_div,
+                .mul_operator => .op_mult,
+                else => unreachable,
+            });
+
+            self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.location);
         } else {
             self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.location);
         }
@@ -219,10 +234,10 @@ pub const Parser = struct {
         self.parsePrecedence(.unary);
 
         switch (op_type) {
-            .minus => self.emitter.?.emitOpCode(.op_negate, self.previous.location),
-            .bang => self.emitter.?.emitOpCode(.op_not, self.previous.location),
+            .minus => self.emitOpCode(.op_negate),
+            .bang => self.emitOpCode(.op_not),
             .bw_not => {
-                self.emitter.?.emitOpCode(.op_bit_not, self.previous.location);
+                self.emitOpCode(.op_bit_not);
             },
             else => unreachable,
         }
@@ -319,8 +334,8 @@ pub const Parser = struct {
         _ = canAssign;
 
         switch (self.previous.type) {
-            .increment => self.emitter.?.emitOpCode(.op_increment, self.previous.location),
-            .decrement => self.emitter.?.emitOpCode(.op_decrement, self.previous.location),
+            .increment => self.emitOpCode(.op_increment),
+            .decrement => self.emitOpCode(.op_decrement),
             else => unreachable,
         }
     }
@@ -335,12 +350,10 @@ pub const Parser = struct {
     fn literal(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        const loc = self.previous.location;
-
         switch (self.previous.type) {
-            .ano => self.emitter.?.emitOpCode(.op_ano, loc),
-            .ne => self.emitter.?.emitOpCode(.op_ne, loc),
-            .nic => self.emitter.?.emitOpCode(.op_nic, loc),
+            .ano => self.emitOpCode(.op_ano),
+            .ne => self.emitOpCode(.op_ne),
+            .nic => self.emitOpCode(.op_nic),
             else => unreachable,
         }
     }
@@ -363,6 +376,15 @@ pub const Parser = struct {
         if (canAssign and self.match(.assign)) {
             self.report(&self.previous, "K hodnotě nelze přiřadit hodnotu");
         }
+    }
+
+    fn special(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
+        std.debug.print("{}", .{self.previous});
+        self.expression();
+        self.emitOpCode(.op_add);
+        self.emitOpCode(.op_get_glob);
     }
 
     fn getRule(t_type: Token.Type) ParseRule {

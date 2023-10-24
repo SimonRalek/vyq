@@ -21,13 +21,15 @@ pub fn disBlock(block: *Block, name: []const u8) void {
 pub fn disInstruction(block: *Block, idx: usize) usize {
     std.debug.print("{} ", .{idx});
 
-    if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
-        std.debug.print("|    ", .{});
-    } else {
-        std.debug.print("{:0>4} ", .{block.*.locations.items[idx].line});
-    }
+    // if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
+    //     std.debug.print("|    ", .{});
+    // } else {
+    //     std.debug.print("{:0>4} ", .{block.*.locations.items[idx].line});
+    // }
 
     const instruction: Block.OpCode = @enumFromInt(block.*.code.items[idx]);
+
+    std.debug.print("{}\n\n", .{instruction});
     return switch (instruction) {
         .op_value => value("op_value", block, idx),
         .op_negate => simple("op_negate", idx),
@@ -62,14 +64,18 @@ pub fn disInstruction(block: *Block, idx: usize) usize {
 
 /// Výpis instrukce a zvednuti indexu
 inline fn simple(name: []const u8, idx: usize) usize {
-    std.debug.print("{s}\n", .{name});
+    _ = name;
+    // std.debug.print("{s}\n", .{name});
     return idx + 1;
 }
 
 /// Výpis instrukce s hodnotou a zvednutí indexu
 inline fn value(name: []const u8, block: *Block, idx: usize) usize {
+    _ = name;
     var val = block.*.code.items[idx + 1];
-    std.debug.print("{s} {} ", .{ name, val });
-    std.debug.print("{}\n", .{block.*.values.items[val]});
+    _ = val;
+    // std.debug.print("{s} {} \n", .{ name, val });
+    // std.debug.print("{}", .{val});
+    // std.debug.print("{}\n", .{block.*.values.items[val - 1]});
     return idx + 2;
 }
