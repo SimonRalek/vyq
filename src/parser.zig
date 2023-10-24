@@ -38,7 +38,7 @@ pub const Parser = struct {
         self.scanner = Scanner.init(source);
         self.advance();
 
-        while (!self.match(.eof)) {
+        while (!self.check(.eof)) {
             self.declaration();
         }
     }
@@ -60,7 +60,7 @@ pub const Parser = struct {
             return;
         }
 
-        self.report(&self.previous, message);
+        self.report(&self.current, message);
     }
 
     fn match(self: *Self, expected: Token.Type) bool {
@@ -76,7 +76,15 @@ pub const Parser = struct {
     }
 
     fn emitOpCode(self: *Self, op_code: Block.OpCode) void {
-        self.emitter.?.emitOpCode(op_code, self.previous.line);
+        self.emitter.?.emitOpCode(op_code, self.previous.location);
+    }
+
+    fn emitVal(self: *Self, val: Val) void {
+        self.emitter.?.emitValue(val, self.previous.location);
+    }
+
+    fn makeVal(self: *Self, val: Val) u8 {
+        return self.emitter.?.makeValue(val);
     }
 
     fn report(self: *Self, token: *Token, message: []const u8) void {
@@ -108,7 +116,7 @@ pub const Parser = struct {
     }
 
     fn variableDeclaration(self: *Self) !void {
-        const glob = try self.parseVar("");
+        const glob = try self.parseVar("Očekávané jméno prvku po 'prm'");
 
         if (self.match(.assign)) {
             self.expression();
@@ -116,38 +124,42 @@ pub const Parser = struct {
             self.emitOpCode(.op_nic);
         }
 
-        self.eat(.semicolon, "");
+        self.eat(.semicolon, "Očekávaná ';' za výrazem");
 
         self.defineVar(glob);
     }
 
     fn constDeclaration(self: *Self) !void {
-        const glob = try self.parseVar("");
+        const glob = try self.parseVar("Očekávané jméno prvku po 'konst'");
 
         if (self.match(.assign)) {
             self.expression();
         } else {
-            // TODO warn
+            self.reporter.warn(&self.previous, "Incializace konstanty s prázdnou hodnotou");
             self.emitOpCode(.op_nic);
         }
 
-        self.eat(.semicolon, "");
+        self.eat(.semicolon, "Chybí ';' za příkazem");
 
         self.defineConst(glob);
     }
 
     fn defineVar(self: *Self, glob: u8) void {
-        return self.emitter.?.emitOpCodes(.op_def_glob_var, glob, self.previous.line);
+        return self.emitter.?.emitOpCodes(.op_def_glob_var, glob, self.previous.location);
     }
 
     fn defineConst(self: *Self, glob: u8) void {
-        return self.emitter.?.emitOpCodes(.op_def_glob_const, glob, self.previous.line);
+        return self.emitter.?.emitOpCodes(.op_def_glob_const, glob, self.previous.location);
     }
 
     fn parseVar(self: *Self, message: []const u8) !u8 {
+        if (self.match(.dot)) {
+            self.report(&self.current, "Pro jméno prvku nelze použít '.'");
+            return ResultError.parser;
+        }
         self.eat(.identifier, message);
         const token = self.previous;
-        return self.emitter.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+        return self.makeVal(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
     }
 
     fn variable(self: *Self, canAssign: bool) !void {
@@ -157,25 +169,40 @@ pub const Parser = struct {
     }
 
     fn namedVar(self: *Self, token: *Token, canAssign: bool) !void {
-        const arg = try self.emitter.?.makeValue(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+        const arg = self.makeVal(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
 
         if (canAssign and self.match(.assign)) {
             self.expression();
-            self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.line);
+            self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.location);
+        } else if (canAssign and (self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator))) {
+            const operator = self.previous.type;
+
+            self.expression();
+            self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.location);
+
+            self.emitOpCode(switch (operator) {
+                .add_operator => .op_add,
+                .min_operator => .op_sub,
+                .div_operator => .op_div,
+                .mul_operator => .op_mult,
+                else => unreachable,
+            });
+
+            self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.location);
         } else {
-            self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.line);
+            self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.location);
         }
     }
 
     fn printStmt(self: *Self) void {
         self.expression();
-        self.eat(.semicolon, "Očekávaná ';' za ");
+        self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(.op_print);
     }
 
     fn exprStmt(self: *Self) void {
         self.expression();
-        self.eat(.semicolon, "Očekávaná ';' za výrazem");
+        self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(.op_pop);
     }
 
@@ -196,7 +223,7 @@ pub const Parser = struct {
         _ = canAssign;
 
         self.expression();
-        self.eat(.right_paren, "Ocekavana ')' zavorka nebyla nalezena");
+        self.eat(.right_paren, "Očekávaná ')' nebyla nalezena");
     }
 
     fn unary(self: *Self, canAssign: bool) !void {
@@ -207,10 +234,10 @@ pub const Parser = struct {
         self.parsePrecedence(.unary);
 
         switch (op_type) {
-            .minus => self.emitter.?.emitOpCode(.op_negate, self.previous.line),
-            .bang => self.emitter.?.emitOpCode(.op_not, self.previous.line),
+            .minus => self.emitOpCode(.op_negate),
+            .bang => self.emitOpCode(.op_not),
             .bw_not => {
-                self.emitter.?.emitOpCode(.op_bit_not, self.previous.line);
+                self.emitOpCode(.op_bit_not);
             },
             else => unreachable,
         }
@@ -288,38 +315,45 @@ pub const Parser = struct {
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
         const converted: std.fmt.ParseFloatError!f64 = std.fmt.parseFloat(f64, buff);
         if (converted) |value| {
-            try self.emitter.?.emitValue(Val{ .number = value }, self.previous.line);
+            self.emitVal(Val{ .number = value });
         } else |err| {
-            try shared.logger.err("Nepovedlo se cislo zpracovat: {}", .{err});
+            try shared.stdout.print("Nepovedlo se cislo zpracovat: {}", .{err});
         }
     }
 
     fn base(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch blk: {
-            // reporter
-            break :blk 0;
+        const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch {
+            @panic("Parsování nešlo");
         };
-        try self.emitter.?.emitValue(Val{ .number = @floatFromInt(val) }, self.previous.line);
+        self.emitVal(Val{ .number = @floatFromInt(val) });
+    }
+
+    fn crement(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
+        switch (self.previous.type) {
+            .increment => self.emitOpCode(.op_increment),
+            .decrement => self.emitOpCode(.op_decrement),
+            else => unreachable,
+        }
     }
 
     fn string(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
         const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
-        try self.emitter.?.emitValue(Object.String.copy(self.vm.?, source).val(), self.previous.line);
+        self.emitVal(Object.String.copy(self.vm.?, source).val());
     }
 
     fn literal(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        const line = self.previous.line;
-
         switch (self.previous.type) {
-            .ano => self.emitter.?.emitOpCode(.op_ano, line),
-            .ne => self.emitter.?.emitOpCode(.op_ne, line),
-            .nic => self.emitter.?.emitOpCode(.op_nic, line),
+            .ano => self.emitOpCode(.op_ano),
+            .ne => self.emitOpCode(.op_ne),
+            .nic => self.emitOpCode(.op_nic),
             else => unreachable,
         }
     }
@@ -327,7 +361,7 @@ pub const Parser = struct {
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
         const prefix = getRule(self.previous.type).prefix orelse {
-            self.report(&self.previous, "Neznama");
+            self.report(&self.previous, "Neznámý vstup");
             return;
         };
 
@@ -340,15 +374,26 @@ pub const Parser = struct {
         }
 
         if (canAssign and self.match(.assign)) {
-            self.report(&self.previous, "Invalid");
+            self.report(&self.previous, "K hodnotě nelze přiřadit hodnotu");
         }
+    }
+
+    fn special(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
+        std.debug.print("{}", .{self.previous});
+        self.expression();
+        self.emitOpCode(.op_add);
+        self.emitOpCode(.op_get_glob);
     }
 
     fn getRule(t_type: Token.Type) ParseRule {
         return switch (t_type) {
             .left_paren => .{ .prefix = Parser.group },
             .right_paren, .left_brace, .right_brace => .{},
-            .identifier => .{},
+            .identifier, .assign => .{},
+
+            .increment, .decrement => .{ .infix = Parser.crement },
 
             .number => .{ .prefix = Parser.number },
             .binary, .octal, .hexadecimal => .{ .prefix = Parser.base },
@@ -372,7 +417,9 @@ pub const Parser = struct {
             .dot => .{ .prefix = Parser.variable },
             .semicolon, .eof => .{},
 
-            else => unreachable,
+            else => {
+                unreachable;
+            },
         };
     }
 };

@@ -7,6 +7,7 @@ const Scanner = @import("scanner.zig").Scanner;
 const Token = @import("token.zig").Token;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 const Block = @import("block.zig").Block;
+const Reporter = @import("reporter.zig");
 const _benchmark = @import("utils/benchmark.zig");
 const BenchMark = _benchmark.BenchMark;
 const Timer = _benchmark.Timer;
@@ -24,31 +25,33 @@ pub fn main() !void {
     defer heap.deinit();
     const allocator = heap.allocator();
 
-    var vm = VM.init(allocator);
+    var reporter = Reporter{ .allocator = allocator };
+    var vm = VM.init(allocator, &reporter);
 
     var bench: BenchMark = undefined;
     var timer: *Timer = undefined;
     if (debug.benchmark) {
         bench = BenchMark.init(allocator);
-        timer = try bench.createMark("main");
+        timer = bench.createMark("main");
     }
-
-    try shared.initLogger(allocator);
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
-    try arguments();
+    try arguments(allocator);
 
     switch (args.len) {
-        1 => repl(allocator, &vm) catch {},
-        2 => runFile(allocator, args[1], &vm) catch {},
-        else => try shared.logger.err( // TODO
-            \\Chyba: Neznámý počet argumentů
-            \\
-            \\Použití:
-            \\> vyq [filepath] [argumenty]
-            \\
-        , .{}),
+        1 => {
+            reporter.file = "REPL";
+            repl(allocator, &vm) catch @panic("Hodnotu se nepodařilo vypsat");
+        },
+        2 => {
+            reporter.file = args[1];
+            runFile(allocator, args[1], &vm) catch @panic("Hodnotu se nepodařilo vypsat");
+        },
+        else => {
+            printErr("Neznámý počet argumentů\n", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+            shared.stdout.print("\x1b[34mPoužití\x1b[m:\n> vyq [cesta k souboru] [argumenty]\n", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+        },
     }
 
     if (debug.benchmark) {
@@ -75,6 +78,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
         if (input.len == buf.len) {
             try printErr("Vstup je příliš dlouhý", .{});
+            try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
             continue;
         }
         const source = buf[0..input.len];
@@ -86,7 +90,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 /// Spustit program ze souboru
 fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     const source = std.fs.cwd().readFileAlloc(allocator, filename, 1_000_000) catch {
-        try printErr("Soubor nebyl nalezen", .{});
+        printErr("Soubor nebyl nalezen", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
         std.process.exit(70);
     };
     defer allocator.free(source);
@@ -96,7 +100,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
 }
 
 /// Parsování argumentů při spuštení programu
-fn arguments() !void {
+fn arguments(allocator: Allocator) !void {
     const params = comptime clap.parseParamsComptime(
         \\-h, --help             Zobraz pomoc a použití 
         \\-v, --version          Zobraz verzi
@@ -112,7 +116,13 @@ fn arguments() !void {
     defer res.deinit();
 
     if (res.args.version == 1) {
-        try shared.stdout.print("{s}\n", .{shared.version});
+        const version = (std.ChildProcess.exec(.{
+            .allocator = allocator,
+            .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
+        }) catch {
+            unreachable;
+        }).stdout;
+        try shared.stdout.print("{s}", .{version});
         std.process.exit(74);
     }
 
@@ -130,6 +140,7 @@ fn arguments() !void {
     }
 }
 
+/// Vytisknout chybu
 fn printErr(comptime message: []const u8, args: anytype) !void {
     try shared.stdout.print("\x1b[31mChyba\x1b[m: ", .{});
     try shared.stdout.print(message ++ "\n", args);

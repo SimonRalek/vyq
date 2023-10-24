@@ -3,71 +3,79 @@ const _block = @import("block.zig");
 const Block = _block.Block;
 
 pub const debugging = false;
-pub const benchmark = true;
+pub const benchmark = false;
 pub const test_alloc = false;
 pub const allow_logging = true;
 
-pub fn disassembleBlock(block: *Block, name: []const u8) void {
-    std.debug.print("== {s} ==\n", .{name});
+/// Výpis instrukcí s hodnoty v bloku
+pub fn disBlock(block: *Block, name: []const u8) void {
+    std.debug.print("--- {s} ---\n", .{name});
 
     var i: usize = 0;
     while (i < block.*.code.items.len) {
-        i = disassembleInstruction(block, i);
+        i = disInstruction(block, i);
     }
 }
 
-pub fn disassembleInstruction(block: *Block, offset: usize) usize {
-    std.debug.print("{} ", .{offset});
+/// Rozebrat instrukci
+pub fn disInstruction(block: *Block, idx: usize) usize {
+    std.debug.print("{} ", .{idx});
 
-    if (offset > 0 and block.*.lines.items[offset] == block.*.lines.items[offset - 1]) {
-        std.debug.print("|    ", .{});
-    } else {
-        std.debug.print("{:0>4} ", .{block.*.lines.items[offset]});
-    }
+    // if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
+    //     std.debug.print("|    ", .{});
+    // } else {
+    //     std.debug.print("{:0>4} ", .{block.*.locations.items[idx].line});
+    // }
 
-    const instruction: Block.OpCode = @enumFromInt(block.*.code.items[offset]);
+    const instruction: Block.OpCode = @enumFromInt(block.*.code.items[idx]);
+
+    std.debug.print("{}\n\n", .{instruction});
     return switch (instruction) {
-        .op_value => valueInstruction("op_value", block, offset),
-        .op_negate => simpleInstruction("op_negate", offset),
-        .op_add => simpleInstruction("op_add", offset),
-        .op_sub => simpleInstruction("op_minus", offset),
-        .op_mult => simpleInstruction("op_mult", offset),
-        .op_div => simpleInstruction("op_div", offset),
-        .op_not => simpleInstruction("op_not", offset),
-        .op_nic => simpleInstruction("op_nic", offset),
-        .op_ano => simpleInstruction("op_ano", offset),
-        .op_ne => simpleInstruction("op_ne", offset),
-        .op_equal => simpleInstruction("op_equal", offset),
-        .op_greater => simpleInstruction("op_greater", offset),
-        .op_less => simpleInstruction("op_less", offset),
-        .op_bit_and => return simpleInstruction("op_bit_and", offset),
-        .op_bit_or => return simpleInstruction("op_bit_or", offset),
-        .op_bit_xor => return simpleInstruction("op_bit_xor", offset),
-        .op_shift_left => return simpleInstruction("op_shift_left", offset),
-        .op_shift_right => return simpleInstruction("op_shift_right", offset),
-        .op_bit_not => return simpleInstruction("op_bit_not", offset),
-        .op_print => return simpleInstruction("op_print", offset),
-        .op_def_glob_var => return simpleInstruction("op_define_global_var", offset),
-        .op_def_glob_const => return simpleInstruction("op_define_global_const", offset),
-        .op_get_glob => return simpleInstruction("op_get_global", offset),
-        .op_set_glob => return simpleInstruction("op_set_global", offset),
-        .op_pop => return simpleInstruction("op_pop", offset),
-        .op_return => return simpleInstruction("op_return", offset),
-        // else => {
-        //     std.debug.print("Unknown opcode", .{});
-        //     return offset + 1;
-        // },
+        .op_value => value("op_value", block, idx),
+        .op_negate => simple("op_negate", idx),
+        .op_add => simple("op_add", idx),
+        .op_sub => simple("op_minus", idx),
+        .op_mult => simple("op_mult", idx),
+        .op_div => simple("op_div", idx),
+        .op_increment => simple("op_increment", idx),
+        .op_decrement => simple("op_decrement", idx),
+        .op_not => simple("op_not", idx),
+        .op_nic => simple("op_nic", idx),
+        .op_ano => simple("op_ano", idx),
+        .op_ne => simple("op_ne", idx),
+        .op_equal => simple("op_equal", idx),
+        .op_greater => simple("op_greater", idx),
+        .op_less => simple("op_less", idx),
+        .op_bit_and => simple("op_bit_and", idx),
+        .op_bit_or => simple("op_bit_or", idx),
+        .op_bit_xor => simple("op_bit_xor", idx),
+        .op_shift_left => simple("op_shift_left", idx),
+        .op_shift_right => simple("op_shift_right", idx),
+        .op_bit_not => simple("op_bit_not", idx),
+        .op_print => simple("op_print", idx),
+        .op_def_glob_var => simple("op_define_global_var", idx),
+        .op_def_glob_const => simple("op_define_global_const", idx),
+        .op_get_glob => simple("op_get_global", idx),
+        .op_set_glob => simple("op_set_global", idx),
+        .op_pop => simple("op_pop", idx),
+        .op_return => simple("op_return", idx),
     };
 }
 
-fn simpleInstruction(name: []const u8, offset: usize) usize {
-    std.debug.print("{s}\n", .{name});
-    return offset + 1;
+/// Výpis instrukce a zvednuti indexu
+inline fn simple(name: []const u8, idx: usize) usize {
+    _ = name;
+    // std.debug.print("{s}\n", .{name});
+    return idx + 1;
 }
 
-fn valueInstruction(name: []const u8, block: *Block, offset: usize) usize {
-    var val = block.*.code.items[offset + 1];
-    std.debug.print("{s} {} ", .{ name, val });
-    std.debug.print("{}\n", .{block.*.values.items[val]});
-    return offset + 2;
+/// Výpis instrukce s hodnotou a zvednutí indexu
+inline fn value(name: []const u8, block: *Block, idx: usize) usize {
+    _ = name;
+    var val = block.*.code.items[idx + 1];
+    _ = val;
+    // std.debug.print("{s} {} \n", .{ name, val });
+    // std.debug.print("{}", .{val});
+    // std.debug.print("{}\n", .{block.*.values.items[val - 1]});
+    return idx + 2;
 }

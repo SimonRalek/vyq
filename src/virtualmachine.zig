@@ -18,20 +18,21 @@ const ShiftOp = enum { left, right };
 pub const VirtualMachine = struct {
     const Self = @This();
 
+    allocator: Allocator,
     block: *Block = undefined,
     ip: usize,
     stack: [256]Val = undefined,
     stack_top: usize,
     globals: std.StringHashMap(Storage),
-    strings: std.StringHashMap(*Object.String),
 
+    strings: std.StringHashMap(*Object.String),
     objects: ?*Object = null,
 
-    allocator: Allocator,
+    reporter: *Reporter,
 
     /// Inicializace virtuální mašiny
-    pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator, .globals = std.StringHashMap(Storage).init(allocator), .strings = std.StringHashMap(*Object.String).init(allocator), .ip = 0, .stack_top = 0, .objects = null };
+    pub fn init(allocator: Allocator, reporter: *Reporter) Self {
+        return .{ .allocator = allocator, .globals = std.StringHashMap(Storage).init(allocator), .strings = std.StringHashMap(*Object.String).init(allocator), .ip = 0, .stack_top = 0, .objects = null, .reporter = reporter };
     }
 
     /// "Free"nout objekty a listy
@@ -53,6 +54,8 @@ pub const VirtualMachine = struct {
 
     /// Setup programu - spuštění kompilace a parsování
     pub fn interpret(self: *Self, source: []const u8) ResultError!void {
+        self.reporter.source = source;
+
         var block = Block.init(self.allocator);
         defer block.deinit();
 
@@ -83,6 +86,27 @@ pub const VirtualMachine = struct {
                 .op_sub => self.binary(.sub),
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
+
+                .op_increment => {
+                    var a = self.pop();
+
+                    if (a != .number) {
+                        self.runtimeErr("Nelze inkrementovat nečíselné hodnoty", .{}, &.{});
+                        return ResultError.runtime;
+                    }
+
+                    self.push(Val{ .number = a.number + 1 });
+                },
+                .op_decrement => {
+                    var a = self.pop();
+
+                    if (a != .number) {
+                        self.runtimeErr("Nelze dekrementovat nečíselné hodnoty", .{}, &.{});
+                        return ResultError.runtime;
+                    }
+
+                    self.push(Val{ .number = a.number - 1 });
+                },
 
                 .op_greater => self.binary(.greater),
                 .op_less => self.binary(.less),
@@ -117,7 +141,7 @@ pub const VirtualMachine = struct {
                 .op_print => self.pop().print(),
                 .op_pop => _ = self.pop(),
                 .op_get_glob => {
-                    const name = self.readValue().obj.toString();
+                    const name = self.readValue().obj.string();
                     if (!self.globals.contains(name.repre)) {
                         self.runtimeErr("Neexistující prvek '{s}'", .{name.repre}, &.{.{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" }});
                         return ResultError.runtime;
@@ -125,14 +149,14 @@ pub const VirtualMachine = struct {
                     self.push(self.globals.get(name.repre).?.val);
                 },
                 .op_def_glob_var => {
-                    const name = self.readValue().obj.toString();
+                    const name = self.readValue().obj.string();
                     self.globals.put(name.repre, Storage.init(.prm, self.peek(0))) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
                     _ = self.pop();
                 },
                 .op_set_glob => {
-                    const name = self.readValue().obj.toString();
+                    const name = self.readValue().obj.string();
                     if (!self.globals.contains(name.repre)) {
                         self.runtimeErr("Neexistující prvek '{s}'", .{name.repre}, &.{.{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" }});
                         return ResultError.runtime;
@@ -149,7 +173,7 @@ pub const VirtualMachine = struct {
                 },
 
                 .op_def_glob_const => {
-                    const name = self.readValue().obj.toString();
+                    const name = self.readValue().obj.string();
                     self.globals.put(name.repre, Storage.initKonst(self.peek(0))) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
@@ -193,7 +217,7 @@ pub const VirtualMachine = struct {
         return val == .nic or (val == .boolean and !val.boolean);
     }
 
-    // Spojení dvou stringů
+    /// Spojení dvou stringů
     inline fn concatObj(self: *Self) void {
         const b = self.pop().obj;
         const a = self.pop().obj;
@@ -202,9 +226,8 @@ pub const VirtualMachine = struct {
             b.deinit(b, self);
         }
 
-        const new = std.mem.concat(self.allocator, u8, &.{ a.toString().repre, b.toString().repre }) catch {
+        const new = std.mem.concat(self.allocator, u8, &.{ a.string().repre, b.string().repre }) catch {
             @panic("Nedostatečné množství paměti");
-            // todo
         };
 
         const val = Val{ .obj = Object.String.take(self, new) };
@@ -220,16 +243,16 @@ pub const VirtualMachine = struct {
 
         if (first == .obj and first.obj.type == .string) {
             var string_val = second.stringVal(self.allocator) catch {
-                @panic("");
+                @panic("Chyba při alokaci");
             };
-            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ first.obj.toString().repre, string_val }) catch {
+            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ first.obj.string().repre, string_val }) catch {
                 @panic("Chyba při alokaci");
             };
         } else if (second.obj.type == .string) {
             var string_val = first.stringVal(self.allocator) catch {
                 @panic("Chyba při alokaci");
             };
-            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ string_val, second.obj.toString().repre }) catch {
+            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ string_val, second.obj.string().repre }) catch {
                 @panic("Chyba při alokaci");
             };
         }
@@ -237,7 +260,7 @@ pub const VirtualMachine = struct {
         self.push(Val{ .obj = Object.String.take(self, new) });
     }
 
-    // Spojení dvou hodnot
+    /// Spojení dvou hodnot
     inline fn add(self: *Self) ResultError!void {
         const second = self.peek(0);
         const first = self.peek(1);
@@ -299,7 +322,7 @@ pub const VirtualMachine = struct {
         }
     }
 
-    // Bit shift dvě čísla
+    /// Bit shift dvě čísla
     inline fn shift(self: *Self, operation: ShiftOp) ResultError!void {
         const b = self.pop();
         const a = self.pop();
@@ -327,7 +350,7 @@ pub const VirtualMachine = struct {
         self.push(Val{ .number = result });
     }
 
-    // Dostat op_code dle IP
+    /// Dostat op_code dle IP
     inline fn readByte(self: *Self) u8 {
         const byte = self.block.code.items[self.ip];
         self.ip += 1;
@@ -341,10 +364,9 @@ pub const VirtualMachine = struct {
 
     /// Vypisování run-time errorů s trace stackem
     fn runtimeErr(self: *Self, comptime message: []const u8, args: anytype, notes: []const Reporter.Note) void {
-        const line = self.block.lines.items[self.ip - 1];
+        const loc = self.block.locations.items[self.ip - 1];
 
         const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("");
-        var rep = Reporter.Report{ .type = ResultError.runtime, .item = Reporter.Item{ .message = new }, .notes = notes };
-        rep.reportRuntime(line) catch {};
+        self.reporter.reportRuntime(new, notes, loc);
     }
 };

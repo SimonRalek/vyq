@@ -25,21 +25,21 @@ pub const BenchMark = struct {
     }
 
     /// Nový timer
-    pub fn createMark(self: *Self, name: []const u8) !*Timer {
-        var gop = try self.timers.getOrPut(name);
-        if (!gop.found_existing) gop.value_ptr.* = try Timer.start();
+    pub fn createMark(self: *Self, name: []const u8) *Timer {
+        var gop = self.timers.getOrPut(name) catch @panic("Nepodařilo se alokovat");
+        if (!gop.found_existing) gop.value_ptr.* = Timer.start();
         return gop.value_ptr;
     }
 
     /// Výpis timerů s jejich trváním
-    pub fn printTimers(self: *Self) !void { // TODO
+    pub fn printTimers(self: *Self) !void {
         if (self.timers.count() == 0) {
             return;
         }
 
         var it = self.timers.iterator();
         while (it.next()) |entry| {
-            try shared.stdout.print("\n ---- NAME ----- ELAPSED (ms) ------- START ------- END ------ \n", .{});
+            try shared.stdout.print("\n--- NAME ----- ELAPSED ----\n", .{});
             try entry.value_ptr.*.print(entry.key_ptr.*);
         }
     }
@@ -51,32 +51,36 @@ pub const Timer = struct {
     started: Instant,
     ended: Instant = undefined,
 
-    pub fn start() !Self {
-        return .{ .started = Instant.now() catch |err| return err };
+    /// Odstartovat časovač
+    pub fn start() Self {
+        return .{ .started = Instant.now() catch @panic("Nepodporovaná funkce") };
     }
 
+    /// Ukončit časovač
     pub fn end(self: *Self) void {
         self.ended = Instant.now() catch return;
     }
 
+    /// Restartovat
     pub fn reset(self: *Self) void {
         self.started = Instant.now() catch return;
         self.ended = undefined;
     }
 
+    /// Vrátit startovací hodnotu a restartovat
     pub fn lap(self: *Self) i64 {
         defer self.reset();
         return self.started;
     }
 
+    /// Doba trvání
     pub fn duration(self: *const Self) u64 {
         return self.ended.since(self.started);
     }
 
+    /// Výpis jména a délky
     pub fn print(self: *Timer, name: []const u8) !void {
-        try shared.stdout.print("  {s:0>10}|", .{name});
-        try shared.stdout.print("  {}|", .{self.duration()});
-        try shared.stdout.print("   {}  |", .{self.started});
-        try shared.stdout.print("  {}  \n", .{self.ended});
+        try shared.stdout.print("{s:^11}|", .{name});
+        try shared.stdout.print("{:^14}\n", .{self.duration()});
     }
 };

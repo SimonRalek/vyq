@@ -1,0 +1,6 @@
+prm a = 4;
+prm b = 3;
+prm c = 2;
+prm d = 1;
+
+.a + .b = .c + .d;

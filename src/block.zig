@@ -3,10 +3,11 @@ const std = @import("std");
 const Val = @import("value.zig").Val;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
+const Location = @import("scanner.zig").Location;
 
 const charList = ArrayList(u8);
 const valList = ArrayList(Val);
-const intList = ArrayList(u32);
+const locList = ArrayList(Location);
 
 pub const Block = struct {
     const Self = @This();
@@ -34,6 +35,10 @@ pub const Block = struct {
         op_sub,
         op_mult,
         op_div,
+
+        op_increment,
+        op_decrement,
+
         op_return,
 
         op_print,
@@ -45,31 +50,36 @@ pub const Block = struct {
     };
 
     code: charList,
-    lines: intList,
+    locations: locList,
     values: valList,
 
+    /// Inicializace bloku
     pub fn init(allocator: Allocator) Self {
-        return .{ .code = charList.init(allocator), .lines = intList.init(allocator), .values = valList.init(allocator) };
+        return .{ .code = charList.init(allocator), .locations = locList.init(allocator), .values = valList.init(allocator) };
     }
 
+    /// Free blok
     pub fn deinit(self: *Self) void {
         self.code.deinit();
-        self.lines.deinit();
+        self.locations.deinit();
         self.values.deinit();
     }
 
-    pub fn writeOp(self: *Self, op_code: OpCode, line: u32) !void {
-        try self.writeOpByte(@intFromEnum(op_code), line);
+    /// Zapsat instrukci
+    pub fn writeOp(self: *Self, op_code: OpCode, loc: Location) void {
+        self.writeOpByte(@intFromEnum(op_code), loc);
     }
 
-    pub fn writeOpByte(self: *Block, byte: u8, line: u32) !void {
-        try self.code.append(byte);
-        try self.lines.append(line);
+    /// Zapsat instrukce
+    pub fn writeOpByte(self: *Block, byte: u8, loc: Location) void {
+        self.code.append(byte) catch @panic("Alokace selhala");
+        self.locations.append(loc) catch @panic("Alokace selhala");
     }
 
-    pub fn addValue(self: *Self, value: Val) !u8 {
+    /// Přidat hodnotu do bloku
+    pub fn addValue(self: *Self, value: Val) u8 {
         const index = self.values.items.len;
-        try self.values.append(value);
+        self.values.append(value) catch @panic("Alokace selhala");
         return @intCast(index);
     }
 };

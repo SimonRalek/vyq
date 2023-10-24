@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Val = @import("value.zig").Val;
+const Token = @import("token.zig").Token;
 
 const storeType = enum { prm, konst };
 
@@ -31,3 +32,5 @@ pub const Storage = struct {
         return self.type;
     }
 };
+
+pub const Local = struct { name: Token, depth: u32 };

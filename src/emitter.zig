@@ -6,11 +6,16 @@ const Allocator = std.mem.Allocator;
 const Val = @import("value.zig").Val;
 const ResultError = shared.ResultError;
 const Reporter = @import("reporter.zig");
-const Scanner = @import("scanner.zig").Scanner;
+const _scanner = @import("scanner.zig");
+const Scanner = _scanner.Scanner;
+const Location = _scanner.Location;
 const Parser = @import("parser.zig").Parser;
 const Token = @import("token.zig").Token;
 const Block = @import("block.zig").Block;
 const VM = @import("virtualmachine.zig").VirtualMachine;
+const Local = @import("storage.zig").Local;
+
+const localArray = std.ArrayList(Local);
 
 pub const Emitter = struct {
     const Self = @This();
@@ -19,24 +24,27 @@ pub const Emitter = struct {
     vm: *VM,
     parser: ?Parser = null,
     block: ?*Block = null,
-    reporter: Reporter,
+    reporter: *Reporter,
 
     /// Inicializace Emitteru
     pub fn init(allocator: Allocator, vm: *VM) Self {
-        return .{ .allocator = allocator, .vm = vm, .reporter = Reporter{ .allocator = allocator } };
+        return .{ .allocator = allocator, .vm = vm, .reporter = vm.reporter };
     }
 
     // Emit returnu a disassemble pokud debug mod
     pub fn deinit(self: *Self) void {
-        self.emitOpCode(.op_return, self.parser.?.previous.line);
+        self.emitOpCode(.op_return, self.parser.?.previous.location);
         if (!self.reporter.had_error and debug.debugging) {
-            debug.disassembleBlock(self.getCurrentChunk(), "code");
+            debug.disBlock(self.currentChunk(), "code");
         }
     }
 
-    // Kompilace
+    /// Kompilace
     pub fn compile(self: *Self, source: []const u8, block: *Block) ResultError!void {
-        self.parser = Parser.init(self.allocator, self, self.vm, &self.reporter);
+        self.reporter.had_error = false;
+        self.reporter.panic_mode = false;
+
+        self.parser = Parser.init(self.allocator, self, self.vm, self.reporter);
         self.block = block;
         self.parser.?.parse(source);
 
@@ -44,31 +52,31 @@ pub const Emitter = struct {
         if (self.reporter.had_error) return ResultError.compile;
     }
 
-    pub fn getCurrentChunk(self: *Self) *Block {
+    /// Získat aktuální blok
+    pub fn currentChunk(self: *Self) *Block {
         return self.block.?;
     }
 
-    pub fn emitOpCode(self: *Self, op_code: Block.OpCode, line: u32) void {
-        self.getCurrentChunk().writeOp(op_code, line) catch {};
+    /// Zapsat instrukci do bloku
+    pub fn emitOpCode(self: *Self, op_code: Block.OpCode, loc: Location) void {
+        self.currentChunk().writeOp(op_code, loc);
     }
 
-    pub fn emitValue(self: *Self, val: Val, line: u32) !void {
-        self.emitOpCodes(.op_value, try self.makeValue(val), line);
+    /// Zapis hodnotu do bloku
+    pub fn emitValue(self: *Self, val: Val, loc: Location) void {
+        self.emitOpCodes(.op_value, self.makeValue(val), loc);
     }
 
-    ///
-    pub fn emitOpCodes(self: *Self, op1: Block.OpCode, op2: u8, line: u32) void {
-        self.getCurrentChunk().writeOp(op1, line) catch {};
-        self.getCurrentChunk().writeOpByte(op2, line) catch {};
+    /// Zapsat instrukce do bloku
+    pub fn emitOpCodes(self: *Self, op1: Block.OpCode, op2: u8, loc: Location) void {
+        self.currentChunk().writeOp(op1, loc);
+        self.currentChunk().writeOpByte(op2, loc);
     }
 
     /// Přidání hodnoty do aktuálního bloku
-    pub fn makeValue(self: *Self, val: Val) !u8 {
-        const value = try self.getCurrentChunk().addValue(val);
-        if (value > 255) {
-            // TODO
-            @panic("Overflow");
-        }
+    pub fn makeValue(self: *Self, val: Val) u8 {
+        const value = self.currentChunk().addValue(val);
+        if (value > 255) @panic("Stack overflow");
 
         return value;
     }
