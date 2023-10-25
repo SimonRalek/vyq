@@ -174,7 +174,7 @@ pub const Parser = struct {
         if (canAssign and self.match(.assign)) {
             self.expression();
             self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.location);
-        } else if (canAssign and (self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator))) {
+        } else if (canAssign and self.isAdditionalOperator()) {
             const operator = self.previous.type;
 
             self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.location);
@@ -378,13 +378,8 @@ pub const Parser = struct {
         }
     }
 
-    fn special(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
-
-        std.debug.print("{}", .{self.previous});
-        self.expression();
-        self.emitOpCode(.op_add);
-        self.emitOpCode(.op_get_glob);
+    fn isAdditionalOperator(self: *Self) bool {
+        return self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator);
     }
 
     fn getRule(t_type: Token.Type) ParseRule {

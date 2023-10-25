@@ -1,1 +1,1 @@
-tiskni 'Hello ' + 3,2 + ' mami';
+tiskni 'ahoj ' + ne;

@@ -22,7 +22,7 @@ const ArenaAlloc = std.heap.ArenaAllocator;
 /// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
     var heap = getAllocatorType();
-    defer heap.deinit();
+    defer _ = heap.deinit();
     const allocator = heap.allocator();
 
     var reporter = Reporter{ .allocator = allocator };
