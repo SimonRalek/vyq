@@ -8,7 +8,8 @@ const Val = _val.Val;
 const Block = @import("block.zig").Block;
 const ResultError = @import("shared.zig").ResultError;
 const Emitter = @import("emitter.zig").Emitter;
-const Storage = @import("storage.zig").Storage;
+const _storage = @import("storage.zig");
+const Global = _storage.Global;
 const Object = _val.Object;
 const Reporter = @import("reporter.zig");
 
@@ -23,7 +24,7 @@ pub const VirtualMachine = struct {
     ip: usize,
     stack: [256]Val = undefined,
     stack_top: usize,
-    globals: std.StringHashMap(Storage),
+    globals: std.StringHashMap(Global),
 
     strings: std.StringHashMap(*Object.String),
     objects: ?*Object = null,
@@ -32,7 +33,7 @@ pub const VirtualMachine = struct {
 
     /// Inicializace virtuální mašiny
     pub fn init(allocator: Allocator, reporter: *Reporter) Self {
-        return .{ .allocator = allocator, .globals = std.StringHashMap(Storage).init(allocator), .strings = std.StringHashMap(*Object.String).init(allocator), .ip = 0, .stack_top = 0, .objects = null, .reporter = reporter };
+        return .{ .allocator = allocator, .globals = std.StringHashMap(Global).init(allocator), .strings = std.StringHashMap(*Object.String).init(allocator), .ip = 0, .stack_top = 0, .objects = null, .reporter = reporter };
     }
 
     /// "Free"nout objekty a listy
@@ -59,7 +60,7 @@ pub const VirtualMachine = struct {
         var block = Block.init(self.allocator);
         defer block.deinit();
 
-        var emitter = Emitter.init(self.allocator, self);
+        var emitter = Emitter.init(self.allocator, self, null);
         emitter.compile(source, &block) catch return ResultError.compile;
 
         self.block = &block;
@@ -150,7 +151,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_def_glob_var => {
                     const name = self.readValue().obj.string();
-                    self.globals.put(name.repre, Storage.init(.prm, self.peek(0))) catch {
+                    self.globals.put(name.repre, Global.initPrm(self.peek(0))) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
                     _ = self.pop();
@@ -167,14 +168,14 @@ pub const VirtualMachine = struct {
                         return ResultError.runtime;
                     }
 
-                    self.globals.put(name.repre, Storage.initPrm(self.peek(0))) catch {
+                    self.globals.put(name.repre, Global.initPrm(self.peek(0))) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
                 },
 
                 .op_def_glob_const => {
                     const name = self.readValue().obj.string();
-                    self.globals.put(name.repre, Storage.initKonst(self.peek(0))) catch {
+                    self.globals.put(name.repre, Global.initKonst(self.peek(0))) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
                     _ = self.pop();

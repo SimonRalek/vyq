@@ -2,7 +2,7 @@ const std = @import("std");
 const _block = @import("block.zig");
 const Block = _block.Block;
 
-pub const debugging = false;
+pub const debugging = true;
 pub const benchmark = false;
 pub const test_alloc = false;
 pub const allow_logging = true;
@@ -51,10 +51,10 @@ pub fn disInstruction(block: *Block, idx: usize) usize {
         .op_shift_right => simple("op_shift_right", idx),
         .op_bit_not => simple("op_bit_not", idx),
         .op_print => simple("op_print", idx),
-        .op_def_glob_var => simple("op_define_global_var", idx),
-        .op_def_glob_const => simple("op_define_global_const", idx),
-        .op_get_glob => simple("op_get_global", idx),
-        .op_set_glob => simple("op_set_global", idx),
+        .op_def_glob_var => value("op_define_global_var", block, idx),
+        .op_def_glob_const => value("op_define_global_const", block, idx),
+        .op_get_glob => value("op_get_global", block, idx),
+        .op_set_glob => value("op_set_global", block, idx),
         .op_pop => simple("op_pop", idx),
         .op_return => simple("op_return", idx),
     };
@@ -70,6 +70,6 @@ inline fn simple(name: []const u8, idx: usize) usize {
 inline fn value(name: []const u8, block: *Block, idx: usize) usize {
     var val = block.*.code.items[idx + 1];
     std.debug.print("{s} {} ", .{ name, val });
-    std.debug.print("{}\n", .{block.*.values.items[val]});
+    std.debug.print("{}\n", .{block.*.values.items[val].print()});
     return idx + 2;
 }
