@@ -18,7 +18,7 @@ pub fn disBlock(block: *Block, name: []const u8) void {
 
 /// Rozebrat instrukci
 pub fn disInstruction(block: *Block, idx: usize) usize {
-    std.debug.print("{} ", .{idx});
+    std.debug.print("{} \n\n", .{idx});
 
     if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
         std.debug.print("|    ", .{});
@@ -68,7 +68,7 @@ inline fn simple(name: []const u8, idx: usize) usize {
 /// Výpis instrukce s hodnotou a zvednutí indexu
 inline fn value(name: []const u8, block: *Block, idx: usize) usize {
     var val = block.*.code.items[idx + 1];
-    std.debug.print("{s} {} ", .{ name, val });
-    block.*.values.items[val].print();
+    std.debug.print("{s} {} \n", .{ name, val });
+    // block.*.values.items[val].print();
     return idx + 2;
 }
