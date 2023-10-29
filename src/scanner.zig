@@ -37,16 +37,22 @@ pub const Scanner = struct {
         _ = self.advance();
 
         return switch (char) {
-            '+' => self.createToken(if (self.match('+'))
-                .increment
+            '+' => self.createToken(if (self.match('='))
+                .add_operator
             else
                 .plus),
-            '-' => self.createToken(if (self.match('-'))
-                .decrement
+            '-' => self.createToken(if (self.match('='))
+                .min_operator
             else
                 .minus),
-            '*' => self.createToken(.star),
-            '/' => self.createToken(.slash),
+            '*' => self.createToken(if (self.match('='))
+                .mul_operator
+            else
+                .star),
+            '/' => self.createToken(if (self.match('='))
+                .div_operator
+            else
+                .slash),
             ';' => self.createToken(.semicolon),
             ':' => self.createToken(.colon),
             ',' => self.createToken(.comma),

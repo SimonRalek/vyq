@@ -141,6 +141,14 @@ pub const VirtualMachine = struct {
 
                 .op_print => self.pop().print(),
                 .op_pop => _ = self.pop(),
+                .op_popn => {
+                    var n = self.readByte();
+                    var i: usize = 0;
+
+                    while (i < n) : (i += 1) {
+                        _ = self.pop();
+                    }
+                },
                 .op_get_glob => {
                     const name = self.readValue().obj.string();
                     if (!self.globals.contains(name.repre)) {
@@ -179,6 +187,16 @@ pub const VirtualMachine = struct {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
                     _ = self.pop();
+                },
+
+                .op_get_loc => {
+                    var slot = self.readByte();
+                    self.push(self.stack[slot]);
+                },
+
+                .op_set_loc => {
+                    var slot = self.readByte();
+                    self.stack[slot] = self.peek(0);
                 },
 
                 .op_return => return,
@@ -237,25 +255,36 @@ pub const VirtualMachine = struct {
 
     /// Spojení hodnoty se stringem
     inline fn concatWithString(self: *Self) void {
-        var second = self.pop();
-        var first = self.pop();
+        var b = self.pop();
+        var a = self.pop();
 
         var new: []const u8 = undefined;
+        var string: []const u8 = undefined;
 
-        if (first == .obj and first.obj.type == .string) {
-            var string_val = second.stringVal(self.allocator) catch {
+        if (a == .obj and a.obj.type == .string) {
+            string = b.stringVal(self.allocator) catch {
                 @panic("Chyba při alokaci");
             };
-            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ first.obj.string().repre, string_val }) catch {
+
+            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.obj.string().repre, string }) catch {
                 @panic("Chyba při alokaci");
             };
-        } else if (second.obj.type == .string) {
-            var string_val = first.stringVal(self.allocator) catch {
+
+            a.obj.deinit(a.obj, self);
+        } else if (b.obj.type == .string) {
+            string = a.stringVal(self.allocator) catch {
                 @panic("Chyba při alokaci");
             };
-            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ string_val, second.obj.string().repre }) catch {
+
+            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ string, b.obj.string().repre }) catch {
                 @panic("Chyba při alokaci");
             };
+
+            b.obj.deinit(b.obj, self);
+        }
+
+        if (a == .number or b == .number) {
+            self.allocator.free(string);
         }
 
         self.push(Val{ .obj = Object.String.take(self, new) });

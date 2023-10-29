@@ -44,8 +44,10 @@ pub const Val = union(enum) {
         return switch (self) {
             .number => |val| blk: {
                 const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
+
                 var buff = try allocator.alloc(u8, number.len);
                 _ = std.mem.replace(u8, number, ".", ",", buff);
+                allocator.free(number);
                 break :blk buff;
             },
             .nic => "nic",
@@ -123,7 +125,7 @@ pub const Object = struct {
                 std.process.exit(71);
             };
 
-            std.mem.copy(u8, buff, chars);
+            @memcpy(buff, chars);
 
             return Self.alloc(vm, buff);
         }

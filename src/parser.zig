@@ -12,6 +12,8 @@ const Block = @import("block.zig").Block;
 const Emitter = @import("emitter.zig").Emitter;
 const Reporter = @import("reporter.zig");
 const Object = @import("value.zig").Object;
+const _storage = @import("storage.zig");
+const Local = _storage.Local;
 
 const Precedence = enum(u8) { none, assignment, nebo, zaroven, equal, compare, term, bit, shift, factor, unary, call, primary };
 
@@ -91,6 +93,10 @@ pub const Parser = struct {
         self.reporter.report(ResultError.parser, token, message);
     }
 
+    fn warn(self: *Self, token: *Token, message: []const u8) void {
+        self.reporter.warn(token, message);
+    }
+
     fn declaration(self: *Self) void {
         if (self.match(.prm)) {
             self.variableDeclaration() catch {};
@@ -110,9 +116,38 @@ pub const Parser = struct {
     fn statement(self: *Self) void {
         if (self.match(.tiskni)) {
             self.printStmt();
+        } else if (self.match(.left_brace)) {
+            self.beginScope();
+            self.block();
+            self.endScope();
         } else {
             self.exprStmt();
         }
+    }
+
+    fn block(self: *Self) void {
+        while (!self.check(.right_brace) and !self.check(.eof)) {
+            self.declaration();
+        }
+
+        self.eat(.right_brace, "Očekávaná '}' za blokem");
+    }
+
+    fn beginScope(self: *Self) void {
+        self.emitter.?.scope_depth += 1;
+    }
+
+    fn endScope(self: *Self) void {
+        self.emitter.?.scope_depth -= 1;
+
+        var locals = &self.emitter.?.locals;
+        var popN: u8 = 0;
+        while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.?.scope_depth) {
+            popN += 1;
+            _ = self.emitter.?.locals.pop();
+        }
+
+        self.emitter.?.emitOpCodes(.op_popn, popN, self.current.location);
     }
 
     fn variableDeclaration(self: *Self) !void {
@@ -145,11 +180,41 @@ pub const Parser = struct {
     }
 
     fn defineVar(self: *Self, glob: u8) void {
-        return self.emitter.?.emitOpCodes(.op_def_glob_var, glob, self.previous.location);
+        if (self.emitter.?.scope_depth > 0) {
+            self.markInit();
+            return;
+        }
+
+        self.emitter.?.emitOpCodes(.op_def_glob_var, glob, self.current.location);
+    }
+
+    fn markInit(self: *Self) void {
+        var locals = &self.emitter.?.locals;
+
+        locals.items[locals.items.len - 1].depth = self.emitter.?.scope_depth;
+    }
+
+    fn declareVar(self: *Self) void {
+        if (self.emitter.?.scope_depth == 0) return;
+
+        var name = &self.previous;
+
+        var i: usize = 0;
+        const locals = &self.emitter.?.locals;
+        while (i < locals.items.len) : (i += 1) {
+            const loc = locals.items[locals.items.len - 1 - i];
+            if (loc.depth != -1 and loc.depth < self.emitter.?.scope_depth) break;
+
+            if (std.mem.eql(u8, name.lexeme, loc.name)) {
+                self.warn(&self.current, "Proměnná s tímto jménem již existuje v daném kontextu");
+            }
+        }
+
+        self.addLocal(name.lexeme);
     }
 
     fn defineConst(self: *Self, glob: u8) void {
-        return self.emitter.?.emitOpCodes(.op_def_glob_const, glob, self.previous.location);
+        self.emitter.?.emitOpCodes(.op_def_glob_const, glob, self.current.location);
     }
 
     fn parseVar(self: *Self, message: []const u8) !u8 {
@@ -158,6 +223,10 @@ pub const Parser = struct {
             return ResultError.parser;
         }
         self.eat(.identifier, message);
+
+        self.declareVar();
+        if (self.emitter.?.scope_depth > 0) return 0;
+
         const token = self.previous;
         return self.makeVal(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
     }
@@ -169,14 +238,64 @@ pub const Parser = struct {
     }
 
     fn namedVar(self: *Self, token: *Token, canAssign: bool) !void {
-        const arg = self.makeVal(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+        var getOp: Block.OpCode = undefined;
+        var setOp: Block.OpCode = undefined;
+        var arg = self.resolveLocal(token);
+
+        if (arg != -1) {
+            getOp = .op_get_loc;
+            setOp = .op_set_loc;
+        } else {
+            arg = self.makeVal(Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) });
+            getOp = .op_get_glob;
+            setOp = .op_set_glob;
+        }
 
         if (canAssign and self.match(.assign)) {
             self.expression();
-            self.emitter.?.emitOpCodes(.op_set_glob, arg, self.previous.location);
+            self.emitter.?.emitOpCodes(setOp, @intCast(arg), self.current.location);
+        } else if (canAssign and self.isAdditionalOperator()) {
+            const operator = self.previous.type;
+
+            self.emitter.?.emitOpCodes(getOp, @intCast(arg), self.current.location);
+            self.expression();
+
+            self.emitOpCode(switch (operator) {
+                .add_operator => .op_add,
+                .min_operator => .op_sub,
+                .div_operator => .op_div,
+                .mul_operator => .op_mult,
+                else => unreachable,
+            });
+
+            self.emitter.?.emitOpCodes(setOp, @intCast(arg), self.current.location);
         } else {
-            self.emitter.?.emitOpCodes(.op_get_glob, arg, self.previous.location);
+            self.emitter.?.emitOpCodes(getOp, @intCast(arg), self.current.location);
         }
+    }
+
+    fn resolveLocal(self: *Self, token: *Token) isize {
+        var locals = &self.emitter.?.locals;
+        var i: usize = 0;
+
+        while (i < locals.items.len) : (i += 1) {
+            const local = locals.items[locals.items.len - 1 - i];
+            if (std.mem.eql(u8, token.lexeme, local.name)) {
+                if (local.depth == -1) self.report(&self.previous, "Proměnná nelze přiřadit sama sobě");
+                return @intCast(locals.items.len - 1 - i);
+            }
+        }
+
+        return -1;
+    }
+
+    fn addLocal(self: *Self, name: []const u8) void {
+        if (self.emitter.?.locals.items.len == 256) {
+            self.report(&self.current, "Příliš mnoho proměnných");
+            return;
+        }
+
+        self.emitter.?.locals.append(Local.initPrm(name, -1)) catch @panic("Nepadařilo se alokovat");
     }
 
     fn printStmt(self: *Self) void {
@@ -219,10 +338,10 @@ pub const Parser = struct {
         self.parsePrecedence(.unary);
 
         switch (op_type) {
-            .minus => self.emitter.?.emitOpCode(.op_negate, self.previous.location),
-            .bang => self.emitter.?.emitOpCode(.op_not, self.previous.location),
+            .minus => self.emitOpCode(.op_negate),
+            .bang => self.emitOpCode(.op_not),
             .bw_not => {
-                self.emitter.?.emitOpCode(.op_bit_not, self.previous.location);
+                self.emitOpCode(.op_bit_not);
             },
             else => unreachable,
         }
@@ -319,8 +438,8 @@ pub const Parser = struct {
         _ = canAssign;
 
         switch (self.previous.type) {
-            .increment => self.emitter.?.emitOpCode(.op_increment, self.previous.location),
-            .decrement => self.emitter.?.emitOpCode(.op_decrement, self.previous.location),
+            .increment => self.emitOpCode(.op_increment),
+            .decrement => self.emitOpCode(.op_decrement),
             else => unreachable,
         }
     }
@@ -335,12 +454,10 @@ pub const Parser = struct {
     fn literal(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        const loc = self.previous.location;
-
         switch (self.previous.type) {
-            .ano => self.emitter.?.emitOpCode(.op_ano, loc),
-            .ne => self.emitter.?.emitOpCode(.op_ne, loc),
-            .nic => self.emitter.?.emitOpCode(.op_nic, loc),
+            .ano => self.emitOpCode(.op_ano),
+            .ne => self.emitOpCode(.op_ne),
+            .nic => self.emitOpCode(.op_nic),
             else => unreachable,
         }
     }
@@ -363,6 +480,10 @@ pub const Parser = struct {
         if (canAssign and self.match(.assign)) {
             self.report(&self.previous, "K hodnotě nelze přiřadit hodnotu");
         }
+    }
+
+    fn isAdditionalOperator(self: *Self) bool {
+        return self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator);
     }
 
     fn getRule(t_type: Token.Type) ParseRule {

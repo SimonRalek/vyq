@@ -46,7 +46,10 @@ pub const Block = struct {
         op_def_glob_const,
         op_get_glob,
         op_set_glob,
+        op_get_loc,
+        op_set_loc,
         op_pop,
+        op_popn,
     };
 
     code: charList,

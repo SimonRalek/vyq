@@ -29,7 +29,7 @@ pub const Emitter = struct {
     wrapped: ?*Emitter,
 
     locals: localArray,
-    scope_depth: u32,
+    scope_depth: i32,
 
     /// Inicializace Emitteru
     pub fn init(allocator: Allocator, vm: *VM, emitter: ?*Self) Self {

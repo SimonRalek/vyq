@@ -4,8 +4,7 @@ const Block = _block.Block;
 
 pub const debugging = true;
 pub const benchmark = false;
-pub const test_alloc = false;
-pub const allow_logging = true;
+pub const test_alloc = true;
 
 /// Výpis instrukcí s hodnoty v bloku
 pub fn disBlock(block: *Block, name: []const u8) void {
@@ -55,7 +54,10 @@ pub fn disInstruction(block: *Block, idx: usize) usize {
         .op_def_glob_const => value("op_define_global_const", block, idx),
         .op_get_glob => value("op_get_global", block, idx),
         .op_set_glob => value("op_set_global", block, idx),
+        .op_get_loc => byte("op_get_loc", block, idx),
+        .op_set_loc => byte("op_set_loc", block, idx),
         .op_pop => simple("op_pop", idx),
+        .op_popn => byte("op_popn", block, idx),
         .op_return => simple("op_return", idx),
     };
 }
@@ -70,6 +72,12 @@ inline fn simple(name: []const u8, idx: usize) usize {
 inline fn value(name: []const u8, block: *Block, idx: usize) usize {
     var val = block.*.code.items[idx + 1];
     std.debug.print("{s} {} ", .{ name, val });
-    std.debug.print("{}\n", .{block.*.values.items[val].print()});
+    block.*.values.items[val].print();
+    return idx + 2;
+}
+
+inline fn byte(name: []const u8, block: *Block, idx: usize) usize {
+    var k = block.code.items[idx + 1];
+    std.debug.print("{s} {}\n", .{ name, k });
     return idx + 2;
 }

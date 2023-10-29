@@ -26,19 +26,19 @@ pub const Global = struct {
 };
 
 pub const Local = struct {
-    name: Token,
-    depth: u32,
+    name: []const u8,
+    depth: i32,
     is_const: bool,
 
-    pub fn init(name: Token, depth: u32, is_const: bool) Local {
+    pub fn init(name: []const u8, depth: i32, is_const: bool) Local {
         return Local{ .name = name, .depth = depth, .is_const = is_const };
     }
 
-    pub fn initPrm(name: Token, depth: u32) Local {
+    pub fn initPrm(name: []const u8, depth: i32) Local {
         return init(name, depth, false);
     }
 
-    pub fn initKonst(name: Token, depth: u32) Local {
+    pub fn initKonst(name: []const u8, depth: i32) Local {
         return init(name, depth, true);
     }
 };
