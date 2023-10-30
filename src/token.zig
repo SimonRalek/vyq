@@ -91,6 +91,6 @@ pub const Keywords = std.ComptimeStringMap(Type, .{
     .{ "pokracuj", .pokracuj },
     .{ "vlastni", .vlastni },
     .{ "tiskni", .tiskni },
-    .{ "tiskniN", .tiskniN },
+    .{ "tiskniB", .tiskniN },
     .{ "zastav", .zastav },
 });

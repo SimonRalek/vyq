@@ -129,10 +129,8 @@ pub const Parser = struct {
     }
 
     fn declaration(self: *Self) void {
-        if (self.match(.prm)) {
+        if (self.match(.prm) or self.match(.konst)) {
             self.variableDeclaration() catch {};
-        } else if (self.match(.konst)) {
-            self.constDeclaration() catch {};
         } else {
             self.statement();
         }
@@ -182,6 +180,8 @@ pub const Parser = struct {
     }
 
     fn variableDeclaration(self: *Self) !void {
+        var is_const = self.previous.type == .konst;
+
         const glob = try self.parseVar("Očekávané jméno prvku po 'prm'");
 
         if (self.match(.assign)) {
@@ -192,34 +192,20 @@ pub const Parser = struct {
 
         self.eat(.semicolon, "Očekávaná ';' za výrazem");
 
-        self.defineVar(glob);
+        self.defineVar(glob, is_const);
     }
 
-    fn constDeclaration(self: *Self) !void {
-        const glob = try self.parseVar("Očekávané jméno prvku po 'konst'");
-
-        if (self.match(.assign)) {
-            self.expression();
-        } else {
-            self.reporter.warn(
-                &self.previous,
-                "Incializace konstanty s prázdnou hodnotou",
-            );
-            self.emitOpCode(.op_nic);
-        }
-
-        self.eat(.semicolon, "Chybí ';' za příkazem");
-
-        self.defineConst(glob);
-    }
-
-    fn defineVar(self: *Self, glob: u8) void {
+    fn defineVar(self: *Self, glob: u8, is_const: bool) void {
         if (self.emitter.?.scope_depth > 0) {
             self.markInit();
             return;
         }
 
-        self.emitter.?.emitOpCodes(.op_def_glob_var, glob, self.current.location);
+        self.emitter.?.emitOpCodes(
+            if (is_const) .op_def_glob_const else .op_def_glob_var,
+            glob,
+            self.current.location,
+        );
     }
 
     fn markInit(self: *Self) void {
@@ -228,7 +214,7 @@ pub const Parser = struct {
         locals.items[locals.items.len - 1].depth = self.emitter.?.scope_depth;
     }
 
-    fn declareVar(self: *Self) void {
+    fn declareVar(self: *Self, is_const: bool) void {
         if (self.emitter.?.scope_depth == 0) return;
 
         var name = &self.previous;
@@ -247,31 +233,23 @@ pub const Parser = struct {
             }
         }
 
-        self.addLocal(name.lexeme);
-    }
-
-    fn defineConst(self: *Self, glob: u8) void {
-        if (self.emitter.?.scope_depth > 0) {
-            self.markInit();
-            return;
-        }
-
-        self.emitter.?.emitOpCodes(.op_def_glob_const, glob, self.current.location);
+        self.addLocal(name.lexeme, is_const);
     }
 
     fn parseVar(self: *Self, message: []const u8) !u8 {
+        var is_const = self.previous.type == .konst;
+
         if (self.match(.dot)) {
             self.report(&self.current, "Pro jméno prvku nelze použít '.'");
             return ResultError.parser;
         }
         self.eat(.identifier, message);
 
-        self.declareVar();
+        self.declareVar(is_const);
         if (self.emitter.?.scope_depth > 0) return 0;
 
-        const token = self.previous;
         return self.makeVal(
-            Val{ .obj = Object.String.copy(self.vm.?, token.lexeme) },
+            Val{ .obj = Object.String.copy(self.vm.?, self.previous.lexeme) },
         );
     }
 
@@ -286,30 +264,41 @@ pub const Parser = struct {
         var setOp: Block.OpCode = undefined;
         var arg = self.resolveLocal(token);
 
-        if (arg != -1) {
+        if (arg[0] != -1) {
             getOp = .op_get_loc;
             setOp = .op_set_loc;
         } else {
-            arg = self.makeVal(Val{
-                .obj = Object.String.copy(self.vm.?, token.lexeme),
-            });
+            arg = .{
+                self.makeVal(Val{
+                    .obj = Object.String.copy(self.vm.?, token.lexeme),
+                }),
+                false,
+            };
             getOp = .op_get_glob;
             setOp = .op_set_glob;
         }
 
         if (canAssign and self.match(.assign)) {
+            if (arg[1]) {
+                self.report(&self.previous, "Nelze změnit hodnotu konstanty");
+                return ResultError.compile;
+            }
             self.expression();
             self.emitter.?.emitOpCodes(
                 setOp,
-                @intCast(arg),
+                @intCast(arg[0]),
                 self.current.location,
             );
         } else if (canAssign and self.isAdditionalOperator()) {
+            if (arg[1]) {
+                self.report(&self.previous, "Nelze změnit hodnotu konstanty");
+                return ResultError.compile;
+            }
             const operator = self.previous.type;
 
             self.emitter.?.emitOpCodes(
                 getOp,
-                @intCast(arg),
+                @intCast(arg[0]),
                 self.current.location,
             );
             self.expression();
@@ -324,19 +313,19 @@ pub const Parser = struct {
 
             self.emitter.?.emitOpCodes(
                 setOp,
-                @intCast(arg),
+                @intCast(arg[0]),
                 self.current.location,
             );
         } else {
             self.emitter.?.emitOpCodes(
                 getOp,
-                @intCast(arg),
+                @intCast(arg[0]),
                 self.current.location,
             );
         }
     }
 
-    fn resolveLocal(self: *Self, token: *Token) isize {
+    fn resolveLocal(self: *Self, token: *Token) struct { isize, bool } {
         var locals = &self.emitter.?.locals;
         var i: usize = 0;
 
@@ -347,20 +336,23 @@ pub const Parser = struct {
                     &self.previous,
                     "Proměnná nelze přiřadit sama sobě",
                 );
-                return @intCast(locals.items.len - 1 - i);
+                var result: isize = @intCast(locals.items.len - 1 - i);
+                return .{ result, local.is_const };
             }
         }
 
-        return -1;
+        return .{ -1, false };
     }
 
-    fn addLocal(self: *Self, name: []const u8) void {
+    fn addLocal(self: *Self, name: []const u8, is_const: bool) void {
         if (self.emitter.?.locals.items.len == 256) {
             self.report(&self.current, "Příliš mnoho proměnných");
             return;
         }
 
-        self.emitter.?.locals.append(Local.initPrm(name, -1)) catch {
+        self.emitter.?.locals.append(
+            if (is_const) Local.initKonst(name, -1) else Local.initPrm(name, -1),
+        ) catch {
             @panic("Nepadařilo se alokovat");
         };
     }
@@ -369,7 +361,7 @@ pub const Parser = struct {
         var token = self.previous;
         self.expression();
         self.eat(.semicolon, "Chybí ';' za příkazem");
-        self.emitOpCode(if (token.type == .tiskni) .op_print else .op_println);
+        self.emitOpCode(if (token.type == .tiskni) .op_println else .op_print);
     }
 
     fn exprStmt(self: *Self) void {
