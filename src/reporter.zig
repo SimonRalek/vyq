@@ -38,8 +38,16 @@ pub const Kind = enum {
     }
 };
 
-pub const Item = struct { token: ?*Token = null, kind: Kind = .err, message: []const u8 };
-pub const Note = struct { message: []const u8, kind: Kind = .hint };
+pub const Item = struct {
+    token: ?*Token = null,
+    kind: Kind = .err,
+    message: []const u8,
+};
+
+pub const Note = struct {
+    message: []const u8,
+    kind: Kind = .hint,
+};
 
 pub const Report = struct {
     const Self = @This();
@@ -58,10 +66,16 @@ pub const Report = struct {
                 try shared.stdout.print("na konci\n", .{});
             },
             .chyba => {
-                try shared.stdout.print("'{s}'\n", .{self.item.token.?.lexeme});
+                try shared.stdout.print(
+                    "'{s}'\n",
+                    .{self.item.token.?.lexeme},
+                );
             },
             else => {
-                try shared.stdout.print("v '{}'\n", .{std.zig.fmtEscapes(self.item.token.?.lexeme)});
+                try shared.stdout.print(
+                    "v '{}'\n",
+                    .{std.zig.fmtEscapes(self.item.token.?.lexeme)},
+                );
             },
         }
 
@@ -130,15 +144,25 @@ pub const Report = struct {
     /// Vytisknout poznámky
     fn printNotes(self: *Self) !void {
         for (self.notes) |note| {
-            try shared.stdout.print("\x1b[{}mpoznámka\x1b[m", .{note.kind.getColor()});
+            try shared.stdout.print(
+                "\x1b[{}mpoznámka\x1b[m",
+                .{note.kind.getColor()},
+            );
             try shared.stdout.print(": {s}\n", .{note.message});
         }
     }
 
     /// Vytisknout zprávu
     fn report(self: *Self, loc: Location) !void {
-        try shared.stdout.print("{s}:{}:{} ", .{ self.reporter.file, loc.line, loc.end_column });
-        try shared.stdout.print("\x1b[{}m{s}\x1b[m: ", .{ self.item.kind.getColor(), self.item.kind.name() });
+        try shared.stdout.print("{s}:{}:{} ", .{
+            self.reporter.file,
+            loc.line,
+            loc.end_column,
+        });
+        try shared.stdout.print("\x1b[{}m{s}\x1b[m: ", .{
+            self.item.kind.getColor(),
+            self.item.kind.name(),
+        });
 
         switch (self.type.?) {
             ResultError.runtime => {
@@ -153,7 +177,12 @@ pub const Report = struct {
 };
 
 /// Report při parsování
-pub fn report(self: *Reporter, err_type: ResultError, token: *Token, message: []const u8) void {
+pub fn report(
+    self: *Reporter,
+    err_type: ResultError,
+    token: *Token,
+    message: []const u8,
+) void {
     if (self.panic_mode) {
         return;
     }
@@ -161,18 +190,33 @@ pub fn report(self: *Reporter, err_type: ResultError, token: *Token, message: []
     self.panic_mode = true;
     self.had_error = true;
 
-    var rep = Report{ .reporter = self, .type = err_type, .item = .{ .token = token, .message = message }, .notes = &.{} };
+    var rep = Report{
+        .reporter = self,
+        .type = err_type,
+        .item = .{ .token = token, .message = message },
+        .notes = &.{},
+    };
     rep.report(token.location) catch @panic("Nepodařilo se hodnotu vypsat");
 }
 
 /// Report při běhu programu
 pub fn reportRuntime(self: *Reporter, message: []const u8, notes: []const Note, loc: Location) void {
-    var rep = Report{ .reporter = self, .type = ResultError.runtime, .item = .{ .message = message }, .notes = notes };
+    var rep = Report{
+        .reporter = self,
+        .type = ResultError.runtime,
+        .item = .{ .message = message },
+        .notes = notes,
+    };
     rep.report(loc) catch @panic("Nepodařilo se hodnotu vypsat");
 }
 
 /// Varování
 pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
-    var rep = Report{ .reporter = self, .type = ResultError.parser, .item = .{ .kind = .warn, .token = token, .message = message }, .notes = &.{} };
+    var rep = Report{
+        .reporter = self,
+        .type = ResultError.parser,
+        .item = .{ .kind = .warn, .token = token, .message = message },
+        .notes = &.{},
+    };
     rep.report(token.location) catch {};
 }

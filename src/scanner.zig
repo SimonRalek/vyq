@@ -2,15 +2,24 @@ const std = @import("std");
 const shared = @import("shared.zig");
 const isDigit = std.ascii.isDigit;
 
-const Token = @import("token.zig").Token;
+const _token = @import("token.zig");
+const Token = _token.Token;
 
 pub const Location = struct {
     line: u32,
     start_column: usize,
     end_column: usize,
 
-    pub fn init(line: u32, start_column: usize, end_column: usize) Location {
-        return Location{ .line = line, .start_column = start_column, .end_column = end_column };
+    pub fn init(
+        line: u32,
+        start_column: usize,
+        end_column: usize,
+    ) Location {
+        return Location{
+            .line = line,
+            .start_column = start_column,
+            .end_column = end_column,
+        };
     }
 };
 
@@ -19,7 +28,11 @@ pub const Scanner = struct {
 
     buf: []const u8,
     current: usize,
-    location: Location = .{ .line = 1, .start_column = 1, .end_column = 0 },
+    location: Location = .{
+        .line = 1,
+        .start_column = 1,
+        .end_column = 0,
+    },
 
     /// Inicializace scanneru
     pub fn init(source: []const u8) Self {
@@ -179,7 +192,7 @@ pub const Scanner = struct {
 
         switch (deli) {
             '\'' => {
-                while (self.peek() != deli and !self.isEof()) {
+                while (self.delimeter(deli) and !self.isEof()) {
                     if (self.peek() == '\n') {
                         hadMultilineError = true;
                     }
@@ -187,7 +200,7 @@ pub const Scanner = struct {
                 }
             },
             '"' => {
-                while (self.peek() != deli and !self.isEof()) {
+                while (self.delimeter(deli) and !self.isEof()) {
                     if (self.peek() == '\n') self.location.line += 1;
                     _ = self.advance();
                 }
@@ -199,9 +212,23 @@ pub const Scanner = struct {
 
         _ = self.advance();
 
-        if (hadMultilineError) return self.errorToken("String obalen v \" nemůže být víceřádkový, použijte \'");
+        if (hadMultilineError) return self.errorToken(
+            "String obalen v \" nemůže být víceřádkový, použijte \'",
+        );
 
         return self.createToken(.string);
+    }
+
+    fn delimeter(self: *Self, deli: u8) bool {
+        if (self.buf[self.current - 1] == '\\' and self.buf[self.current] == deli) {
+            return true;
+        }
+
+        if (self.buf[self.current] == deli) {
+            return false;
+        }
+
+        return true;
     }
 
     /// Skenovat identifikátor
@@ -215,14 +242,23 @@ pub const Scanner = struct {
 
     /// Vytvořit token s errorem
     fn errorToken(self: Self, message: []const u8) Token {
-        return .{ .type = .chyba, .lexeme = self.buf[0..self.current], .location = Location.init(self.location.line, self.location.start_column, self.location.end_column), .message = message };
+        return .{
+            .type = .chyba,
+            .lexeme = self.buf[0..self.current],
+            .location = Location.init(
+                self.location.line,
+                self.location.start_column,
+                self.location.end_column,
+            ),
+            .message = message,
+        };
     }
 
     /// Získat typ tokenu, buď identifikátor nebo klíčové slovo
-    fn identifierOrKeyword(self: *Self) Token.Type {
+    fn identifierOrKeyword(self: *Self) _token.Type {
         const lexeme = self.buf[0..self.current];
 
-        const isKeyword = Token.Keywords.get(lexeme);
+        const isKeyword = _token.Keywords.get(lexeme);
         return if (isKeyword) |keyword|
             keyword
         else
@@ -280,10 +316,18 @@ pub const Scanner = struct {
     }
 
     /// Vytvořit token dle typu
-    fn createToken(self: *Self, token_type: Token.Type) Token {
+    fn createToken(self: *Self, token_type: _token.Type) Token {
         const lexeme = self.buf[0..self.current];
         self.location.end_column += lexeme.len;
-        return Token{ .type = token_type, .lexeme = self.buf[0..self.current], .location = Location.init(self.location.line, self.location.start_column, self.location.end_column) };
+        return Token{
+            .type = token_type,
+            .lexeme = self.buf[0..self.current],
+            .location = Location.init(
+                self.location.line,
+                self.location.start_column,
+                self.location.end_column,
+            ),
+        };
     }
 
     /// Resetovat ukazatele
@@ -316,7 +360,7 @@ fn isAlpha(c: u8) bool {
 }
 
 /// Testování scanneru
-fn testScanner(source: []const u8, types: []const Token.Type) !void {
+fn testScanner(source: []const u8, types: []const _token.Type) !void {
     var scanner: Scanner = Scanner.init(source);
     for (types) |token_type| {
         const token: Token = scanner.scan();
@@ -327,24 +371,75 @@ fn testScanner(source: []const u8, types: []const Token.Type) !void {
 }
 
 test "variable" {
-    try testScanner("prm k = 3; .k = 4;", &.{ .prm, .identifier, .assign, .number, .semicolon, .dot, .identifier, .assign, .number, .semicolon });
-    try testScanner("konst PI;", &.{ .konst, .identifier, .semicolon });
+    try testScanner("prm k = 3; .k = 4;", &.{
+        .prm,
+        .identifier,
+        .assign,
+        .number,
+        .semicolon,
+        .dot,
+        .identifier,
+        .assign,
+        .number,
+        .semicolon,
+    });
+    try testScanner("konst PI;", &.{
+        .konst,
+        .identifier,
+        .semicolon,
+    });
 }
 
 test "if" {
-    try testScanner("pokud 2 > 1: {}", &.{ .pokud, .number, .greater, .number, .colon, .left_brace, .right_brace });
-    try testScanner("pokud ne: {} jinak {}", &.{ .pokud, .ne, .colon, .left_brace, .right_brace, .jinak, .left_brace, .right_brace });
+    try testScanner("pokud 2 > 1: {}", &.{
+        .pokud,
+        .number,
+        .greater,
+        .number,
+        .colon,
+        .left_brace,
+        .right_brace,
+    });
+    try testScanner("pokud ne: {} jinak {}", &.{
+        .pokud,
+        .ne,
+        .colon,
+        .left_brace,
+        .right_brace,
+        .jinak,
+        .left_brace,
+        .right_brace,
+    });
 }
 
 test "number" {
-    try testScanner("3,14; 5,25; 25;", &.{ .number, .semicolon, .number, .semicolon, .number, .semicolon });
+    try testScanner("3,14; 5,25; 25;", &.{
+        .number,
+        .semicolon,
+        .number,
+        .semicolon,
+        .number,
+        .semicolon,
+    });
     try testScanner("0xFF00FF", &.{.hexadecimal});
     try testScanner("0b001", &.{.binary});
 }
 
 test "binary" {
-    try testScanner(".a & .b", &.{ .dot, .identifier, .bw_and, .dot, .identifier });
-    try testScanner(".a | .b", &.{ .dot, .identifier, .bw_or, .dot, .identifier });
+    try testScanner(".a & .b", &.{
+        .dot,
+        .identifier,
+        .bw_and,
+        .dot,
+        .identifier,
+    });
+    try testScanner(".a | .b", &.{
+        .dot,
+        .identifier,
+        .bw_or,
+        .dot,
+        .identifier,
+    });
     try testScanner(".a ^ .b", &.{ .dot, .identifier, .bw_xor, .dot, .identifier });
     try testScanner("~0b01101", &.{ .bw_not, .binary });
 
@@ -374,11 +469,73 @@ test "string" {
 }
 
 test "for loop" {
-    try testScanner("opakuj prm i = 0; .i < .str/delka; .i++: {}", &.{ .opakuj, .prm, .identifier, .assign, .number, .semicolon, .dot, .identifier, .less, .dot, .identifier, .slash, .identifier, .semicolon, .dot, .identifier, .increment, .colon, .left_brace, .right_brace });
-    try testScanner("opakuj .k; .k != 20,24; .k--: {}", &.{ .opakuj, .dot, .identifier, .semicolon, .dot, .identifier, .not_equal, .number, .semicolon, .dot, .identifier, .decrement, .colon, .left_brace, .right_brace });
+    try testScanner("opakuj prm i = 0; .i < .str/delka; .i++: {}", &.{
+        .opakuj,
+        .prm,
+        .identifier,
+        .assign,
+        .number,
+        .semicolon,
+        .dot,
+        .identifier,
+        .less,
+        .dot,
+        .identifier,
+        .slash,
+        .identifier,
+        .semicolon,
+        .dot,
+        .identifier,
+        .increment,
+        .colon,
+        .left_brace,
+        .right_brace,
+    });
+    try testScanner("opakuj .k; .k != 20,24; .k--: {}", &.{
+        .opakuj,
+        .dot,
+        .identifier,
+        .semicolon,
+        .dot,
+        .identifier,
+        .not_equal,
+        .number,
+        .semicolon,
+        .dot,
+        .identifier,
+        .decrement,
+        .colon,
+        .left_brace,
+        .right_brace,
+    });
 }
 
 test "while loop" {
-    try testScanner("dokud .i >= 10: {}", &.{ .dokud, .dot, .identifier, .greater_equal, .number, .colon, .left_brace, .right_brace });
-    try testScanner("dokud ano: { pokud .i == 10: {pokracuj;}}", &.{ .dokud, .ano, .colon, .left_brace, .pokud, .dot, .identifier, .equal, .number, .colon, .left_brace, .pokracuj, .semicolon, .right_brace, .right_brace });
+    try testScanner("dokud .i >= 10: {}", &.{
+        .dokud,
+        .dot,
+        .identifier,
+        .greater_equal,
+        .number,
+        .colon,
+        .left_brace,
+        .right_brace,
+    });
+    try testScanner("dokud ano: { pokud .i == 10: {pokracuj;}}", &.{
+        .dokud,
+        .ano,
+        .colon,
+        .left_brace,
+        .pokud,
+        .dot,
+        .identifier,
+        .equal,
+        .number,
+        .colon,
+        .left_brace,
+        .pokracuj,
+        .semicolon,
+        .right_brace,
+        .right_brace,
+    });
 }
