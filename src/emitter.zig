@@ -33,7 +33,14 @@ pub const Emitter = struct {
 
     /// Inicializace Emitteru
     pub fn init(allocator: Allocator, vm: *VM, emitter: ?*Self) Self {
-        return .{ .allocator = allocator, .vm = vm, .reporter = vm.reporter, .locals = localArray.init(allocator), .scope_depth = 0, .wrapped = emitter };
+        return .{
+            .allocator = allocator,
+            .vm = vm,
+            .reporter = vm.reporter,
+            .locals = localArray.init(allocator),
+            .scope_depth = 0,
+            .wrapped = emitter,
+        };
     }
 
     // Emit returnu a disassemble pokud debug mod

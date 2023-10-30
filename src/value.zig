@@ -1,8 +1,10 @@
 const std = @import("std");
 const shared = @import("shared.zig");
 
-const VM = @import("virtualmachine.zig").VirtualMachine;
 const Allocator = std.mem.Allocator;
+
+const VM = @import("virtualmachine.zig").VirtualMachine;
+const Formatter = @import("formatter.zig");
 
 pub const Val = union(enum) {
     const Self = @This();
@@ -20,23 +22,36 @@ pub const Val = union(enum) {
             .number => |val| b == .number and b.number == val,
             .obj => |val| blk: {
                 if (b == .obj and val.type == .string and b.obj.type == .string) {
-                    break :blk std.mem.eql(u8, val.string().repre, b.obj.string().repre);
+                    break :blk std.mem.eql(
+                        u8,
+                        val.string().repre,
+                        b.obj.string().repre,
+                    );
                 }
             },
         };
     }
 
     /// Vytisknout hodnotu
-    pub fn print(self: Self) void {
-        if (self == .number) shared.stdout.print("{d}\n", .{self.number}) catch @panic("Nepodařilo se hodnotu vypsat");
+    pub fn print(self: Self, allocator: Allocator) void {
+        if (self == .number) shared.stdout.print(
+            "{d}",
+            .{self.number},
+        ) catch @panic("Nepodařilo se hodnotu vypsat");
 
         if (self == .boolean) {
-            (if (self.boolean) shared.stdout.print("ano\n", .{}) else shared.stdout.print("ne\n", .{})) catch @panic("Nepodařilo se hodnotu vypsat");
+            (if (self.boolean) shared.stdout.print(
+                "ano",
+                .{},
+            ) else shared.stdout.print("ne\n", .{})) catch @panic("Nepodařilo se hodnotu vypsat");
         }
 
-        if (self == .nic) shared.stdout.print("nic\n", .{}) catch @panic("Nepodařilo se hodnotu vypsat");
+        if (self == .nic) shared.stdout.print(
+            "nic",
+            .{},
+        ) catch @panic("Nepodařilo se hodnotu vypsat");
 
-        if (self == .obj) self.obj.print() catch @panic("Nepodařilo se hodnotu vypsat");
+        if (self == .obj) self.obj.print(allocator) catch @panic("Nepodařilo se hodnotu vypsat");
     }
 
     /// Stringová reprezentace hodnoty
@@ -66,7 +81,11 @@ pub const Object = struct {
     deinit: DeinitFn,
     next: ?*Object = null,
 
-    pub fn alloc(vm: *VM, comptime T: type, obj_type: Object.ObjectType) *T {
+    pub fn alloc(
+        vm: *VM,
+        comptime T: type,
+        obj_type: Object.ObjectType,
+    ) *T {
         const descendent = vm.allocator.create(T) catch {
             @panic("Nepodařilo se alokovat");
         };
@@ -80,9 +99,18 @@ pub const Object = struct {
     }
 
     /// Vytisknout objekt
-    pub fn print(self: *Object) !void {
+    pub fn print(self: *Object, allocator: Allocator) !void {
         switch (self.type) {
-            .string => try shared.stdout.print("{s}\n", .{self.string().repre}),
+            .string => {
+                var arrlist = std.ArrayList(u8).init(allocator);
+                defer arrlist.deinit();
+                var writer = arrlist.writer();
+                try Formatter.escapeFmt(self.string().repre).format(writer);
+
+                var formatted = try arrlist.toOwnedSlice();
+                defer allocator.free(formatted);
+                try shared.stdout.print("{s}", .{formatted});
+            },
         }
     }
 

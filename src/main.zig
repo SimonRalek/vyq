@@ -50,7 +50,10 @@ pub fn main() !void {
         },
         else => {
             printErr("Neznámý počet argumentů\n", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
-            shared.stdout.print("\x1b[34mPoužití\x1b[m:\n> vyq [cesta k souboru] [argumenty]\n", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+            shared.stdout.print(
+                "\x1b[34mPoužití\x1b[m:\n> vyq [cesta k souboru] [argumenty]\n",
+                .{},
+            ) catch @panic("Hodnotu se nepodařilo vypsat");
         },
     }
 
@@ -73,7 +76,13 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
         try shared.stdout.print(">>> ", .{});
 
-        std.io.getStdIn().reader().streamUntilDelimiter(buf_stream.writer(), '\n', buf.len) catch {};
+        std.io.getStdIn().reader().streamUntilDelimiter(
+            buf_stream.writer(),
+            '\n',
+            buf.len,
+        ) catch {
+            @panic("");
+        };
         const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
         if (input.len == buf.len) {
@@ -89,8 +98,14 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
 /// Spustit program ze souboru
 fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
-    const source = std.fs.cwd().readFileAlloc(allocator, filename, 1_000_000) catch {
-        printErr("Soubor nebyl nalezen", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+    const source = std.fs.cwd().readFileAlloc(
+        allocator,
+        filename,
+        1_000_000,
+    ) catch {
+        printErr("Soubor nebyl nalezen", .{}) catch {
+            @panic("Hodnotu se nepodařilo vypsat");
+        };
         std.process.exit(70);
     };
     defer allocator.free(source);
@@ -109,7 +124,12 @@ fn arguments(allocator: Allocator) !void {
     );
 
     var diag = clap.Diagnostic{};
-    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{ .diagnostic = &diag }) catch |err| {
+    var res = clap.parse(
+        clap.Help,
+        &params,
+        clap.parsers.default,
+        .{ .diagnostic = &diag },
+    ) catch |err| {
         diag.report(shared.stdout, err) catch {};
         return err;
     };

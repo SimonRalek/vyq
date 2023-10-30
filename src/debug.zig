@@ -2,22 +2,23 @@ const std = @import("std");
 const _block = @import("block.zig");
 const Block = _block.Block;
 
-pub const debugging = true;
+pub const debugging = false;
 pub const benchmark = false;
 pub const test_alloc = true;
 
 /// Výpis instrukcí s hodnoty v bloku
 pub fn disBlock(block: *Block, name: []const u8) void {
     std.debug.print("--- {s} ---\n", .{name});
+    var allocator = std.heap.page_allocator;
 
     var i: usize = 0;
     while (i < block.*.code.items.len) {
-        i = disInstruction(block, i);
+        i = disInstruction(block, i, allocator);
     }
 }
 
 /// Rozebrat instrukci
-pub fn disInstruction(block: *Block, idx: usize) usize {
+pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) usize {
     std.debug.print("{} ", .{idx});
 
     if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
@@ -28,7 +29,7 @@ pub fn disInstruction(block: *Block, idx: usize) usize {
 
     const instruction: Block.OpCode = @enumFromInt(block.*.code.items[idx]);
     return switch (instruction) {
-        .op_value => value("op_value", block, idx),
+        .op_value => value("op_value", block, idx, allocator),
         .op_negate => simple("op_negate", idx),
         .op_add => simple("op_add", idx),
         .op_sub => simple("op_minus", idx),
@@ -50,10 +51,11 @@ pub fn disInstruction(block: *Block, idx: usize) usize {
         .op_shift_right => simple("op_shift_right", idx),
         .op_bit_not => simple("op_bit_not", idx),
         .op_print => simple("op_print", idx),
-        .op_def_glob_var => value("op_define_global_var", block, idx),
-        .op_def_glob_const => value("op_define_global_const", block, idx),
-        .op_get_glob => value("op_get_global", block, idx),
-        .op_set_glob => value("op_set_global", block, idx),
+        .op_println => simple("op_println", idx),
+        .op_def_glob_var => value("op_define_global_var", block, idx, allocator),
+        .op_def_glob_const => value("op_define_global_const", block, idx, allocator),
+        .op_get_glob => value("op_get_global", block, idx, allocator),
+        .op_set_glob => value("op_set_global", block, idx, allocator),
         .op_get_loc => byte("op_get_loc", block, idx),
         .op_set_loc => byte("op_set_loc", block, idx),
         .op_pop => simple("op_pop", idx),
@@ -69,10 +71,16 @@ inline fn simple(name: []const u8, idx: usize) usize {
 }
 
 /// Výpis instrukce s hodnotou a zvednutí indexu
-inline fn value(name: []const u8, block: *Block, idx: usize) usize {
+inline fn value(
+    name: []const u8,
+    block: *Block,
+    idx: usize,
+    allocator: std.mem.Allocator,
+) usize {
     var val = block.*.code.items[idx + 1];
     std.debug.print("{s} {} ", .{ name, val });
-    block.*.values.items[val].print();
+
+    block.*.values.items[val].print(allocator);
     return idx + 2;
 }
 

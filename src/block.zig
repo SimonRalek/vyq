@@ -42,6 +42,7 @@ pub const Block = struct {
         op_return,
 
         op_print,
+        op_println,
         op_def_glob_var,
         op_def_glob_const,
         op_get_glob,
@@ -58,7 +59,11 @@ pub const Block = struct {
 
     /// Inicializace bloku
     pub fn init(allocator: Allocator) Self {
-        return .{ .code = charList.init(allocator), .locations = locList.init(allocator), .values = valList.init(allocator) };
+        return .{
+            .code = charList.init(allocator),
+            .locations = locList.init(allocator),
+            .values = valList.init(allocator),
+        };
     }
 
     /// Free blok

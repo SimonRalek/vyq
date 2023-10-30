@@ -33,7 +33,15 @@ pub const VirtualMachine = struct {
 
     /// Inicializace virtuální mašiny
     pub fn init(allocator: Allocator, reporter: *Reporter) Self {
-        return .{ .allocator = allocator, .globals = std.StringHashMap(Global).init(allocator), .strings = std.StringHashMap(*Object.String).init(allocator), .ip = 0, .stack_top = 0, .objects = null, .reporter = reporter };
+        return .{
+            .allocator = allocator,
+            .globals = std.StringHashMap(Global).init(allocator),
+            .strings = std.StringHashMap(*Object.String).init(allocator),
+            .ip = 0,
+            .stack_top = 0,
+            .objects = null,
+            .reporter = reporter,
+        };
     }
 
     /// "Free"nout objekty a listy
@@ -92,7 +100,11 @@ pub const VirtualMachine = struct {
                     var a = self.pop();
 
                     if (a != .number) {
-                        self.runtimeErr("Nelze inkrementovat nečíselné hodnoty", .{}, &.{});
+                        self.runtimeErr(
+                            "Nelze inkrementovat nečíselné hodnoty",
+                            .{},
+                            &.{},
+                        );
                         return ResultError.runtime;
                     }
 
@@ -102,7 +114,11 @@ pub const VirtualMachine = struct {
                     var a = self.pop();
 
                     if (a != .number) {
-                        self.runtimeErr("Nelze dekrementovat nečíselné hodnoty", .{}, &.{});
+                        self.runtimeErr(
+                            "Nelze dekrementovat nečíselné hodnoty",
+                            .{},
+                            &.{},
+                        );
                         return ResultError.runtime;
                     }
 
@@ -121,7 +137,11 @@ pub const VirtualMachine = struct {
                 .op_not => self.push(Val{ .boolean = isFalsey(self.pop()) }),
                 .op_negate => {
                     if (self.peek(0) != .number) {
-                        self.runtimeErr("Negace nelze provést na nečíselné hodnotě", .{}, &.{.{ .message = "Operace negace je platná pouze pro číselné hodnoty" }});
+                        self.runtimeErr(
+                            "Negace nelze provést na nečíselné hodnotě",
+                            .{},
+                            &.{.{ .message = "Operace negace je platná pouze pro číselné hodnoty" }},
+                        );
                         return ResultError.runtime;
                     }
                     const val = Val{ .number = -(self.pop().number) };
@@ -139,7 +159,11 @@ pub const VirtualMachine = struct {
                     self.push(Val{ .number = result });
                 },
 
-                .op_print => self.pop().print(),
+                .op_print => self.pop().print(self.allocator),
+                .op_println => {
+                    self.pop().print(self.allocator);
+                    shared.stdout.print("\n", .{}) catch @panic("Nepodařilo se vypsat hodnotu");
+                },
                 .op_pop => _ = self.pop(),
                 .op_popn => {
                     var n = self.readByte();
@@ -152,7 +176,13 @@ pub const VirtualMachine = struct {
                 .op_get_glob => {
                     const name = self.readValue().obj.string();
                     if (!self.globals.contains(name.repre)) {
-                        self.runtimeErr("Neexistující prvek '{s}'", .{name.repre}, &.{.{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" }});
+                        self.runtimeErr(
+                            "Neexistující prvek '{s}'",
+                            .{name.repre},
+                            &.{
+                                .{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" },
+                            },
+                        );
                         return ResultError.runtime;
                     }
                     self.push(self.globals.get(name.repre).?.val);
@@ -167,12 +197,22 @@ pub const VirtualMachine = struct {
                 .op_set_glob => {
                     const name = self.readValue().obj.string();
                     if (!self.globals.contains(name.repre)) {
-                        self.runtimeErr("Neexistující prvek '{s}'", .{name.repre}, &.{.{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" }});
+                        self.runtimeErr(
+                            "Neexistující prvek '{s}'",
+                            .{name.repre},
+                            &.{
+                                .{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" },
+                            },
+                        );
                         return ResultError.runtime;
                     }
 
-                    if (self.globals.get(name.repre).?.type == .konst) {
-                        self.runtimeErr("Nelze změnit hodnotu konstanty '{s}'", .{name.repre}, &.{.{ .message = "Použijte 'prm' pro proměnnou." }});
+                    if (self.globals.get(name.repre).?.is_const) {
+                        self.runtimeErr(
+                            "Nelze změnit hodnotu konstanty '{s}'",
+                            .{name.repre},
+                            &.{.{ .message = "Použijte 'prm' pro proměnnou." }},
+                        );
                         return ResultError.runtime;
                     }
 
@@ -245,7 +285,11 @@ pub const VirtualMachine = struct {
             b.deinit(b, self);
         }
 
-        const new = std.mem.concat(self.allocator, u8, &.{ a.string().repre, b.string().repre }) catch {
+        const new = std.mem.concat(
+            self.allocator,
+            u8,
+            &.{ a.string().repre, b.string().repre },
+        ) catch {
             @panic("Nedostatečné množství paměti");
         };
 
@@ -266,7 +310,11 @@ pub const VirtualMachine = struct {
                 @panic("Chyba při alokaci");
             };
 
-            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.obj.string().repre, string }) catch {
+            new = std.fmt.allocPrint(
+                self.allocator,
+                "{s}{s}",
+                .{ a.obj.string().repre, string },
+            ) catch {
                 @panic("Chyba při alokaci");
             };
 
@@ -276,7 +324,11 @@ pub const VirtualMachine = struct {
                 @panic("Chyba při alokaci");
             };
 
-            new = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ string, b.obj.string().repre }) catch {
+            new = std.fmt.allocPrint(
+                self.allocator,
+                "{s}{s}",
+                .{ string, b.obj.string().repre },
+            ) catch {
                 @panic("Chyba při alokaci");
             };
 
@@ -305,7 +357,13 @@ pub const VirtualMachine = struct {
         } else if (first == .obj or second == .obj) {
             self.concatWithString();
         } else {
-            self.runtimeErr("Operace + není povolena pro tuto kombinaci hodnot", .{}, &.{.{ .message = "Operace + jde použít jen na číselné hodnoty, stringy a spojení hodnoty se stringem" }});
+            self.runtimeErr(
+                "Operace + není povolena pro tuto kombinaci hodnot",
+                .{},
+                &.{
+                    .{ .message = "Operace + jde použít jen na číselné hodnoty, stringy a spojení hodnoty se stringem" },
+                },
+            );
             return ResultError.runtime;
         }
     }
@@ -313,7 +371,11 @@ pub const VirtualMachine = struct {
     /// "Binární" operace podle operátoru
     inline fn binary(self: *Self, operation: BinaryOp) ResultError!void {
         if (self.peek(0) != .number or self.peek(1) != .number) {
-            self.runtimeErr("Nesprávný datový typ", .{}, &.{}); // Binární operace může být prováděna pouze na číselných hodnotách. Zkontrolujte, zda je váš datový typ kompatibilní s touto operací."
+            self.runtimeErr(
+                "Nesprávný datový typ",
+                .{},
+                &.{.{ .message = "Binární operace může být prováděna pouze na číselných hodnotách. Zkontrolujte, zda je váš datový typ kompatibilní s touto operací." }},
+            );
             return ResultError.runtime;
         }
 
@@ -358,12 +420,20 @@ pub const VirtualMachine = struct {
         const a = self.pop();
 
         if (a != .number or b != .number) {
-            self.runtimeErr("Binární posun lze provádět jen na číselných hodnotách", .{}, &.{});
+            self.runtimeErr(
+                "Binární posun lze provádět jen na číselných hodnotách",
+                .{},
+                &.{},
+            );
             return ResultError.runtime;
         }
 
         if (b.number >= 64.0 or b.number < 0.0) {
-            self.runtimeErr("Neplatné číslo '{d}' pro binární posun", .{b.number}, &.{.{ .message = "Číslo musí být kladné a menší jak 64" }});
+            self.runtimeErr(
+                "Neplatné číslo '{d}' pro binární posun",
+                .{b.number},
+                &.{.{ .message = "Číslo musí být kladné a menší jak 64" }},
+            );
             return ResultError.runtime;
         }
 
@@ -393,10 +463,15 @@ pub const VirtualMachine = struct {
     }
 
     /// Vypisování run-time errorů s trace stackem
-    fn runtimeErr(self: *Self, comptime message: []const u8, args: anytype, notes: []const Reporter.Note) void {
+    fn runtimeErr(
+        self: *Self,
+        comptime message: []const u8,
+        args: anytype,
+        notes: []const Reporter.Note,
+    ) void {
         const loc = self.block.locations.items[self.ip - 1];
 
-        const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("");
+        const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("Nepodařilo se alokovat");
         self.reporter.reportRuntime(new, notes, loc);
     }
 };

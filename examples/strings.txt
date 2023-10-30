@@ -1,1 +1,1 @@
-tiskni 'ahoj ' + ne;
+tiskniN "\tahoj \"" + ne;

@@ -1,27 +1,24 @@
 const std = @import("std");
 
 const Val = @import("value.zig").Val;
-const Token = @import("token.zig").Token;
-
-const storeType = enum { prm, konst };
 
 /// Ukládání hodnot, aby se dalo poznat jestli je to konstanta nebo proměnná
 pub const Global = struct {
     const Self = @This();
 
-    type: storeType,
+    is_const: bool,
     val: Val,
 
-    pub fn init(store_type: storeType, val: Val) Self {
-        return Self{ .type = store_type, .val = val };
+    pub fn init(is_const: bool, val: Val) Self {
+        return Self{ .is_const = is_const, .val = val };
     }
 
     pub fn initPrm(val: Val) Self {
-        return Self{ .type = .prm, .val = val };
+        return Self{ .is_const = false, .val = val };
     }
 
     pub fn initKonst(val: Val) Self {
-        return Self{ .type = .konst, .val = val };
+        return Self{ .is_const = true, .val = val };
     }
 };
 
