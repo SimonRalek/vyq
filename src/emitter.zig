@@ -45,6 +45,7 @@ pub const Emitter = struct {
 
     // Emit returnu a disassemble pokud debug mod
     pub fn deinit(self: *Self) void {
+        self.locals.deinit();
         self.emitOpCode(.op_return, self.parser.?.previous.location);
         if (!self.reporter.had_error and debug.debugging) {
             debug.disBlock(self.currentChunk(), "code");

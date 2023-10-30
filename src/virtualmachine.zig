@@ -470,8 +470,10 @@ pub const VirtualMachine = struct {
         notes: []const Reporter.Note,
     ) void {
         const loc = self.block.locations.items[self.ip - 1];
+        self.resetStack();
 
         const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("Nepodařilo se alokovat");
+        defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
     }
 };

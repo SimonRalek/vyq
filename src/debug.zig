@@ -81,6 +81,7 @@ inline fn value(
     std.debug.print("{s} {} ", .{ name, val });
 
     block.*.values.items[val].print(allocator);
+    std.debug.print("\n", .{});
     return idx + 2;
 }
 

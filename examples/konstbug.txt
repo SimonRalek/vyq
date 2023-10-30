@@ -1,0 +1,3 @@
+konst k = 4;
+.k += 5;
+{ prm k = 6; tiskni .k; }
