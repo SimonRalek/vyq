@@ -100,17 +100,16 @@ pub const Object = struct {
 
     /// Vytisknout objekt
     pub fn print(self: *Object, allocator: Allocator) !void {
-        _ = allocator;
         switch (self.type) {
             .string => {
-                // var arrlist = std.ArrayList(u8).init(allocator);
-                // defer arrlist.deinit();
-                // var writer = arrlist.writer();
-                // try Formatter.escapeFmt(self.string().repre).format(writer);
-                //
-                // var formatted = try arrlist.toOwnedSlice();
-                // defer allocator.free(formatted);
-                try shared.stdout.print("{s}", .{self.string().repre});
+                var arrlist = std.ArrayList(u8).init(allocator);
+                defer arrlist.deinit();
+                var writer = arrlist.writer();
+                try Formatter.escapeFmt(self.string().repre).format(writer);
+
+                var formatted = try arrlist.toOwnedSlice();
+                defer allocator.free(formatted);
+                try shared.stdout.print("{s}", .{formatted});
             },
         }
     }
