@@ -132,7 +132,7 @@ pub const Scanner = struct {
 
     /// Zjistit znak na následující pozici
     fn peekNext(self: *Self) u8 {
-        if (self.current + 1 > self.buf.len) return '\x00';
+        if (self.current + 1 >= self.buf.len) return '\x00';
         return self.buf[self.current + 1];
     }
 
@@ -192,7 +192,7 @@ pub const Scanner = struct {
 
         switch (deli) {
             '\'' => {
-                while (self.delimeter(deli) and !self.isEof()) {
+                while (!self.isEof() and self.delimeter(deli)) {
                     if (self.peek() == '\n') {
                         hadMultilineError = true;
                     }
@@ -200,7 +200,7 @@ pub const Scanner = struct {
                 }
             },
             '"' => {
-                while (self.delimeter(deli) and !self.isEof()) {
+                while (!self.isEof() and self.delimeter(deli)) {
                     if (self.peek() == '\n') self.location.line += 1;
                     _ = self.advance();
                 }
@@ -356,7 +356,24 @@ fn isOctal(c: u8) bool {
 
 /// Je znak písmeno či '_'
 fn isAlpha(c: u8) bool {
-    return std.ascii.isAlphabetic(c) or c == '_';
+    return std.ascii.isAlphabetic(c) or c == '_' or isCzechChar(c);
+}
+
+fn isCzechChar(c: u8) bool {
+    return switch (c) {
+        '\xC4', '\x9B', '\x9A' => true, // ě Ě
+        '\xC5', '\xA1', '\xA0' => true, // š Š
+        '\x8D', '\x8C' => true, // č Č
+        '\x99', '\x98' => true, // ř Ř
+        '\xBE', '\xBD' => true, // ž Ž
+        '\xC3', '\x9D' => true, // ý Ý
+        '\x81' => true, // á Á
+        '\xAD' => true, // í Í
+        '\xA9', '\x89' => true, // é É
+        '\xBA' => true, // ú Ú
+        '\xAF', '\xAE' => true, // ů Ů
+        else => false,
+    };
 }
 
 /// Testování scanneru

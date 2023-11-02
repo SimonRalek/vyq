@@ -1,6 +1,7 @@
 const std = @import("std");
 const shared = @import("shared.zig");
 const Allocator = std.mem.Allocator;
+const Color = std.io.tty.Color;
 
 const Token = @import("token.zig").Token;
 const Location = @import("scanner.zig").Location;
@@ -13,6 +14,10 @@ had_error: bool = false,
 panic_mode: bool = false,
 file: []const u8 = undefined,
 source: []const u8 = undefined,
+
+pub fn init(allocator: Allocator) Reporter {
+    return .{ .allocator = allocator };
+}
 
 pub const Kind = enum {
     const Self = @This();
@@ -29,11 +34,11 @@ pub const Kind = enum {
         };
     }
 
-    pub fn getColor(self: Self) u8 {
+    pub fn getColor(self: Self) Color {
         return switch (self) {
-            .err => 31,
-            .warn => 33,
-            .hint => 34,
+            .err => .red,
+            .warn => .yellow,
+            .hint => .blue,
         };
     }
 };
@@ -144,10 +149,14 @@ pub const Report = struct {
     /// Vytisknout poznámky
     fn printNotes(self: *Self) !void {
         for (self.notes) |note| {
-            try shared.stdout.print(
-                "\x1b[{}mpoznámka\x1b[m",
-                .{note.kind.getColor()},
+            var stdout = std.io.getStdOut();
+            const config = std.io.tty.detectConfig(stdout);
+            try config.setColor(stdout, note.kind.getColor());
+            try stdout.writer().print(
+                "poznámka",
+                .{},
             );
+            try config.setColor(stdout, .reset);
             try shared.stdout.print(": {s}\n", .{note.message});
         }
     }
@@ -159,10 +168,13 @@ pub const Report = struct {
             loc.line,
             loc.end_column,
         });
-        try shared.stdout.print("\x1b[{}m{s}\x1b[m: ", .{
-            self.item.kind.getColor(),
+        var stdout = std.io.getStdOut();
+        var config = std.io.tty.detectConfig(stdout);
+        try config.setColor(stdout, self.item.kind.getColor());
+        try stdout.writer().print("{s}: ", .{
             self.item.kind.name(),
         });
+        try config.setColor(stdout, .reset);
 
         switch (self.type.?) {
             ResultError.runtime => {

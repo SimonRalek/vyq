@@ -187,6 +187,9 @@ pub const Parser = struct {
         if (self.match(.assign)) {
             self.expression();
         } else {
+            if (is_const) {
+                self.warn(&self.previous, "Inicializace konstanty s prázdnou hodnotou");
+            }
             self.emitOpCode(.op_nic);
         }
 
@@ -585,7 +588,8 @@ pub const Parser = struct {
 
 fn testParser(source: []const u8, expected: f64) !void {
     var allocator = std.testing.allocator;
-    var vm = VM.init(allocator);
+    var reporter = Reporter.init(allocator);
+    var vm = VM.init(allocator, &reporter);
     try vm.interpret(source);
 
     try std.testing.expectEqual(expected, vm.stack[0].number);

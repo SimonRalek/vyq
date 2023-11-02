@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const clap = @import("lib/zig-clap/clap.zig");
 
 const debug = @import("debug.zig");
@@ -19,8 +20,15 @@ const SplitIterator = std.mem.SplitIterator;
 const GPA = std.heap.GeneralPurposeAllocator;
 const ArenaAlloc = std.heap.ArenaAllocator;
 
+extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
+
 /// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
+    if (builtin.os.tag == .windows) {
+        _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
+        _ = SetConsoleCP(65001);
+    }
+
     var heap = getAllocatorType();
     defer _ = heap.deinit();
     const allocator = heap.allocator();

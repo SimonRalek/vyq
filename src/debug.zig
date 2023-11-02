@@ -12,7 +12,7 @@ pub fn disBlock(block: *Block, name: []const u8) void {
     var allocator = std.heap.page_allocator;
 
     var i: usize = 0;
-    while (i < block.*.code.items.len) {
+    while (i < block.code.items.len) {
         i = disInstruction(block, i, allocator);
     }
 }
