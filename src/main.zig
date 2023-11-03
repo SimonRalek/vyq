@@ -25,8 +25,8 @@ extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std
 /// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
     if (builtin.os.tag == .windows) {
-        _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
-        _ = SetConsoleCP(65001);
+        std.debug.assert(SetConsoleCP(65001) != 0);
+        std.debug.assert(std.os.windows.kernel32.SetConsoleOutputCP(65001) != 0);
     }
 
     var heap = getAllocatorType();
@@ -84,7 +84,9 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
         try shared.stdout.print(">>> ", .{});
 
-        std.io.getStdIn().reader().streamUntilDelimiter(
+        var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
+        const stdin = buffered_stdin.reader();
+        stdin.streamUntilDelimiter(
             buf_stream.writer(),
             '\n',
             buf.len,
