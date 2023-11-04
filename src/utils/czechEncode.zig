@@ -46,3 +46,7 @@ pub fn longestApprovedAlphabeticGrapheme(slice: []const u8) ?[]const u8 {
 
     return null;
 }
+
+test {
+    try std.testing.expect(null == longestApprovedAlphabeticGrapheme("ó"));
+}

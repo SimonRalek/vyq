@@ -47,8 +47,7 @@ pub const Scanner = struct {
         if (self.isEof()) return self.createToken(.eof);
         self.resetPointers();
 
-        const char = self.peek();
-        _ = self.advance();
+        const char = self.advance();
 
         return switch (char) {
             '+' => self.createToken(if (self.match('='))
@@ -340,8 +339,8 @@ pub const Scanner = struct {
 
     /// Je znak písmeno či '_'
     fn isAlpha(self: *Self, buff: []const u8) bool {
+        if (!std.unicode.utf8ValidateSlice(buff)) return false;
         var str = Util.longestApprovedAlphabeticGrapheme(buff) orelse return false;
-        std.debug.print("{s} {}", .{ str, str.len });
         if (str.len > 1) {
             self.current += str.len - 1;
         }
@@ -510,7 +509,8 @@ test "for loop" {
         .semicolon,
         .dot,
         .identifier,
-        .increment,
+        .plus,
+        .plus,
         .colon,
         .left_brace,
         .right_brace,
@@ -527,7 +527,8 @@ test "for loop" {
         .semicolon,
         .dot,
         .identifier,
-        .decrement,
+        .minus,
+        .minus,
         .colon,
         .left_brace,
         .right_brace,
