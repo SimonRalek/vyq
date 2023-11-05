@@ -1,1 +1,4 @@
-tiskniN "\tahoj \"" + ne;
+'
+asd
+';
+tiskni 3;

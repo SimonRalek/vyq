@@ -2,6 +2,7 @@ const std = @import("std");
 const shared = @import("shared.zig");
 const isDigit = std.ascii.isDigit;
 
+const Util = @import("utils/unicode.zig");
 const _token = @import("token.zig");
 const Token = _token.Token;
 
@@ -46,8 +47,7 @@ pub const Scanner = struct {
         if (self.isEof()) return self.createToken(.eof);
         self.resetPointers();
 
-        const char = self.peek();
-        _ = self.advance();
+        const char = self.advance();
 
         return switch (char) {
             '+' => self.createToken(if (self.match('='))
@@ -111,7 +111,7 @@ pub const Scanner = struct {
 
             else => {
                 if (isDigit(char)) return self.number();
-                if (isAlpha(char)) return self.identifier();
+                if (self.isAlpha(self.buf[0..])) return self.identifier();
                 return self.errorToken("Neznámý znak");
             },
         };
@@ -233,7 +233,7 @@ pub const Scanner = struct {
 
     /// Skenovat identifikátor
     fn identifier(self: *Self) Token {
-        while (isAlpha(self.peek()) or isDigit(self.peek())) {
+        while (!self.isEof() and (self.isAlpha(self.buf[self.current..]) or isDigit(self.peek()))) {
             _ = self.advance();
         }
 
@@ -336,6 +336,20 @@ pub const Scanner = struct {
         self.current = 0;
         self.location.start_column = self.location.end_column + 1;
     }
+
+    /// Je znak písmeno či '_'
+    fn isAlpha(self: *Self, buff: []const u8) bool {
+        if (!std.unicode.utf8ValidateSlice(buff)) return false;
+        var str = Util.longestApprovedAlphabeticGrapheme(buff) orelse {
+            var len = Util.nonAllowedLenght(buff);
+            self.current += len;
+            return false;
+        };
+        if (str.len > 1) {
+            self.current += str.len - 1;
+        }
+        return true;
+    }
 };
 
 /// Je znak hexadecimální
@@ -354,11 +368,6 @@ fn isOctal(c: u8) bool {
     };
 }
 
-/// Je znak písmeno či '_'
-fn isAlpha(c: u8) bool {
-    return std.ascii.isAlphabetic(c) or c == '_' or isCzechChar(c);
-}
-
 fn isCzechChar(c: u8) bool {
     return switch (c) {
         '\xC4', '\x9B', '\x9A' => true, // ě Ě
@@ -372,6 +381,7 @@ fn isCzechChar(c: u8) bool {
         '\xA9', '\x89' => true, // é É
         '\xBA' => true, // ú Ú
         '\xAF', '\xAE' => true, // ů Ů
+        '\x88', '\x87' => true, // ň Ň
         else => false,
     };
 }
@@ -503,7 +513,8 @@ test "for loop" {
         .semicolon,
         .dot,
         .identifier,
-        .increment,
+        .plus,
+        .plus,
         .colon,
         .left_brace,
         .right_brace,
@@ -520,7 +531,8 @@ test "for loop" {
         .semicolon,
         .dot,
         .identifier,
-        .decrement,
+        .minus,
+        .minus,
         .colon,
         .left_brace,
         .right_brace,
