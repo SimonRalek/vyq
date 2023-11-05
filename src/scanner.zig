@@ -2,7 +2,7 @@ const std = @import("std");
 const shared = @import("shared.zig");
 const isDigit = std.ascii.isDigit;
 
-const Util = @import("utils/czechEncode.zig");
+const Util = @import("utils/unicode.zig");
 const _token = @import("token.zig");
 const Token = _token.Token;
 
@@ -340,7 +340,11 @@ pub const Scanner = struct {
     /// Je znak písmeno či '_'
     fn isAlpha(self: *Self, buff: []const u8) bool {
         if (!std.unicode.utf8ValidateSlice(buff)) return false;
-        var str = Util.longestApprovedAlphabeticGrapheme(buff) orelse return false;
+        var str = Util.longestApprovedAlphabeticGrapheme(buff) orelse {
+            var len = Util.nonAllowedLenght(buff);
+            self.current += len;
+            return false;
+        };
         if (str.len > 1) {
             self.current += str.len - 1;
         }

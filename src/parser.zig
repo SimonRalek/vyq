@@ -267,6 +267,11 @@ pub const Parser = struct {
         var setOp: Block.OpCode = undefined;
         var arg = self.resolveLocal(token);
 
+        if (token.type != .identifier) {
+            self.report(token, "Po tečce se očekává jméno prvku");
+            return ResultError.parser;
+        }
+
         if (arg[0] != -1) {
             getOp = .op_get_loc;
             setOp = .op_set_loc;
@@ -552,8 +557,6 @@ pub const Parser = struct {
     fn getRule(t_type: _token.Type) ParseRule {
         return switch (t_type) {
             .left_paren => .{ .prefix = Parser.group },
-            .right_paren, .left_brace, .right_brace => .{},
-            .identifier, .assign => .{},
 
             .increment, .decrement => .{ .infix = Parser.crement },
 
@@ -577,10 +580,9 @@ pub const Parser = struct {
             .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
 
             .dot => .{ .prefix = Parser.variable },
-            .semicolon, .eof => .{},
 
             else => {
-                unreachable;
+                return .{};
             },
         };
     }

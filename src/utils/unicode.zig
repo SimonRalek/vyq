@@ -47,6 +47,17 @@ pub fn longestApprovedAlphabeticGrapheme(slice: []const u8) ?[]const u8 {
     return null;
 }
 
+pub fn nonAllowedLenght(buff: []const u8) usize {
+    var utf8_it = std.unicode.Utf8View.initUnchecked(buff).iterator();
+    if (utf8_it.nextCodepoint()) |codepoint| {
+        var len: usize = std.unicode.utf8CodepointSequenceLength(codepoint) catch {
+            @panic("");
+        };
+        return len - 1;
+    }
+    return 0;
+}
+
 test {
     try std.testing.expect(null == longestApprovedAlphabeticGrapheme("ó"));
 }
