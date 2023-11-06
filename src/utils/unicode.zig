@@ -27,6 +27,7 @@ pub fn longestApprovedAlphabeticGrapheme(slice: []const u8) ?[]const u8 {
                     'ň', 'Ň' => return piece,
                     'ú', 'Ú' => return piece,
                     'ů', 'Ů' => return piece,
+                    'ó', 'Ó' => return piece,
                     else => return null,
                 }
             },

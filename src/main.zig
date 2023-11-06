@@ -21,6 +21,7 @@ const GPA = std.heap.GeneralPurposeAllocator;
 const ArenaAlloc = std.heap.ArenaAllocator;
 
 extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
+extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
 
 /// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
@@ -78,30 +79,45 @@ pub fn main() !void {
 fn repl(allocator: Allocator, vm: *VM) !void {
     _ = allocator; // TODO?
 
-    while (true) {
-        var buf: [256]u8 = undefined;
-        var buf_stream = std.io.fixedBufferStream(&buf);
-
+    if (builtin.os.tag == .windows) {
         try shared.stdout.print(">>> ", .{});
 
-        var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
-        const stdin = buffered_stdin.reader();
-        stdin.streamUntilDelimiter(
-            buf_stream.writer(),
-            '\n',
-            buf.len,
-        ) catch {
-            @panic("");
-        };
-        const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+        var stdin = std.io.getStdIn().handle;
+        var data: [256]u16 = undefined;
+        var read: u32 = undefined;
+        _ = ReadConsoleW(stdin, &data, data.len, &read, null);
 
-        if (input.len == buf.len) {
-            try printErr("Vstup je příliš dlouhý", .{});
-            try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
-            continue;
-        }
-        const source = buf[0..input.len];
+        var utf8: [1024]u8 = undefined;
+        const utf8_len = try std.unicode.utf16leToUtf8(&utf8, data[0..read]);
+        const source = utf8[0 .. utf8_len - 1]; // - \n
+
         vm.interpret(source) catch {};
+    } else {
+        while (true) {
+            var buf: [256]u8 = undefined;
+            var buf_stream = std.io.fixedBufferStream(&buf);
+
+            try shared.stdout.print(">>> ", .{});
+
+            var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
+            const stdin = buffered_stdin.reader();
+            stdin.streamUntilDelimiter(
+                buf_stream.writer(),
+                '\n',
+                buf.len,
+            ) catch {
+                @panic("");
+            };
+            const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+
+            if (input.len == buf.len) {
+                try printErr("Vstup je příliš dlouhý", .{});
+                try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
+                continue;
+            }
+            const source = buf[0..input.len];
+            vm.interpret(source) catch {};
+        }
     }
     defer vm.deinit();
 }
