@@ -76,4 +76,5 @@ test "decomposition" {
 
 test "unknown" {
     try std.testing.expect(null == longestApprovedAlphabeticGrapheme("¶"));
+    try std.testing.expect(null == longestApprovedAlphabeticGrapheme("Ɇ"));
 }
