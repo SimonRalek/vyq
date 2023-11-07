@@ -14,7 +14,7 @@ const EscapeFmt = struct {
             const end = std.mem.indexOfScalarPos(u8, self.string, start, '\\') orelse self.string.len;
             try writer.writeAll(self.string[start..end]);
             if (end == self.string.len) break;
-            if (end + 1 == self.string.len) @panic("Bad ending escape"); // <- should probably do validation on the string before formatting
+            if (end + 1 == self.string.len) @panic("Bad ending escape");
             start = end + 2;
             switch (self.string[end + 1]) {
                 'n' => try writer.writeByte('\n'),
@@ -28,3 +28,22 @@ const EscapeFmt = struct {
         }
     }
 };
+
+fn testFormatter(expected: []const u8, source: []const u8) !void {
+    var arrlist = std.ArrayList(u8).init(std.testing.allocator);
+    defer arrlist.deinit();
+    var writer = arrlist.writer();
+    try escapeFmt(source).format(writer);
+
+    var res = try arrlist.toOwnedSlice();
+
+    try std.testing.expectEqualSlices(u8, expected, res);
+    std.testing.allocator.free(res);
+}
+
+test {
+    try testFormatter("New line\n", "New line\\n");
+    try testFormatter("Tab\t or R\r", "Tab\\t or R\\r");
+    try testFormatter("Normal \\p \\w \\v \\l", "Normal \\p \\w \\v \\l");
+    try testFormatter("'New \'string\''", "'New \\'string\\''");
+}

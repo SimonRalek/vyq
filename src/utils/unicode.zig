@@ -59,6 +59,21 @@ pub fn nonAllowedLenght(buff: []const u8) usize {
     return 0;
 }
 
-test {
-    try std.testing.expect(null == longestApprovedAlphabeticGrapheme("ó"));
+test "normal" {
+    try std.testing.expectEqualSlices(u8, "a", longestApprovedAlphabeticGrapheme("ab").?);
+}
+
+test "diakritika" {
+    try std.testing.expectEqualSlices(u8, "ó", longestApprovedAlphabeticGrapheme("ó").?);
+    try std.testing.expectEqualSlices(u8, "ú", longestApprovedAlphabeticGrapheme("ú").?);
+    try std.testing.expectEqualSlices(u8, "ě", longestApprovedAlphabeticGrapheme("ě").?);
+    try std.testing.expectEqualSlices(u8, "Ř", longestApprovedAlphabeticGrapheme("Ř").?);
+}
+
+test "decomposition" {
+    try std.testing.expectEqualSlices(u8, "e\u{030C}", longestApprovedAlphabeticGrapheme("e\u{030C}bas").?);
+}
+
+test "unknown" {
+    try std.testing.expect(null == longestApprovedAlphabeticGrapheme("¶"));
 }
