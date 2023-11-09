@@ -46,25 +46,9 @@ pub fn main() !void {
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
-    try arguments(allocator);
-
-    switch (args.len) {
-        1 => {
-            reporter.file = "REPL";
-            repl(allocator, &vm) catch @panic("Hodnotu se nepodařilo vypsat");
-        },
-        2 => {
-            reporter.file = args[1];
-            runFile(allocator, args[1], &vm) catch @panic("Hodnotu se nepodařilo vypsat");
-        },
-        else => {
-            printErr("Neznámý počet argumentů\n", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
-            shared.stdout.print(
-                "\x1b[34mPoužití\x1b[m:\n> vyq [cesta k souboru] [argumenty]\n",
-                .{},
-            ) catch @panic("Hodnotu se nepodařilo vypsat");
-        },
-    }
+    arguments(allocator, &vm) catch {
+        Reporter.printErr("Neznámý argument", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+    };
 
     if (debug.benchmark) {
         timer.end();
@@ -72,6 +56,64 @@ pub fn main() !void {
         defer {
             bench.deinit();
         }
+    }
+}
+
+/// Parsování argumentů při spuštení programu
+fn arguments(allocator: Allocator, vm: *VM) !void {
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --pomoc            Zobraz pomoc a použití 
+        \\-v, --verze            Zobraz verzi
+        \\-b, --bezbarev         Vypisování bez barev
+        \\<FILE>...
+        \\
+    );
+
+    const parsers = comptime .{ .FILE = clap.parsers.string };
+
+    var res = try clap.parse(
+        clap.Help,
+        &params,
+        parsers,
+        .{},
+    );
+    defer res.deinit();
+
+    if (res.args.verze == 1) {
+        const version = (std.ChildProcess.exec(.{
+            .allocator = allocator,
+            .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
+        }) catch {
+            unreachable;
+        }).stdout;
+        try shared.stdout.print("{s}", .{version});
+        std.process.exit(74);
+    }
+
+    if (res.args.pomoc == 1) {
+        try shared.stdout.print(
+            \\Použití:
+            \\  > vyq [cesta k souboru] [argumenty]
+            \\
+            \\Argumenty:
+            \\  -h, --pomoc      Zobraz pomoc a použití
+            \\  -v, --verze      Zobraz verzi
+            \\  --bezbarev       Vypisování bez barev
+            \\
+        , .{});
+        std.process.exit(74);
+    }
+
+    if (res.args.bezbarev == 1) {
+        vm.reporter.nocolor = true;
+    }
+
+    if (res.positionals.len > 0) {
+        vm.reporter.file = res.positionals[0];
+        runFile(allocator, res.positionals[0], vm) catch {};
+    } else {
+        vm.reporter.file = "REPL";
+        repl(allocator, vm) catch {};
     }
 }
 
@@ -111,7 +153,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
             if (input.len == buf.len) {
-                try printErr("Vstup je příliš dlouhý", .{});
+                Reporter.printErr("Vstup je příliš dlouhý", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
                 try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
                 continue;
             }
@@ -129,7 +171,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
         filename,
         1_000_000,
     ) catch {
-        printErr("Soubor nebyl nalezen", .{}) catch {
+        Reporter.printErr("Soubor nebyl nalezen", .{}) catch {
             @panic("Hodnotu se nepodařilo vypsat");
         };
         std.process.exit(70);
@@ -138,58 +180,6 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
 
     vm.interpret(source) catch {};
     defer vm.deinit();
-}
-
-/// Parsování argumentů při spuštení programu
-fn arguments(allocator: Allocator) !void {
-    const params = comptime clap.parseParamsComptime(
-        \\-h, --help             Zobraz pomoc a použití 
-        \\-v, --version          Zobraz verzi
-        \\<str>...
-        \\
-    );
-
-    var diag = clap.Diagnostic{};
-    var res = clap.parse(
-        clap.Help,
-        &params,
-        clap.parsers.default,
-        .{ .diagnostic = &diag },
-    ) catch |err| {
-        diag.report(shared.stdout, err) catch {};
-        return err;
-    };
-    defer res.deinit();
-
-    if (res.args.version == 1) {
-        const version = (std.ChildProcess.exec(.{
-            .allocator = allocator,
-            .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
-        }) catch {
-            unreachable;
-        }).stdout;
-        try shared.stdout.print("{s}", .{version});
-        std.process.exit(74);
-    }
-
-    if (res.args.help == 1) {
-        try shared.stdout.print(
-            \\Použití:
-            \\  > vyq [cesta k souboru] [argumenty]
-            \\
-            \\Argumenty:
-            \\  -h, --help      Zobraz pomoc a použití
-            \\  -v, --version   Zobraz verzi
-            \\
-        , .{});
-        std.process.exit(74);
-    }
-}
-
-/// Vytisknout chybu
-fn printErr(comptime message: []const u8, args: anytype) !void {
-    try shared.stdout.print("\x1b[31mChyba\x1b[m: ", .{});
-    try shared.stdout.print(message ++ "\n", args);
 }
 
 /// Získat podle debug modu přiřazený allocator

@@ -14,6 +14,7 @@ had_error: bool = false,
 panic_mode: bool = false,
 file: []const u8 = undefined,
 source: []const u8 = undefined,
+nocolor: bool = false,
 
 pub fn init(allocator: Allocator) Reporter {
     return .{ .allocator = allocator };
@@ -151,12 +152,14 @@ pub const Report = struct {
         for (self.notes) |note| {
             var stdout = std.io.getStdOut();
             const config = std.io.tty.detectConfig(stdout);
-            try config.setColor(stdout, note.kind.getColor());
+            if (!self.reporter.nocolor)
+                try config.setColor(stdout, note.kind.getColor());
             try stdout.writer().print(
                 "poznámka",
                 .{},
             );
-            try config.setColor(stdout, .reset);
+            if (!self.reporter.nocolor)
+                try config.setColor(stdout, .reset);
             try shared.stdout.print(": {s}\n", .{note.message});
         }
     }
@@ -170,11 +173,13 @@ pub const Report = struct {
         });
         var stdout = std.io.getStdOut();
         var config = std.io.tty.detectConfig(stdout);
-        try config.setColor(stdout, self.item.kind.getColor());
+        if (!self.reporter.nocolor)
+            try config.setColor(stdout, self.item.kind.getColor());
         try stdout.writer().print("{s}: ", .{
             self.item.kind.name(),
         });
-        try config.setColor(stdout, .reset);
+        if (!self.reporter.nocolor)
+            try config.setColor(stdout, .reset);
 
         switch (self.type.?) {
             ResultError.runtime => {
@@ -231,4 +236,18 @@ pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
         .notes = &.{},
     };
     rep.report(token.location) catch {};
+}
+
+///
+pub fn printErr(
+    comptime message: []const u8,
+    args: anytype,
+) !void {
+    const stdout = std.io.getStdOut();
+    const config = std.io.tty.detectConfig(stdout);
+    try config.setColor(stdout, .red);
+    try stdout.writer().print("Chyba", .{});
+    try config.setColor(stdout, .reset);
+    try stdout.writer().print(": ", .{});
+    try shared.stdout.print(message ++ "\n", args);
 }
