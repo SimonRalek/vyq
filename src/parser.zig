@@ -108,12 +108,38 @@ pub const Parser = struct {
         return expected == self.current.type;
     }
 
+    fn currentBlock(self: *Self) *Block {
+        return self.emitter.?.currentBlock();
+    }
+
     fn emitOpCode(self: *Self, op_code: Block.OpCode) void {
         self.emitter.?.emitOpCode(op_code, self.previous.location);
     }
 
     fn emitVal(self: *Self, val: Val) void {
         self.emitter.?.emitValue(val, self.previous.location);
+    }
+
+    fn emitByte(self: *Self, byte: u8) void {
+        self.emitter.?.emitByte(byte, self.previous.location);
+    }
+
+    fn emitJmp(self: *Self, op: Block.OpCode) usize {
+        self.emitOpCode(op);
+        self.emitByte(0xff);
+        self.emitByte(0xff);
+        return self.currentBlock().code.items.len - 2;
+    }
+
+    fn patchJmp(self: *Self, idx: usize) void {
+        const jmp = self.currentBlock().code.items.len - idx - 2;
+
+        if (jmp > std.math.maxInt(u16)) {
+            self.report(&self.current, ""); // TODO
+        }
+
+        self.currentBlock().code.items[idx] = @intCast((jmp >> 8) & 0xff);
+        self.currentBlock().code.items[idx + 1] = @intCast(jmp & 0xff);
     }
 
     fn makeVal(self: *Self, val: Val) u8 {
@@ -149,6 +175,8 @@ pub const Parser = struct {
             self.beginScope();
             self.block();
             self.endScope();
+        } else if (self.match(.pokud)) {
+            self.ifStmt();
         } else {
             self.exprStmt();
         }
@@ -372,6 +400,22 @@ pub const Parser = struct {
         self.emitOpCode(if (token.type == .tiskni) .op_println else .op_print);
     }
 
+    fn ifStmt(self: *Self) void {
+        self.expression();
+        self.eat(.colon, "");
+
+        const jmp = self.emitJmp(.op_jmp_on_false);
+        self.emitOpCode(.op_pop);
+        self.statement();
+
+        const else_jmp = self.emitJmp(.op_jmp);
+
+        self.patchJmp(jmp);
+        self.emitOpCode(.op_pop);
+        if (self.match(.jinak)) self.statement();
+        self.patchJmp(else_jmp);
+    }
+
     fn exprStmt(self: *Self) void {
         self.expression();
         self.eat(.semicolon, "Chybí ';' za příkazem");
@@ -389,6 +433,28 @@ pub const Parser = struct {
             }
             self.advance();
         }
+    }
+
+    fn zaroven(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
+        const jmp = self.emitJmp(.op_jmp_on_false);
+
+        self.emitOpCode(.op_pop);
+        self.parsePrecedence(.zaroven);
+
+        self.patchJmp(jmp);
+    }
+
+    fn nebo(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+
+        const jmp = self.emitJmp(.op_jmp_on_true);
+
+        self.emitOpCode(.op_pop);
+
+        self.parsePrecedence(.nebo);
+        self.patchJmp(jmp);
     }
 
     fn group(self: *Self, canAssign: bool) !void {
@@ -578,6 +644,9 @@ pub const Parser = struct {
 
             .bw_and, .bw_or, .bw_xor => .{ .infix = Parser.binary, .precedence = .bit },
             .shift_right, .shift_left => .{ .infix = Parser.binary, .precedence = .shift },
+
+            .zaroven => .{ .infix = Parser.zaroven, .precedence = .zaroven },
+            .nebo => .{ .infix = Parser.nebo, .precedence = .nebo },
 
             .dot => .{ .prefix = Parser.variable },
 

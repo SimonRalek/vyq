@@ -51,6 +51,10 @@ pub const Block = struct {
         op_set_loc,
         op_pop,
         op_popn,
+
+        op_jmp,
+        op_jmp_on_true,
+        op_jmp_on_false,
     };
 
     code: charList,

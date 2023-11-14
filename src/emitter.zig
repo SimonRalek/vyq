@@ -48,7 +48,7 @@ pub const Emitter = struct {
         self.locals.deinit();
         self.emitOpCode(.op_return, self.parser.?.previous.location);
         if (!self.reporter.had_error and debug.debugging) {
-            debug.disBlock(self.currentChunk(), "code");
+            debug.disBlock(self.currentBlock(), "code");
         }
     }
 
@@ -66,13 +66,17 @@ pub const Emitter = struct {
     }
 
     /// Získat aktuální blok
-    pub fn currentChunk(self: *Self) *Block {
+    pub fn currentBlock(self: *Self) *Block {
         return self.block.?;
     }
 
     /// Zapsat instrukci do bloku
     pub fn emitOpCode(self: *Self, op_code: Block.OpCode, loc: Location) void {
-        self.currentChunk().writeOp(op_code, loc);
+        self.currentBlock().writeOp(op_code, loc);
+    }
+
+    pub fn emitByte(self: *Self, byte: u8, loc: Location) void {
+        self.currentBlock().writeOpByte(byte, loc);
     }
 
     /// Zapis hodnotu do bloku
@@ -82,13 +86,13 @@ pub const Emitter = struct {
 
     /// Zapsat instrukce do bloku
     pub fn emitOpCodes(self: *Self, op1: Block.OpCode, op2: u8, loc: Location) void {
-        self.currentChunk().writeOp(op1, loc);
-        self.currentChunk().writeOpByte(op2, loc);
+        self.currentBlock().writeOp(op1, loc);
+        self.currentBlock().writeOpByte(op2, loc);
     }
 
     /// Přidání hodnoty do aktuálního bloku
     pub fn makeValue(self: *Self, val: Val) u8 {
-        const value = self.currentChunk().addValue(val);
+        const value = self.currentBlock().addValue(val);
         if (value > 255) @panic("Stack overflow");
 
         return value;

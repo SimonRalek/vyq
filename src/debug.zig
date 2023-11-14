@@ -60,6 +60,9 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_set_loc => byte("op_set_loc", block, idx),
         .op_pop => simple("op_pop", idx),
         .op_popn => byte("op_popn", block, idx),
+        .op_jmp => jmp("op_jmp", block, idx),
+        .op_jmp_on_true => jmp("op_jmp_on_true", block, idx),
+        .op_jmp_on_false => jmp("op_jmp_on_false", block, idx),
         .op_return => simple("op_return", idx),
     };
 }
@@ -89,4 +92,13 @@ inline fn byte(name: []const u8, block: *Block, idx: usize) usize {
     var k = block.code.items[idx + 1];
     std.debug.print("{s} {}\n", .{ name, k });
     return idx + 2;
+}
+
+inline fn jmp(name: []const u8, block: *Block, idx: usize) usize {
+    const b1 = @as(u16, block.code.items[idx + 1]);
+    const b2 = block.code.items[idx + 2];
+    const jump = (b1 << 8) | b2;
+    const addr = jump + idx + 3;
+    std.debug.print("{s} {d:4} -> {d}\n", .{ name, jump, addr });
+    return idx + 3;
 }

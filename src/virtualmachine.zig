@@ -239,6 +239,20 @@ pub const VirtualMachine = struct {
                     self.stack[slot] = self.peek(0);
                 },
 
+                .op_jmp => {
+                    self.ip += self.read16Bit();
+                },
+                .op_jmp_on_true => {
+                    const idx = self.read16Bit();
+                    if (!isFalsey(self.peek(0))) {
+                        self.ip += idx;
+                    }
+                },
+                .op_jmp_on_false => {
+                    const idx = self.read16Bit();
+                    self.ip += falsey(self.peek(0)) * idx;
+                },
+
                 .op_return => return,
             };
         }
@@ -272,8 +286,12 @@ pub const VirtualMachine = struct {
     }
 
     /// Pro získání jestli je hodnota nepravdivá
-    fn isFalsey(val: Val) bool {
-        return val == .nic or (val == .boolean and !val.boolean);
+    inline fn isFalsey(val: Val) bool {
+        return falsey(val) == 1;
+    }
+
+    inline fn falsey(val: Val) u8 {
+        return if (val == .nic or (val == .boolean and !val.boolean) or (val == .number and val.number == 0)) 1 else 0;
     }
 
     /// Spojení dvou stringů
@@ -460,6 +478,12 @@ pub const VirtualMachine = struct {
     /// Dostat hodnotu dle IP
     inline fn readValue(self: *Self) Val {
         return self.block.values.items[self.readByte()];
+    }
+
+    inline fn read16Bit(self: *Self) u16 {
+        defer self.ip += 2;
+        const items = self.block.code.items;
+        return (@as(u16, items[self.ip]) << 8 | items[self.ip + 1]);
     }
 
     /// Vypisování run-time errorů s trace stackem
