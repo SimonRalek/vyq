@@ -56,6 +56,8 @@ pub const Scanner = struct {
                 .plus),
             '-' => self.createToken(if (self.match('='))
                 .min_operator
+            else if (self.match('>'))
+                .arrow
             else
                 .minus),
             '*' => self.createToken(if (self.match('='))
@@ -74,7 +76,10 @@ pub const Scanner = struct {
             ')' => self.createToken(.right_paren),
             '{' => self.createToken(.left_brace),
             '}' => self.createToken(.right_brace),
-            '.' => self.createToken(.dot),
+            '.' => self.createToken(if (self.match('.'))
+                .until
+            else
+                .dot),
 
             '\'' => self.string(false),
             '"' => self.string(true),
@@ -292,9 +297,15 @@ pub const Scanner = struct {
                             }
                         },
                         '*' => {
-                            while (self.peek() != '*' and self.peekNext() != '/' and !self.isEof()) {
+                            // skip /*
+                            _ = self.advance();
+                            _ = self.advance();
+                            while ((self.peek() != '*' or self.peekNext() != '/') and !self.isEof()) {
                                 _ = self.advance();
                             }
+                            // skip */
+                            _ = self.advance();
+                            _ = self.advance();
                         },
                         else => return,
                     }
@@ -496,46 +507,31 @@ test "string" {
 }
 
 test "for loop" {
-    try testScanner("opakuj prm i = 0; .i < .str/delka; .i++: {}", &.{
+    try testScanner("opakuj 0..4 jako .j: {}", &.{
         .opakuj,
-        .prm,
-        .identifier,
-        .assign,
         .number,
-        .semicolon,
+        .until,
+        .number,
+        .jako,
         .dot,
         .identifier,
-        .less,
-        .dot,
-        .identifier,
-        .slash,
-        .identifier,
-        .semicolon,
-        .dot,
-        .identifier,
-        .plus,
-        .plus,
         .colon,
         .left_brace,
         .right_brace,
     });
-    try testScanner("opakuj .k; .k != 20,24; .k--: {}", &.{
+    try testScanner("opakuj 9..3 jako .var: tiskni .var;", &.{
         .opakuj,
-        .dot,
-        .identifier,
-        .semicolon,
-        .dot,
-        .identifier,
-        .not_equal,
         .number,
-        .semicolon,
+        .until,
+        .number,
+        .jako,
         .dot,
         .identifier,
-        .minus,
-        .minus,
         .colon,
-        .left_brace,
-        .right_brace,
+        .tiskni,
+        .dot,
+        .identifier,
+        .semicolon,
     });
 }
 

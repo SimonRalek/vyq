@@ -13,8 +13,19 @@ const Global = _storage.Global;
 const Object = _val.Object;
 const Reporter = @import("reporter.zig");
 
-const BinaryOp = enum { sub, mult, div, greater, less, bit_and, bit_or, bit_xor };
+const BinaryOp = enum {
+    sub,
+    mult,
+    div,
+    greater,
+    less,
+    bit_and,
+    bit_or,
+    bit_xor,
+};
 const ShiftOp = enum { left, right };
+
+const stack_list = std.ArrayList(Val);
 
 pub const VirtualMachine = struct {
     const Self = @This();
@@ -22,8 +33,7 @@ pub const VirtualMachine = struct {
     allocator: Allocator,
     block: *Block = undefined,
     ip: usize,
-    stack: [256]Val = undefined,
-    stack_top: usize,
+    stack: stack_list,
     globals: std.StringHashMap(Global),
 
     strings: std.StringHashMap(*Object.String),
@@ -37,8 +47,8 @@ pub const VirtualMachine = struct {
             .allocator = allocator,
             .globals = std.StringHashMap(Global).init(allocator),
             .strings = std.StringHashMap(*Object.String).init(allocator),
+            .stack = stack_list.init(allocator),
             .ip = 0,
-            .stack_top = 0,
             .objects = null,
             .reporter = reporter,
         };
@@ -231,16 +241,17 @@ pub const VirtualMachine = struct {
 
                 .op_get_loc => {
                     var slot = self.readByte();
-                    self.push(self.stack[slot]);
+                    self.push(self.stack.items[slot]);
                 },
 
                 .op_set_loc => {
                     var slot = self.readByte();
-                    self.stack[slot] = self.peek(0);
+                    self.stack.items[slot] = self.peek(0);
                 },
 
                 .op_jmp => {
-                    self.ip += self.read16Bit();
+                    const idx = self.read16Bit();
+                    self.ip += idx;
                 },
                 .op_jmp_on_true => {
                     const idx = self.read16Bit();
@@ -252,36 +263,42 @@ pub const VirtualMachine = struct {
                     const idx = self.read16Bit();
                     self.ip += falsey(self.peek(0)) * idx;
                 },
-
-                .op_return => return,
+                .op_loop => {
+                    const idx = self.read16Bit();
+                    self.ip -= idx;
+                },
+                .op_case => {
+                    self.push(self.peek(0));
+                },
+                .op_return => {
+                    return;
+                },
             };
         }
     }
 
     /// Přidání hodnoty do stacku
     fn push(self: *Self, val: Val) void {
-        defer self.stack_top += 1;
-        self.stack[self.stack_top] = val;
+        self.stack.append(val) catch @panic("Nepovedlo se alokovat hodnotu");
     }
 
     /// Odstranění hodnoty ze stacku
     fn pop(self: *Self) Val {
-        if (self.stack_top == 0) {
+        if (self.stack.items.len == 0) {
             self.runtimeErr("Nelze provést", .{}, &.{});
             std.process.exit(72);
         }
-        self.stack_top -= 1;
-        return self.stack[self.stack_top];
+        return self.stack.pop();
     }
 
     /// Dostat hodnotu ze stacku podle vzdálenosti od stack_top
     fn peek(self: *Self, distance: u16) Val {
-        return self.stack[self.stack_top - 1 - distance];
+        return self.stack.items[self.stack.items.len - 1 - distance];
     }
 
     /// Resetovat stack
     fn resetStack(self: *Self) void {
-        self.stack_top = 0;
+        self.stack.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
         self.ip = 0;
     }
 
@@ -481,9 +498,9 @@ pub const VirtualMachine = struct {
     }
 
     inline fn read16Bit(self: *Self) u16 {
-        defer self.ip += 2;
         const items = self.block.code.items;
-        return (@as(u16, items[self.ip]) << 8 | items[self.ip + 1]);
+        self.ip += 2;
+        return (@as(u16, items[self.ip - 2]) << 8 | items[self.ip - 1]);
     }
 
     /// Vypisování run-time errorů s trace stackem

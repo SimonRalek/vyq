@@ -47,8 +47,8 @@ pub const Parser = struct {
     previous: Token,
     current: Token,
     scanner: ?Scanner = null,
-    emitter: ?*Emitter = null,
-    vm: ?*VM = null,
+    emitter: *Emitter,
+    vm: *VM = undefined,
     reporter: *Reporter,
 
     pub fn init(
@@ -103,25 +103,30 @@ pub const Parser = struct {
         }
         return result;
     }
+    //
+    // fn getCurrent(self: *Self) _token.Type {
+    //     defer self.advance();
+    //     return self.current.type;
+    // }
 
     fn check(self: *Self, expected: _token.Type) bool {
         return expected == self.current.type;
     }
 
     fn currentBlock(self: *Self) *Block {
-        return self.emitter.?.currentBlock();
+        return self.emitter.currentBlock();
     }
 
     fn emitOpCode(self: *Self, op_code: Block.OpCode) void {
-        self.emitter.?.emitOpCode(op_code, self.previous.location);
+        self.emitter.emitOpCode(op_code, self.previous.location);
     }
 
     fn emitVal(self: *Self, val: Val) void {
-        self.emitter.?.emitValue(val, self.previous.location);
+        self.emitter.emitValue(val, self.previous.location);
     }
 
     fn emitByte(self: *Self, byte: u8) void {
-        self.emitter.?.emitByte(byte, self.previous.location);
+        self.emitter.emitByte(byte, self.previous.location);
     }
 
     fn emitJmp(self: *Self, op: Block.OpCode) usize {
@@ -131,11 +136,25 @@ pub const Parser = struct {
         return self.currentBlock().code.items.len - 2;
     }
 
+    fn emitLoop(self: *Self, start: usize) void {
+        self.emitJmpBack(.op_loop, start);
+    }
+
+    fn emitJmpBack(self: *Self, jump: Block.OpCode, start: usize) void {
+        self.emitOpCode(jump);
+
+        const idx = self.currentBlock().code.items.len - start + 2;
+        if (idx > std.math.maxInt(u16)) self.report(&self.current, "Přeskočení řádků může být maximálně o 65535 míst");
+
+        self.emitByte(@intCast((idx >> 8) & 0xff));
+        self.emitByte(@intCast(idx & 0xff));
+    }
+
     fn patchJmp(self: *Self, idx: usize) void {
         const jmp = self.currentBlock().code.items.len - idx - 2;
 
         if (jmp > std.math.maxInt(u16)) {
-            self.report(&self.current, ""); // TODO
+            self.report(&self.current, "Dosažen nejvyšší počet příkazů přes které se dá přeskočit");
         }
 
         self.currentBlock().code.items[idx] = @intCast((jmp >> 8) & 0xff);
@@ -143,7 +162,7 @@ pub const Parser = struct {
     }
 
     fn makeVal(self: *Self, val: Val) u8 {
-        return self.emitter.?.makeValue(val);
+        return self.emitter.makeValue(val);
     }
 
     fn report(self: *Self, token: *Token, message: []const u8) void {
@@ -177,6 +196,12 @@ pub const Parser = struct {
             self.endScope();
         } else if (self.match(.pokud)) {
             self.ifStmt();
+        } else if (self.match(.opakuj)) {
+            self.forStmt();
+        } else if (self.match(.dokud)) {
+            self.whileStmt();
+        } else if (self.match(.vyber)) {
+            self.switchStmt();
         } else {
             self.exprStmt();
         }
@@ -191,20 +216,20 @@ pub const Parser = struct {
     }
 
     fn beginScope(self: *Self) void {
-        self.emitter.?.scope_depth += 1;
+        self.emitter.scope_depth += 1;
     }
 
     fn endScope(self: *Self) void {
-        self.emitter.?.scope_depth -= 1;
+        self.emitter.scope_depth -= 1;
 
-        var locals = &self.emitter.?.locals;
+        var locals = &self.emitter.locals;
         var popN: u8 = 0;
-        while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.?.scope_depth) {
+        while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.scope_depth) {
             popN += 1;
-            _ = self.emitter.?.locals.pop();
+            _ = self.emitter.locals.pop();
         }
 
-        self.emitter.?.emitOpCodes(.op_popn, popN, self.current.location);
+        self.emitter.emitOpCodes(.op_popn, popN, self.current.location);
     }
 
     fn variableDeclaration(self: *Self) !void {
@@ -227,12 +252,12 @@ pub const Parser = struct {
     }
 
     fn defineVar(self: *Self, glob: u8, is_const: bool) void {
-        if (self.emitter.?.scope_depth > 0) {
+        if (self.emitter.scope_depth > 0) {
             self.markInit();
             return;
         }
 
-        self.emitter.?.emitOpCodes(
+        self.emitter.emitOpCodes(
             if (is_const) .op_def_glob_const else .op_def_glob_var,
             glob,
             self.current.location,
@@ -240,21 +265,21 @@ pub const Parser = struct {
     }
 
     fn markInit(self: *Self) void {
-        var locals = &self.emitter.?.locals;
+        var locals = &self.emitter.locals;
 
-        locals.items[locals.items.len - 1].depth = self.emitter.?.scope_depth;
+        locals.items[locals.items.len - 1].depth = self.emitter.scope_depth;
     }
 
     fn declareVar(self: *Self, is_const: bool) void {
-        if (self.emitter.?.scope_depth == 0) return;
+        if (self.emitter.scope_depth == 0) return;
 
         var name = &self.previous;
 
         var i: usize = 0;
-        const locals = &self.emitter.?.locals;
+        const locals = &self.emitter.locals;
         while (i < locals.items.len) : (i += 1) {
             const loc = locals.items[locals.items.len - 1 - i];
-            if (loc.depth != -1 and loc.depth < self.emitter.?.scope_depth) break;
+            if (loc.depth != -1 and loc.depth < self.emitter.scope_depth) break;
 
             if (std.mem.eql(u8, name.lexeme, loc.name)) {
                 self.warn(
@@ -277,10 +302,10 @@ pub const Parser = struct {
         self.eat(.identifier, message);
 
         self.declareVar(is_const);
-        if (self.emitter.?.scope_depth > 0) return 0;
+        if (self.emitter.scope_depth > 0) return 0;
 
         return self.makeVal(
-            Val{ .obj = Object.String.copy(self.vm.?, self.previous.lexeme) },
+            Val{ .obj = Object.String.copy(self.vm, self.previous.lexeme) },
         );
     }
 
@@ -306,7 +331,7 @@ pub const Parser = struct {
         } else {
             arg = .{
                 self.makeVal(Val{
-                    .obj = Object.String.copy(self.vm.?, token.lexeme),
+                    .obj = Object.String.copy(self.vm, token.lexeme),
                 }),
                 false,
             };
@@ -320,7 +345,7 @@ pub const Parser = struct {
                 return ResultError.compile;
             }
             self.expression();
-            self.emitter.?.emitOpCodes(
+            self.emitter.emitOpCodes(
                 setOp,
                 @intCast(arg[0]),
                 self.current.location,
@@ -332,7 +357,7 @@ pub const Parser = struct {
             }
             const operator = self.previous.type;
 
-            self.emitter.?.emitOpCodes(
+            self.emitter.emitOpCodes(
                 getOp,
                 @intCast(arg[0]),
                 self.current.location,
@@ -347,13 +372,13 @@ pub const Parser = struct {
                 else => unreachable,
             });
 
-            self.emitter.?.emitOpCodes(
+            self.emitter.emitOpCodes(
                 setOp,
                 @intCast(arg[0]),
                 self.current.location,
             );
         } else {
-            self.emitter.?.emitOpCodes(
+            self.emitter.emitOpCodes(
                 getOp,
                 @intCast(arg[0]),
                 self.current.location,
@@ -362,7 +387,7 @@ pub const Parser = struct {
     }
 
     fn resolveLocal(self: *Self, token: *Token) struct { isize, bool } {
-        var locals = &self.emitter.?.locals;
+        var locals = &self.emitter.locals;
         var i: usize = 0;
 
         while (i < locals.items.len) : (i += 1) {
@@ -381,12 +406,12 @@ pub const Parser = struct {
     }
 
     fn addLocal(self: *Self, name: []const u8, is_const: bool) void {
-        if (self.emitter.?.locals.items.len == 256) {
+        if (self.emitter.locals.items.len == 256) {
             self.report(&self.current, "Příliš mnoho proměnných");
             return;
         }
 
-        self.emitter.?.locals.append(
+        self.emitter.locals.append(
             if (is_const) Local.initKonst(name, -1) else Local.initPrm(name, -1),
         ) catch {
             @panic("Nepadařilo se alokovat");
@@ -402,7 +427,7 @@ pub const Parser = struct {
 
     fn ifStmt(self: *Self) void {
         self.expression();
-        self.eat(.colon, "");
+        self.eat(.colon, "Očekávaná ':' za podmínkou");
 
         const jmp = self.emitJmp(.op_jmp_on_false);
         self.emitOpCode(.op_pop);
@@ -414,6 +439,180 @@ pub const Parser = struct {
         self.emitOpCode(.op_pop);
         if (self.match(.jinak)) self.statement();
         self.patchJmp(else_jmp);
+    }
+
+    fn forStmt(self: *Self) void {
+        self.beginScope();
+
+        if (self.match(.jako)) {
+            var prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
+                return;
+            };
+
+            var token = self.previous;
+            self.expression();
+            self.defineVar(prm, false);
+
+            var directionUp = true;
+            if (!self.match(.until)) {
+                directionUp = false;
+                self.eat(.dolu, "Očekává se specifikace směru iterace, '..' nebo 'dolu'");
+            }
+
+            var start = self.currentBlock().code.items.len;
+            self.namedVar(&token, false) catch {
+                return;
+            };
+            self.expression();
+            self.emitOpCode(if (directionUp) .op_less else .op_greater);
+            const exitJmp = self.emitJmp(.op_jmp_on_false);
+            self.emitOpCode(.op_pop);
+
+            const jmp = self.emitJmp(.op_jmp);
+            const varStart = self.currentBlock().code.items.len;
+            if (!self.check(.colon)) {
+                self.eat(.po, "Očekává se ukončení bloku opakování");
+                self.namedVar(&token, false) catch {
+                    return;
+                };
+                self.expression();
+            } else {
+                self.namedVar(&token, false) catch {
+                    return;
+                };
+                self.emitVal(Val{ .number = 1 });
+            }
+            self.emitOpCode(if (directionUp) .op_add else .op_sub);
+            var resolve = self.resolveLocal(&token);
+            self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0]), self.previous.location);
+
+            self.emitLoop(start);
+            start = varStart;
+            self.patchJmp(jmp);
+            self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
+
+            self.statement();
+            self.emitLoop(start);
+            self.patchJmp(exitJmp);
+            self.emitOpCode(.op_pop);
+        } else {
+            if (self.match(.semicolon)) {
+                // nic nedělej
+            } else if (self.match(.prm)) {
+                self.variableDeclaration() catch {};
+            } else self.exprStmt();
+
+            var start = self.currentBlock().code.items.len;
+            var exit: ?usize = null;
+
+            if (!self.match(.semicolon)) {
+                self.expression();
+                self.eat(.semicolon, "Očekávaná podmínka nebo ';' pro ukončení iterizační části cyklu 'opakuj'");
+
+                exit = self.emitJmp(.op_jmp_on_false);
+                self.emitOpCode(.op_pop);
+            }
+
+            if (!self.match(.colon)) {
+                const jmp = self.emitJmp(.op_jmp);
+                const varStart = self.currentBlock().code.items.len;
+
+                self.expression();
+                self.emitOpCode(.op_pop);
+                self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
+
+                self.emitLoop(start);
+                start = varStart;
+                self.patchJmp(jmp);
+            }
+
+            self.statement();
+            self.emitLoop(start);
+
+            if (exit) |jmp| {
+                self.patchJmp(jmp);
+                self.emitOpCode(.op_pop);
+            }
+        }
+
+        self.endScope();
+    }
+
+    fn whileStmt(self: *Self) void {
+        const start = self.currentBlock().code.items.len;
+
+        self.expression();
+        self.eat(.colon, "Očekávaná ':' za podmínkou");
+
+        const jmp = self.emitJmp(.op_jmp_on_false);
+        self.emitOpCode(.op_pop);
+        self.statement();
+        self.emitLoop(start);
+
+        self.patchJmp(jmp);
+        self.emitOpCode(.op_pop);
+    }
+
+    fn switchStmt(self: *Self) void {
+        self.expression();
+        self.eat(.colon, "Očekávaná ':' za hodnotou pro přepínání");
+        self.eat(.left_brace, "Očekávaná '{' za ':'");
+
+        var state: u8 = 0;
+        var caseEnds: [256]usize = undefined;
+        var caseCount: u8 = 0;
+        var previousCaseSkip: isize = -1;
+
+        while (!self.match(.right_brace) and !self.check(.eof)) {
+            if (self.match(.pripad) or self.match(.jinak)) {
+                const caseType = self.previous.type;
+
+                switch (state) {
+                    2 => self.report(&self.previous, "Ve 'vyber' může být pouze jeden výchozí případ"),
+                    1 => {
+                        caseEnds[caseCount] = self.emitJmp(.op_jmp);
+                        caseCount += 1;
+                        self.patchJmp(@intCast(previousCaseSkip));
+                        self.emitOpCode(.op_pop);
+                    },
+                    else => {},
+                }
+
+                if (caseType == .pripad) {
+                    state = 1;
+
+                    self.emitOpCode(.op_case);
+                    self.expression();
+                    self.eat(.arrow, "Očekávaná '->' po případu");
+
+                    self.emitOpCode(.op_equal);
+                    previousCaseSkip = @intCast(self.emitJmp(.op_jmp_on_false));
+
+                    self.emitOpCode(.op_pop);
+                } else {
+                    state = 2;
+                    self.eat(.arrow, "Očekávaná '->' po 'jinak'");
+                    previousCaseSkip = -1;
+                }
+            } else {
+                if (state == 0) {
+                    self.report(&self.previous, "Příkazy mohou být použity pouze v rámci případů nebo výchozího případu ve 'vyber'");
+                }
+                self.statement();
+            }
+        }
+        if (state == 1) {
+            caseEnds[caseCount] = self.emitJmp(.op_jmp);
+            caseCount += 1;
+            self.patchJmp(@intCast(previousCaseSkip));
+            self.emitOpCode(.op_pop);
+        }
+
+        for (0..caseCount) |case| {
+            self.patchJmp(caseEnds[case]);
+        }
+
+        self.emitOpCode(.op_pop);
     }
 
     fn exprStmt(self: *Self) void {
@@ -582,7 +781,7 @@ pub const Parser = struct {
         _ = canAssign;
 
         const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
-        self.emitVal(Object.String.copy(self.vm.?, source).val());
+        self.emitVal(Object.String.copy(self.vm, source).val());
     }
 
     fn literal(self: *Self, canAssign: bool) !void {
@@ -599,7 +798,7 @@ pub const Parser = struct {
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
         const prefix = getRule(self.previous.type).prefix orelse {
-            self.report(&self.previous, "Neznámý vstup");
+            self.report(&self.current, "Očekávaný výraz");
             return;
         };
 

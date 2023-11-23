@@ -29,7 +29,7 @@ pub const Emitter = struct {
     wrapped: ?*Emitter,
 
     locals: localArray,
-    scope_depth: i32,
+    scope_depth: i16,
 
     /// Inicializace Emitteru
     pub fn init(allocator: Allocator, vm: *VM, emitter: ?*Self) Self {
@@ -93,8 +93,6 @@ pub const Emitter = struct {
     /// Přidání hodnoty do aktuálního bloku
     pub fn makeValue(self: *Self, val: Val) u8 {
         const value = self.currentBlock().addValue(val);
-        if (value > 255) @panic("Stack overflow");
-
         return value;
     }
 };

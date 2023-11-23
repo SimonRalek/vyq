@@ -74,6 +74,13 @@ pub const Type = enum(u8) {
     bw_or,
     bw_xor,
     bw_not,
+    jako,
+    until,
+    dolu,
+    po,
+    vyber,
+    pripad,
+    arrow,
 };
 
 pub const Keywords = std.ComptimeStringMap(Type, .{
@@ -93,4 +100,9 @@ pub const Keywords = std.ComptimeStringMap(Type, .{
     .{ "tiskni", .tiskni },
     .{ "tiskniB", .tiskniN },
     .{ "zastav", .zastav },
+    .{ "jako", .jako },
+    .{ "dolu", .dolu },
+    .{ "vyber", .vyber },
+    .{ "pripad", .pripad },
+    .{ "po", .po },
 });
