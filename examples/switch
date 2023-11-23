@@ -1,0 +1,2 @@
+prm k = 3;
+prepinac .k: { pripad 3 -> tiskni ano; }

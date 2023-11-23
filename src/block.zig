@@ -17,10 +17,8 @@ pub const Block = struct {
         op_ano,
         op_ne,
         op_nic,
-
         op_not,
         op_negate,
-
         op_equal,
         op_greater,
         op_less,
@@ -30,17 +28,13 @@ pub const Block = struct {
         op_bit_or,
         op_bit_xor,
         op_bit_not,
-
         op_add,
         op_sub,
         op_mult,
         op_div,
-
         op_increment,
         op_decrement,
-
         op_return,
-
         op_print,
         op_println,
         op_def_glob_var,
@@ -51,6 +45,11 @@ pub const Block = struct {
         op_set_loc,
         op_pop,
         op_popn,
+        op_jmp,
+        op_jmp_on_true,
+        op_jmp_on_false,
+        op_loop,
+        op_case,
     };
 
     code: charList,

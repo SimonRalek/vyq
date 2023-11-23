@@ -1,3 +1,2 @@
-tiskni '
-fail
-';
+// tiskni ano;
+tiskni ano;

@@ -43,7 +43,7 @@ pub const Val = union(enum) {
             (if (self.boolean) shared.stdout.print(
                 "ano",
                 .{},
-            ) else shared.stdout.print("ne\n", .{})) catch @panic("Nepodařilo se hodnotu vypsat");
+            ) else shared.stdout.print("ne", .{})) catch @panic("Nepodařilo se hodnotu vypsat");
         }
 
         if (self == .nic) shared.stdout.print(
