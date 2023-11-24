@@ -485,6 +485,7 @@ pub const Parser = struct {
             self.emitOpCode(if (directionUp) .op_add else .op_sub);
             var resolve = self.resolveLocal(&token);
             self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0]), self.previous.location);
+            self.emitOpCode(.op_pop);
 
             self.emitLoop(start);
             start = varStart;

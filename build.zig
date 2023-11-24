@@ -21,7 +21,8 @@ pub fn build(b: *std.Build) void {
     });
 
     b.installArtifact(exe);
-    b.exe_dir = b.pathJoin(&.{ "out", @tagName(builtin.os.tag) });
+    b.exe_dir = "./";
+    // b.exe_dir = b.pathJoin(&.{ "out", @tagName(builtin.os.tag) });
     const run_cmd = b.addRunArtifact(exe);
 
     run_cmd.step.dependOn(b.getInstallStep());

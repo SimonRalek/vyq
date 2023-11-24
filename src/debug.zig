@@ -64,7 +64,7 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_jmp_on_true => jmp("op_jmp_on_true", 1, block, idx),
         .op_jmp_on_false => jmp("op_jmp_on_false", 1, block, idx),
         .op_loop => jmp("op_loop", -1, block, idx),
-        .op_case => simple("op_case", 1, block, idx),
+        .op_case => simple("op_case", idx),
         .op_return => simple("op_return", idx),
     };
 }
