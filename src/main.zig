@@ -122,18 +122,20 @@ fn repl(allocator: Allocator, vm: *VM) !void {
     _ = allocator; // TODO?
 
     if (builtin.os.tag == .windows) {
-        try shared.stdout.print(">>> ", .{});
+        while (true) {
+            try shared.stdout.print(">>> ", .{});
 
-        const stdin = std.io.getStdIn().handle;
-        var data: [256]u16 = undefined;
-        var read: u32 = undefined;
-        _ = ReadConsoleW(stdin, &data, data.len, &read, null);
+            const stdin = std.io.getStdIn().handle;
+            var data: [256]u16 = undefined;
+            var read: u32 = undefined;
+            _ = ReadConsoleW(stdin, &data, data.len, &read, null);
 
-        var utf8: [1024]u8 = undefined;
-        const utf8_len = try std.unicode.utf16leToUtf8(&utf8, data[0..read]);
-        const source = utf8[0 .. utf8_len - 1]; // - \n
+            var utf8: [1024]u8 = undefined;
+            const utf8_len = try std.unicode.utf16leToUtf8(&utf8, data[0..read]);
+            const source = utf8[0 .. utf8_len - 1]; // - \n
 
-        vm.interpret(source) catch {};
+            vm.interpret(source) catch {};
+        }
     } else {
         while (true) {
             var buf: [256]u8 = undefined;

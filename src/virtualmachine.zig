@@ -11,6 +11,7 @@ const Emitter = @import("emitter.zig").Emitter;
 const _storage = @import("storage.zig");
 const Global = _storage.Global;
 const Object = _val.Object;
+const String = Object.String;
 const Reporter = @import("reporter.zig");
 
 const BinaryOp = enum {
@@ -64,11 +65,15 @@ pub const VirtualMachine = struct {
 
     /// Projíždění objekt linked listu a free každý objekt
     fn deinitObjs(self: *Self) void {
-        var obj = self.objects;
-        while (obj) |curr| {
-            const next = curr.next;
-            curr.deinit(curr, self);
-            obj = next;
+        // var obj = self.objects;
+        // while (obj) |curr| {
+        //     const next = curr.next;
+        //     curr.deinit(curr, self);
+        //     obj = next;
+        // }
+        var it = self.strings.iterator();
+        while (it.next()) |string| {
+            String.deinit(&string.value_ptr.*.obj, self);
         }
     }
 
@@ -314,22 +319,12 @@ pub const VirtualMachine = struct {
 
     /// Spojení dvou stringů
     inline fn concatObj(self: *Self) void {
-        const b = self.pop().obj;
-        const a = self.pop().obj;
-        defer {
-            a.deinit(a, self);
-            b.deinit(b, self);
-        }
+        const b = self.pop();
+        const a = self.pop();
 
-        const new = std.mem.concat(
-            self.allocator,
-            u8,
-            &.{ a.string().repre, b.string().repre },
-        ) catch {
-            @panic("Nedostatečné množství paměti");
-        };
+        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.obj.string().repre, b.obj.string().repre }) catch @panic("");
 
-        const val = Val{ .obj = Object.String.take(self, new) };
+        const val = Val{ .obj = Object.String.take(self, buff) };
         self.push(val);
     }
 
@@ -353,8 +348,6 @@ pub const VirtualMachine = struct {
             ) catch {
                 @panic("Chyba při alokaci");
             };
-
-            a.obj.deinit(a.obj, self);
         } else if (b.obj.type == .string) {
             string = a.stringVal(self.allocator) catch {
                 @panic("Chyba při alokaci");
@@ -367,8 +360,6 @@ pub const VirtualMachine = struct {
             ) catch {
                 @panic("Chyba při alokaci");
             };
-
-            b.obj.deinit(b.obj, self);
         }
 
         if (a == .number or b == .number) {

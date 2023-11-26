@@ -99,7 +99,7 @@ pub const Object = struct {
         vm: *VM,
         comptime T: type,
         obj_type: Object.ObjectType,
-    ) *T {
+    ) *Object {
         const descendent = vm.allocator.create(T) catch {
             @panic("Nepodařilo se alokovat");
         };
@@ -109,7 +109,7 @@ pub const Object = struct {
         descendent.obj.next = vm.objects;
         vm.objects = &descendent.obj;
 
-        return descendent;
+        return &descendent.obj;
     }
 
     /// Vytisknout objekt
@@ -146,7 +146,8 @@ pub const Object = struct {
 
         /// Alokace s objektem
         fn alloc(vm: *VM, buff: []const u8) *Object {
-            const alloc_string = Object.alloc(vm, Self, .string);
+            const alloc_obj = Object.alloc(vm, Self, .string);
+            const alloc_string = alloc_obj.string();
 
             alloc_string.repre = buff;
             alloc_string.obj = .{ .type = .string, .deinit = Self.deinit };

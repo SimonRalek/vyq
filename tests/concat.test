@@ -1,0 +1,4 @@
+tiskni 1,5 + 1,5; tiskni 'result ' + 5; tiskni 'two' + ' '+ 'strings';
+3
+result 5
+two strings
