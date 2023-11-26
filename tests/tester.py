@@ -64,7 +64,7 @@ if __name__ == "__main__":
     test_directory = "./tests"
 
     # Build the project once
-    build_project()
+    # build_project()
 
     # Run tests in the specified directory
     run_tests_in_directory(test_directory)
