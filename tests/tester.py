@@ -35,19 +35,27 @@ def run_test(test_filepath):
                 print(f"{Fore.RED}Test Failed:{Style.RESET_ALL} {test_filepath}")
                 print(f"Expected Output:\n{expected_output}")
                 print(f"Actual Output:\n{actual_output}")
+                return 1
 
     except Exception as e:
         print(f"{Fore.RED}Error executing command:{Style.RESET_ALL} {command}")
         print(f"{Fore.RED}Error message:{Style.RESET_ALL} {str(e)}")
+        os.remove(temp_input_file.name)
+        return 1
     finally:
         os.remove(temp_input_file.name)
+
+    return 0
 
 def run_tests_in_directory(test_directory):
     for filename in os.listdir(test_directory):
         if filename.endswith(".test"):
             test_filepath = os.path.join(test_directory, filename)
 
-            run_test(test_filepath)
+            exit_code = run_test(test_filepath)
+            
+            if exit_code != 0:
+                exit(exit_code)
 
 if __name__ == "__main__":
 
