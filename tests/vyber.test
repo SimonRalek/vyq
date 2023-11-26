@@ -1,0 +1,2 @@
+prm k = 1; vyber .k: { pripad 0 -> tiskni ne; jinak -> tiskni .k; }
+1

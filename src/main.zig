@@ -124,7 +124,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
     if (builtin.os.tag == .windows) {
         try shared.stdout.print(">>> ", .{});
 
-        var stdin = std.io.getStdIn().handle;
+        const stdin = std.io.getStdIn().handle;
         var data: [256]u16 = undefined;
         var read: u32 = undefined;
         _ = ReadConsoleW(stdin, &data, data.len, &read, null);
@@ -148,7 +148,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
                 '\n',
                 buf.len,
             ) catch {
-                @panic("");
+                std.process.exit(60);
             };
             const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 

@@ -32,10 +32,10 @@ const EscapeFmt = struct {
 fn testFormatter(expected: []const u8, source: []const u8) !void {
     var arrlist = std.ArrayList(u8).init(std.testing.allocator);
     defer arrlist.deinit();
-    var writer = arrlist.writer();
+    const writer = arrlist.writer();
     try escapeFmt(source).format(writer);
 
-    var res = try arrlist.toOwnedSlice();
+    const res = try arrlist.toOwnedSlice();
 
     try std.testing.expectEqualSlices(u8, expected, res);
     std.testing.allocator.free(res);

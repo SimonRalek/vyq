@@ -1,0 +1,3 @@
+prm j = 1; { prm j = 2; tiskni .j; } tiskni .j;
+2
+1

@@ -222,7 +222,7 @@ pub const Parser = struct {
     fn endScope(self: *Self) void {
         self.emitter.scope_depth -= 1;
 
-        var locals = &self.emitter.locals;
+        const locals = &self.emitter.locals;
         var popN: u8 = 0;
         while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.scope_depth) {
             popN += 1;
@@ -233,7 +233,7 @@ pub const Parser = struct {
     }
 
     fn variableDeclaration(self: *Self) !void {
-        var is_const = self.previous.type == .konst;
+        const is_const = self.previous.type == .konst;
 
         const glob = try self.parseVar("Očekávané jméno prvku po 'prm'");
 
@@ -273,7 +273,7 @@ pub const Parser = struct {
     fn declareVar(self: *Self, is_const: bool) void {
         if (self.emitter.scope_depth == 0) return;
 
-        var name = &self.previous;
+        const name = &self.previous;
 
         var i: usize = 0;
         const locals = &self.emitter.locals;
@@ -293,7 +293,7 @@ pub const Parser = struct {
     }
 
     fn parseVar(self: *Self, message: []const u8) !u8 {
-        var is_const = self.previous.type == .konst;
+        const is_const = self.previous.type == .konst;
 
         if (self.match(.dot)) {
             self.report(&self.current, "Pro jméno prvku nelze použít '.'");
@@ -387,7 +387,7 @@ pub const Parser = struct {
     }
 
     fn resolveLocal(self: *Self, token: *Token) struct { isize, bool } {
-        var locals = &self.emitter.locals;
+        const locals = &self.emitter.locals;
         var i: usize = 0;
 
         while (i < locals.items.len) : (i += 1) {
@@ -397,7 +397,8 @@ pub const Parser = struct {
                     &self.previous,
                     "Proměnná nelze přiřadit sama sobě",
                 );
-                var result: isize = @intCast(locals.items.len - 1 - i);
+
+                const result: isize = @intCast(locals.items.len - 1 - i);
                 return .{ result, local.is_const };
             }
         }
@@ -419,7 +420,7 @@ pub const Parser = struct {
     }
 
     fn printStmt(self: *Self) void {
-        var token = self.previous;
+        const token = self.previous;
         self.expression();
         self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(if (token.type == .tiskni) .op_println else .op_print);
@@ -445,7 +446,7 @@ pub const Parser = struct {
         self.beginScope();
 
         if (self.match(.jako)) {
-            var prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
+            const prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
                 return;
             };
 
@@ -483,7 +484,7 @@ pub const Parser = struct {
                 self.emitVal(Val{ .number = 1 });
             }
             self.emitOpCode(if (directionUp) .op_add else .op_sub);
-            var resolve = self.resolveLocal(&token);
+            const resolve = self.resolveLocal(&token);
             self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0]), self.previous.location);
             self.emitOpCode(.op_pop);
 
@@ -747,7 +748,7 @@ pub const Parser = struct {
     fn number(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
+        const buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
@@ -858,7 +859,7 @@ pub const Parser = struct {
 };
 
 fn testParser(source: []const u8, expected: f64) !void {
-    var allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
     var reporter = Reporter.init(allocator);
     var vm = VM.init(allocator, &reporter);
     try vm.interpret(source);

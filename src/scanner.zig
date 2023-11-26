@@ -273,7 +273,7 @@ pub const Scanner = struct {
     /// Přeskočit prázdné místo
     fn skipWhiteSpace(self: *Self) void {
         while (true) {
-            var char = self.peek();
+            const char = self.peek();
 
             switch (char) {
                 '\n' => {
@@ -351,8 +351,8 @@ pub const Scanner = struct {
     /// Je znak písmeno či '_'
     fn isAlpha(self: *Self, buff: []const u8) bool {
         if (!std.unicode.utf8ValidateSlice(buff)) return false;
-        var str = Util.longestApprovedAlphabeticGrapheme(buff) orelse {
-            var len = Util.nonAllowedLenght(buff);
+        const str = Util.longestApprovedAlphabeticGrapheme(buff) orelse {
+            const len = Util.nonAllowedLenght(buff);
             self.current += len;
             return false;
         };
@@ -507,14 +507,26 @@ test "string" {
 }
 
 test "for loop" {
-    try testScanner("opakuj 0..4 jako .j: {}", &.{
+    try testScanner("opakuj jako i 0..4: {}", &.{
         .opakuj,
+        .jako,
+        .identifier,
         .number,
         .until,
         .number,
+        .colon,
+        .left_brace,
+        .right_brace,
+    });
+    try testScanner("opakuj jako i 10 dolu 4 po 3: {}", &.{
+        .opakuj,
         .jako,
-        .dot,
         .identifier,
+        .number,
+        .dolu,
+        .number,
+        .po,
+        .number,
         .colon,
         .left_brace,
         .right_brace,
@@ -560,6 +572,26 @@ test "while loop" {
         .left_brace,
         .pokracuj,
         .semicolon,
+        .right_brace,
+        .right_brace,
+    });
+}
+
+test "switch loop" {
+    try testScanner("vyber .k: { pripad 1 -> {} jinak -> {}}", &.{
+        .vyber,
+        .dot,
+        .identifier,
+        .colon,
+        .left_brace,
+        .pripad,
+        .number,
+        .arrow,
+        .left_brace,
+        .right_brace,
+        .jinak,
+        .arrow,
+        .left_brace,
         .right_brace,
         .right_brace,
     });

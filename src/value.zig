@@ -60,7 +60,7 @@ pub const Val = union(enum) {
             .number => |val| blk: {
                 const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
 
-                var buff = try allocator.alloc(u8, number.len);
+                const buff = try allocator.alloc(u8, number.len);
                 _ = std.mem.replace(u8, number, ".", ",", buff);
                 allocator.free(number);
                 break :blk buff;
@@ -104,10 +104,10 @@ pub const Object = struct {
             .string => {
                 var arrlist = std.ArrayList(u8).init(allocator);
                 defer arrlist.deinit();
-                var writer = arrlist.writer();
+                const writer = arrlist.writer();
                 try Formatter.escapeFmt(self.string().repre).format(writer);
 
-                var formatted = try arrlist.toOwnedSlice();
+                const formatted = try arrlist.toOwnedSlice();
                 defer allocator.free(formatted);
                 try shared.stdout.print("{s}", .{formatted});
             },

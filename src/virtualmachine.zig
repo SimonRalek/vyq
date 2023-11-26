@@ -59,6 +59,7 @@ pub const VirtualMachine = struct {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
+        self.stack.deinit();
     }
 
     /// Projíždění objekt linked listu a free každý objekt
@@ -94,7 +95,7 @@ pub const VirtualMachine = struct {
 
             try switch (instruction) {
                 .op_value => {
-                    var value = self.readValue();
+                    const value = self.readValue();
                     self.push(value);
                 },
                 .op_ano => self.push(Val{ .boolean = true }),
@@ -107,7 +108,7 @@ pub const VirtualMachine = struct {
                 .op_div => self.binary(.div),
 
                 .op_increment => {
-                    var a = self.pop();
+                    const a = self.pop();
 
                     if (a != .number) {
                         self.runtimeErr(
@@ -121,7 +122,7 @@ pub const VirtualMachine = struct {
                     self.push(Val{ .number = a.number + 1 });
                 },
                 .op_decrement => {
-                    var a = self.pop();
+                    const a = self.pop();
 
                     if (a != .number) {
                         self.runtimeErr(
@@ -138,8 +139,8 @@ pub const VirtualMachine = struct {
                 .op_greater => self.binary(.greater),
                 .op_less => self.binary(.less),
                 .op_equal => {
-                    var a = self.pop();
-                    var b = self.pop();
+                    const a = self.pop();
+                    const b = self.pop();
 
                     self.push(Val{ .boolean = Val.isEqual(a, b) });
                 },
@@ -176,7 +177,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_pop => _ = self.pop(),
                 .op_popn => {
-                    var n = self.readByte();
+                    const n = self.readByte();
                     var i: usize = 0;
 
                     while (i < n) : (i += 1) {
@@ -240,12 +241,12 @@ pub const VirtualMachine = struct {
                 },
 
                 .op_get_loc => {
-                    var slot = self.readByte();
+                    const slot = self.readByte();
                     self.push(self.stack.items[slot]);
                 },
 
                 .op_set_loc => {
-                    var slot = self.readByte();
+                    const slot = self.readByte();
                     self.stack.items[slot] = self.peek(0);
                 },
 
