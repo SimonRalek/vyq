@@ -34,10 +34,24 @@ pub const Val = union(enum) {
 
     /// Vytisknout hodnotu
     pub fn print(self: Self, allocator: Allocator) void {
-        if (self == .number) shared.stdout.print(
-            "{d}",
-            .{self.number},
-        ) catch @panic("Nepodařilo se hodnotu vypsat");
+        if (self == .number) {
+            const number = std.fmt.allocPrint(
+                allocator,
+                "{d}",
+                .{self.number},
+            ) catch @panic("");
+
+            const buff = allocator.alloc(u8, number.len) catch @panic("");
+            _ = std.mem.replace(u8, number, ".", ",", buff);
+
+            shared.stdout.print(
+                "{s}",
+                .{buff},
+            ) catch @panic("Nepodařilo se hodnotu vypsat");
+
+            allocator.free(number);
+            allocator.free(buff);
+        }
 
         if (self == .boolean) {
             (if (self.boolean) shared.stdout.print(
