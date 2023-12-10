@@ -1,2 +1,1 @@
-// tiskni ano;
-tiskni ano;
+tiskni 'ano'; tiskni 'ano' + 'ne'; tiskni 'ne';

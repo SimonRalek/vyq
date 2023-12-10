@@ -26,7 +26,7 @@ pub const BenchMark = struct {
 
     /// Nový timer
     pub fn createMark(self: *Self, name: []const u8) *Timer {
-        var gop = self.timers.getOrPut(name) catch @panic("Nepodařilo se alokovat");
+        const gop = self.timers.getOrPut(name) catch @panic("Nepodařilo se alokovat");
         if (!gop.found_existing) gop.value_ptr.* = Timer.start();
         return gop.value_ptr;
     }

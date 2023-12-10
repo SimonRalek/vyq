@@ -11,11 +11,13 @@ const Emitter = @import("emitter.zig").Emitter;
 const _storage = @import("storage.zig");
 const Global = _storage.Global;
 const Object = _val.Object;
-const String = Object.String;
+<<<<<<< HEAD
 const Function = Object.Function;
+=======
+const String = Object.String;
+>>>>>>> a91e05da44ca42678f3a7a6cdd89d4cb18cdb2b1
 const Reporter = @import("reporter.zig");
 const stack_list = std.ArrayList(Val);
-
 const BinaryOp = enum {
     sub,
     mult,
@@ -27,8 +29,6 @@ const BinaryOp = enum {
     bit_xor,
 };
 const ShiftOp = enum { left, right };
-
-const stack_list = std.ArrayList(Val);
 
 const CallFrame = struct {
     function: *Function,
@@ -260,6 +260,15 @@ pub const VirtualMachine = struct {
                 },
 
                 .op_get_loc => {
+<<<<<<< HEAD
+                    var slot = self.readByte();
+                    self.push(self.stack.items[frame.start + slot]);
+                },
+
+                .op_set_loc => {
+                    var slot = self.readByte();
+                    self.stack.items[frame.start + slot] = self.peek(0);
+=======
                     const slot = self.readByte();
                     self.push(self.stack.items[slot]);
                 },
@@ -267,6 +276,7 @@ pub const VirtualMachine = struct {
                 .op_set_loc => {
                     const slot = self.readByte();
                     self.stack.items[slot] = self.peek(0);
+>>>>>>> a91e05da44ca42678f3a7a6cdd89d4cb18cdb2b1
                 },
 
                 .op_jmp => {

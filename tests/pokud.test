@@ -1,0 +1,2 @@
+pokud 1 nebo 0: pokud ne: tiskni ne; jinak { prm l = 5; tiskni .l; }
+5

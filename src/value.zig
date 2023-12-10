@@ -35,10 +35,24 @@ pub const Val = union(enum) {
 
     /// Vytisknout hodnotu
     pub fn print(self: Self, allocator: Allocator) void {
-        if (self == .number) shared.stdout.print(
-            "{d}",
-            .{self.number},
-        ) catch @panic("Nepodařilo se hodnotu vypsat");
+        if (self == .number) {
+            const number = std.fmt.allocPrint(
+                allocator,
+                "{d}",
+                .{self.number},
+            ) catch @panic("");
+
+            const buff = allocator.alloc(u8, number.len) catch @panic("");
+            _ = std.mem.replace(u8, number, ".", ",", buff);
+
+            shared.stdout.print(
+                "{s}",
+                .{buff},
+            ) catch @panic("Nepodařilo se hodnotu vypsat");
+
+            allocator.free(number);
+            allocator.free(buff);
+        }
 
         if (self == .boolean) {
             (if (self.boolean) shared.stdout.print(
@@ -61,7 +75,7 @@ pub const Val = union(enum) {
             .number => |val| blk: {
                 const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
 
-                var buff = try allocator.alloc(u8, number.len);
+                const buff = try allocator.alloc(u8, number.len);
                 _ = std.mem.replace(u8, number, ".", ",", buff);
                 allocator.free(number);
                 break :blk buff;
@@ -86,7 +100,7 @@ pub const Object = struct {
         vm: *VM,
         comptime T: type,
         obj_type: Object.ObjectType,
-    ) *T {
+    ) *Object {
         const descendent = vm.allocator.create(T) catch {
             @panic("Nepodařilo se alokovat");
         };
@@ -96,7 +110,7 @@ pub const Object = struct {
         descendent.obj.next = vm.objects;
         vm.objects = &descendent.obj;
 
-        return descendent;
+        return &descendent.obj;
     }
 
     /// Vytisknout objekt
@@ -105,10 +119,10 @@ pub const Object = struct {
             .string => {
                 var arrlist = std.ArrayList(u8).init(allocator);
                 defer arrlist.deinit();
-                var writer = arrlist.writer();
+                const writer = arrlist.writer();
                 try Formatter.escapeFmt(self.string().repre).format(writer);
 
-                var formatted = try arrlist.toOwnedSlice();
+                const formatted = try arrlist.toOwnedSlice();
                 defer allocator.free(formatted);
                 try shared.stdout.print("{s}", .{formatted});
             },
@@ -146,7 +160,8 @@ pub const Object = struct {
 
         /// Alokace s objektem
         fn alloc(vm: *VM, buff: []const u8) *Object {
-            const alloc_string = Object.alloc(vm, Self, .string);
+            const alloc_obj = Object.alloc(vm, Self, .string);
+            const alloc_string = alloc_obj.string();
 
             alloc_string.repre = buff;
             alloc_string.obj = .{ .type = .string, .deinit = Self.deinit };
