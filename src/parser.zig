@@ -1,7 +1,8 @@
 const std = @import("std");
 const shared = @import("shared.zig");
-const Allocator = std.mem.Allocator;
+const debug = @import("debug.zig");
 
+const Allocator = std.mem.Allocator;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 
 const ResultError = shared.ResultError;
@@ -67,6 +68,21 @@ pub const Parser = struct {
             .current = undefined,
             .previous = undefined,
         };
+    }
+
+    pub fn deinit(self: *Self) *Object.Function {
+        self.emitOpCode(.op_return);
+
+        const function = self.emitter.function;
+        if (!self.reporter.had_error and debug.debugging) {
+            debug.disBlock(self.currentBlock(), if (function.name) |name| name else "script");
+        }
+
+        if (self.emitter.wrapped) |emitter| {
+            self.emitter = emitter;
+        }
+
+        return function;
     }
 
     pub fn parse(self: *Self, source: []const u8) void {
@@ -269,7 +285,7 @@ pub const Parser = struct {
     }
 
     fn markInit(self: *Self) void {
-        if (self.currentBlock().scope_depth == 0) return;
+        if (self.emitter.scope_depth == 0) return;
         var locals = &self.emitter.locals;
 
         locals.items[locals.items.len - 1].depth = self.emitter.scope_depth;
@@ -424,22 +440,40 @@ pub const Parser = struct {
     }
 
     fn functionDeclaration(self: *Self) void {
-        const glob = self.parseVar("");
+        const glob = self.parseVar("") catch @panic("");
         self.markInit();
-        self.parseFunction();
+        self.parseFunction(.function);
         self.defineVar(glob, false);
     }
 
     fn parseFunction(self: *Self, func_type: FunctionType) void {
-        const emitter = Emitter.init(self.allocator, self.vm, func_type);
+        var emitter = Emitter.init(self.vm, func_type, self.emitter);
+        defer emitter.deinit();
+        self.emitter = &emitter;
+        self.emitter.function.name = Object.String.copy(self.vm, self.previous.lexeme).string().repre;
         self.beginScope();
 
-        self.eat(.colon, "");
-        self.eat(.right_brace, "");
+        self.eat(.left_paren, "left paren");
+        if (!self.check(.right_paren)) {
+            while (true) {
+                if (self.emitter.function.arity > 255) {
+                    self.report(&self.current, "nelze");
+                }
+
+                self.emitter.function.arity += 1;
+                const name = self.parseVar("jmeno") catch @panic("");
+                self.defineVar(name, false);
+
+                if (!self.match(.comma)) break;
+            }
+        }
+        self.eat(.right_paren, "no paren");
+        self.eat(.colon, "no col");
+        self.eat(.left_brace, "no brace");
         self.block();
 
-        const func = emitter.deinit();
-        self.emitter.emitOpCodes(.op_value, self.emitter.makeValue(func.obj.val()), self.previous);
+        const func = self.deinit();
+        self.emitter.emitOpCodes(.op_value, self.emitter.makeValue(func.obj.val()), self.previous.location);
     }
 
     fn printStmt(self: *Self) void {

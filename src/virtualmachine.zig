@@ -35,10 +35,10 @@ const CallFrame = struct {
 pub const VirtualMachine = struct {
     const Self = @This();
 
-    frames: std.ArrayList(CallFrame),
+    frames: [64]CallFrame = undefined,
+    frame_count: u8 = 0,
 
     allocator: Allocator,
-    block: *Block = undefined,
     stack: stack_list,
     globals: std.StringHashMap(Global),
 
@@ -51,7 +51,6 @@ pub const VirtualMachine = struct {
     pub fn init(allocator: Allocator, reporter: *Reporter) Self {
         return .{
             .allocator = allocator,
-            .frames = std.ArrayList(CallFrame).init(allocator),
             .globals = std.StringHashMap(Global).init(allocator),
             .strings = std.StringHashMap(*Object.String).init(allocator),
             .stack = stack_list.init(allocator),
@@ -84,11 +83,12 @@ pub const VirtualMachine = struct {
         var block = Block.init(self.allocator);
         defer block.deinit();
 
-        var emitter = Emitter.init(self.allocator, self, null);
+        var emitter = Emitter.init(self, .script, null);
         const func = emitter.compile(source) catch return ResultError.compile;
         self.push(func.obj.val());
 
-        const frame = &self.frames.items[self.frames.items.len - 1];
+        const frame = &self.frames[self.frame_count];
+        self.frame_count += 1;
         frame.function = func;
         frame.ip = 0;
         frame.start = self.stack.items.len;
@@ -288,8 +288,8 @@ pub const VirtualMachine = struct {
         }
     }
 
-    fn currentFrame(self: *Self) *CallFrame {
-        return &self.frames.items[self.frames.items.len - 1];
+    pub fn currentFrame(self: *Self) *CallFrame {
+        return &self.frames[self.frame_count - 1];
     }
 
     /// Přidání hodnoty do stacku
@@ -314,7 +314,7 @@ pub const VirtualMachine = struct {
     /// Resetovat stack
     fn resetStack(self: *Self) void {
         self.stack.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
-        self.frames.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
+        self.frame_count = 0;
     }
 
     /// Pro získání jestli je hodnota nepravdivá
@@ -502,19 +502,21 @@ pub const VirtualMachine = struct {
 
     /// Dostat op_code dle IP
     inline fn readByte(self: *Self) u8 {
-        const byte = self.block.code.items[self.currentFrame().ip];
-        self.currentFrame().ip += 1;
+        const frame = self.currentFrame();
+        const byte = frame.function.block.code.items[frame.ip];
+        frame.ip += 1;
         return byte;
     }
 
     /// Dostat hodnotu dle IP
     inline fn readValue(self: *Self) Val {
-        return self.block.values.items[self.readByte()];
+        const frame = self.currentFrame();
+        return frame.function.block.values.items[self.readByte()];
     }
 
     inline fn read16Bit(self: *Self) u16 {
-        const items = self.block.code.items;
         var frame = self.currentFrame();
+        var items = frame.function.block.code.items;
         frame.ip += 2;
         return (@as(u16, items[frame.ip - 2]) << 8 | items[frame.ip - 1]);
     }
@@ -526,19 +528,20 @@ pub const VirtualMachine = struct {
         args: anytype,
         notes: []const Reporter.Note,
     ) void {
-        const loc = self.block.locations.items[self.currentFrame().ip - 1];
+        const loc = self.currentFrame().function.block.locations.items[self.currentFrame().ip - 1];
         self.resetStack();
 
         const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("Nepodařilo se alokovat");
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
 
-        while (self.frames.items.len > 0) {
-            const frame = self.frames.pop();
+        var i = self.frame_count;
+        while (i > 0) : (i -= 1) {
+            const frame = self.frames[i - i];
             const location = frame.function.block.locations.items[frame.ip - 1];
             const name = if (frame.function.name) |name| name else "skript";
 
-            try shared.stdout.print("[line {}:{}] in {s}\n", .{ location.line, location.start_column, name });
+            shared.stdout.print("[line {}:{}] in {s}\n", .{ location.line, location.start_column, name }) catch @panic("");
         }
     }
 };

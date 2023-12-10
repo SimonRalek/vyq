@@ -105,4 +105,5 @@ pub const Keywords = std.ComptimeStringMap(Type, .{
     .{ "vyber", .vyber },
     .{ "pripad", .pripad },
     .{ "po", .po },
+    .{ "funkce", .funkce },
 });

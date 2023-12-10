@@ -36,7 +36,7 @@ pub const Emitter = struct {
     scope_depth: i16,
 
     /// Inicializace Emitteru
-    pub fn init(allocator: Allocator, vm: *VM, func_type: FunctionType) Self {
+    pub fn init(vm: *VM, func_type: FunctionType, wrapped: ?*Emitter) Self {
         var locals = localArray.init(vm.allocator);
 
         locals.append(.{
@@ -46,27 +46,19 @@ pub const Emitter = struct {
         }) catch {};
 
         return .{
-            .allocator = allocator,
+            .allocator = vm.allocator,
             .vm = vm,
             .reporter = vm.reporter,
             .locals = locals,
             .scope_depth = 0,
-            // .wrapped = emitter,
+            .wrapped = wrapped,
             .function = Function.init(vm, func_type),
         };
     }
 
     // Emit returnu a disassemble pokud debug mod
-    pub fn deinit(self: *Self) *Function {
+    pub fn deinit(self: *Self) void {
         self.locals.deinit();
-        self.emitOpCode(.op_return, self.parser.?.previous.location);
-
-        const function = self.function;
-        if (!self.reporter.had_error and debug.debugging) {
-            debug.disBlock(self.currentBlock(), if (function.name) |name| name else "script");
-        }
-
-        return function;
     }
 
     /// Kompilace
@@ -77,7 +69,7 @@ pub const Emitter = struct {
         self.parser = Parser.init(self.allocator, self, self.vm, self.reporter);
         self.parser.?.parse(source);
 
-        const func = self.deinit();
+        const func = self.parser.?.deinit();
         if (self.reporter.had_error) return ResultError.compile;
 
         return func;

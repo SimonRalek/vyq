@@ -2,7 +2,7 @@ const std = @import("std");
 const _block = @import("block.zig");
 const Block = _block.Block;
 
-pub const debugging = false;
+pub const debugging = true;
 pub const benchmark = false;
 pub const test_alloc = true;
 
