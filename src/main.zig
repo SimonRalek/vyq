@@ -1,17 +1,20 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const clap = @import("lib/zig-clap/clap.zig");
+const clap = @import("clap");
 
 const debug = @import("debug.zig");
 const shared = @import("shared.zig");
 const Scanner = @import("scanner.zig").Scanner;
-const Token = @import("token.zig").Token;
+const _token = @import("token.zig");
+const Token = _token.Token;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 const Block = @import("block.zig").Block;
 const Reporter = @import("reporter.zig");
 const _benchmark = @import("utils/benchmark.zig");
 const BenchMark = _benchmark.BenchMark;
 const Timer = _benchmark.Timer;
+
+const History = @import("history.zig");
 
 const File = std.fs.File;
 const Allocator = std.mem.Allocator;
@@ -23,6 +26,17 @@ const ArenaAlloc = std.heap.ArenaAllocator;
 extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
 extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
 
+const Linenoise = @import("linenoise").Linenoise;
+
+// const c = @cImport({
+//     @cInclude("stdio.h");
+//     @cInclude("readline/readline.h");
+//     @cInclude("readline/history.h");
+// });
+//
+// const Self = @This();
+// var alloc: std.mem.Allocator = undefined;
+
 /// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
     if (builtin.os.tag == .windows) {
@@ -33,6 +47,8 @@ pub fn main() !void {
     var heap = getAllocatorType();
     defer _ = heap.deinit();
     const allocator = heap.allocator();
+
+    // Self.alloc = allocator;
 
     var reporter = Reporter{ .allocator = allocator };
     var vm = VM.init(allocator, &reporter);
@@ -119,8 +135,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
 /// Read-Eval-Print loop mod
 fn repl(allocator: Allocator, vm: *VM) !void {
-    _ = allocator; // TODO?
-
+    defer vm.deinit();
     if (builtin.os.tag == .windows) {
         while (true) {
             try shared.stdout.print(">>> ", .{});
@@ -137,33 +152,24 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             vm.interpret(source) catch {};
         }
     } else {
-        while (true) {
-            var buf: [256]u8 = undefined;
-            var buf_stream = std.io.fixedBufferStream(&buf);
+        var ln = Linenoise.init(allocator);
+        defer ln.deinit();
 
-            try shared.stdout.print(">>> ", .{});
+        const path = try std.mem.concat(allocator, u8, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
+        defer allocator.free(path);
 
-            var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
-            const stdin = buffered_stdin.reader();
-            stdin.streamUntilDelimiter(
-                buf_stream.writer(),
-                '\n',
-                buf.len,
-            ) catch {
-                std.process.exit(60);
-            };
-            const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+        try ln.history.setMaxLen(50);
+        ln.history.load(path) catch try shared.stdout.print("Nepodařilo se načíst historii", .{});
+        defer ln.history.save(path) catch std.debug.print("Nepodařilo se uložit historii", .{});
 
-            if (input.len == buf.len) {
-                Reporter.printErr("Vstup je příliš dlouhý", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
-                try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
-                continue;
-            }
-            const source = buf[0..input.len];
-            vm.interpret(source) catch {};
+        ln.completions_callback = History.completion;
+
+        while (ln.linenoise(">>> ") catch null) |input| {
+            defer allocator.free(input);
+            try vm.interpret(input);
+            try ln.history.add(input);
         }
     }
-    defer vm.deinit();
 }
 
 /// Spustit program ze souboru

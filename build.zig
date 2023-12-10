@@ -20,6 +20,24 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe.linkLibC();
+
+    const linenoise = b.dependency("linenoise", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.addModule("linenoise", linenoise.module("linenoise"));
+    exe.linkLibrary(linenoise.artifact("linenoise"));
+
+    const clap = b.dependency("clap", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.addModule("clap", clap.module("clap"));
+    // exe.linkLibrary(clap.artifact("clap"));
+    //
+    exe.linkSystemLibrary("readline");
+
     b.installArtifact(exe);
     b.exe_dir = "./";
     // b.exe_dir = b.pathJoin(&.{ "out", @tagName(builtin.os.tag) });

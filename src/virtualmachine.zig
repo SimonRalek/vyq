@@ -196,7 +196,7 @@ pub const VirtualMachine = struct {
                             "Neexistující prvek '{s}'",
                             .{name.repre},
                             &.{
-                                .{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" },
+                                .{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v aktuálním kontextu" },
                             },
                         );
                         return ResultError.runtime;
@@ -412,7 +412,13 @@ pub const VirtualMachine = struct {
         const result = switch (operation) {
             .sub => a - b,
             .mult => a * b,
-            .div => a / b,
+            .div => blk: {
+                if (b == 0) {
+                    self.runtimeErr("Nelze dělit nulou", .{}, &.{});
+                    return ResultError.runtime;
+                }
+                break :blk a / b;
+            },
 
             .greater => a > b,
             .less => a < b,

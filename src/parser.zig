@@ -185,6 +185,23 @@ pub const Parser = struct {
 
     fn expression(self: *Self) void {
         self.parsePrecedence(.assignment);
+        if (self.match(.question_mark)) {
+            self.ternaryOperator();
+        }
+    }
+
+    fn ternaryOperator(self: *Self) void {
+        const jmp = self.emitJmp(.op_jmp_on_false);
+        self.emitOpCode(.op_pop);
+        self.expression();
+        if (!self.match(.colon)) {
+            self.report(&self.current, "");
+        }
+        const thenJmp = self.emitJmp(.op_jmp);
+        self.patchJmp(jmp);
+        self.emitOpCode(.op_pop);
+        self.expression();
+        self.patchJmp(thenJmp);
     }
 
     fn statement(self: *Self) void {
@@ -212,7 +229,7 @@ pub const Parser = struct {
             self.declaration();
         }
 
-        self.eat(.right_brace, "Očekávaná '}' za blokem");
+        self.eat(.right_brace, "Očekávaná '}' na konci bloku");
     }
 
     fn beginScope(self: *Self) void {
