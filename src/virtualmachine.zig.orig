@@ -13,7 +13,7 @@ const Global = _storage.Global;
 const Object = _val.Object;
 const Function = Object.Function;
 const Reporter = @import("reporter.zig");
-const stack_list = std.ArrayList(Val);
+
 const BinaryOp = enum {
     sub,
     mult,
@@ -26,11 +26,15 @@ const BinaryOp = enum {
 };
 const ShiftOp = enum { left, right };
 
+<<<<<<< HEAD
+const stack_list = std.ArrayList(Val);
+=======
 const CallFrame = struct {
     function: *Function,
-    start: usize,
     ip: usize,
+    slots: usize,
 };
+>>>>>>> fdb6ccb (Function preparation)
 
 pub const VirtualMachine = struct {
     const Self = @This();
@@ -39,7 +43,13 @@ pub const VirtualMachine = struct {
 
     allocator: Allocator,
     block: *Block = undefined,
+<<<<<<< HEAD
+    ip: usize,
     stack: stack_list,
+=======
+    stack: [256]Val = undefined,
+    stack_top: usize,
+>>>>>>> fdb6ccb (Function preparation)
     globals: std.StringHashMap(Global),
 
     strings: std.StringHashMap(*Object.String),
@@ -51,10 +61,10 @@ pub const VirtualMachine = struct {
     pub fn init(allocator: Allocator, reporter: *Reporter) Self {
         return .{
             .allocator = allocator,
-            .frames = std.ArrayList(CallFrame).init(allocator),
             .globals = std.StringHashMap(Global).init(allocator),
             .strings = std.StringHashMap(*Object.String).init(allocator),
             .stack = stack_list.init(allocator),
+            .ip = 0,
             .objects = null,
             .reporter = reporter,
         };
@@ -86,20 +96,15 @@ pub const VirtualMachine = struct {
 
         var emitter = Emitter.init(self.allocator, self, null);
         const func = emitter.compile(source) catch return ResultError.compile;
-        self.push(func.obj.val());
 
-        const frame = &self.frames.items[self.frames.items.len - 1];
-        frame.function = func;
-        frame.ip = 0;
-        frame.start = self.stack.items.len;
+        self.block = &func.block;
+        self.ip = 0;
 
         return self.run();
     }
 
     /// Běh programu
     fn run(self: *Self) ResultError!void {
-        const frame = self.currentFrame();
-
         while (true) {
             const instruction: Block.OpCode = @enumFromInt(self.readByte());
 
@@ -252,31 +257,31 @@ pub const VirtualMachine = struct {
 
                 .op_get_loc => {
                     var slot = self.readByte();
-                    self.push(self.stack.items[frame.start + slot]);
+                    self.push(self.stack.items[slot]);
                 },
 
                 .op_set_loc => {
                     var slot = self.readByte();
-                    self.stack.items[frame.start + slot] = self.peek(0);
+                    self.stack.items[slot] = self.peek(0);
                 },
 
                 .op_jmp => {
                     const idx = self.read16Bit();
-                    frame.ip += idx;
+                    self.ip += idx;
                 },
                 .op_jmp_on_true => {
                     const idx = self.read16Bit();
                     if (!isFalsey(self.peek(0))) {
-                        frame.ip += idx;
+                        self.ip += idx;
                     }
                 },
                 .op_jmp_on_false => {
                     const idx = self.read16Bit();
-                    frame.ip += falsey(self.peek(0)) * idx;
+                    self.ip += falsey(self.peek(0)) * idx;
                 },
                 .op_loop => {
                     const idx = self.read16Bit();
-                    frame.ip -= idx;
+                    self.ip -= idx;
                 },
                 .op_case => {
                     self.push(self.peek(0));
@@ -286,10 +291,6 @@ pub const VirtualMachine = struct {
                 },
             };
         }
-    }
-
-    fn currentFrame(self: *Self) *CallFrame {
-        return &self.frames.items[self.frames.items.len - 1];
     }
 
     /// Přidání hodnoty do stacku
@@ -313,8 +314,13 @@ pub const VirtualMachine = struct {
 
     /// Resetovat stack
     fn resetStack(self: *Self) void {
+<<<<<<< HEAD
         self.stack.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
-        self.frames.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
+        self.ip = 0;
+=======
+        self.stack_top = 0;
+        self.frames.clearRetainingCapacity();
+>>>>>>> fdb6ccb (Function preparation)
     }
 
     /// Pro získání jestli je hodnota nepravdivá
@@ -502,8 +508,8 @@ pub const VirtualMachine = struct {
 
     /// Dostat op_code dle IP
     inline fn readByte(self: *Self) u8 {
-        const byte = self.block.code.items[self.currentFrame().ip];
-        self.currentFrame().ip += 1;
+        const byte = self.block.code.items[self.ip];
+        self.ip += 1;
         return byte;
     }
 
@@ -514,9 +520,8 @@ pub const VirtualMachine = struct {
 
     inline fn read16Bit(self: *Self) u16 {
         const items = self.block.code.items;
-        var frame = self.currentFrame();
-        frame.ip += 2;
-        return (@as(u16, items[frame.ip - 2]) << 8 | items[frame.ip - 1]);
+        self.ip += 2;
+        return (@as(u16, items[self.ip - 2]) << 8 | items[self.ip - 1]);
     }
 
     /// Vypisování run-time errorů s trace stackem
@@ -526,19 +531,11 @@ pub const VirtualMachine = struct {
         args: anytype,
         notes: []const Reporter.Note,
     ) void {
-        const loc = self.block.locations.items[self.currentFrame().ip - 1];
+        const loc = self.block.locations.items[self.ip - 1];
         self.resetStack();
 
         const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("Nepodařilo se alokovat");
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
-
-        while (self.frames.items.len > 0) {
-            const frame = self.frames.pop();
-            const location = frame.function.block.locations.items[frame.ip - 1];
-            const name = if (frame.function.name) |name| name else "skript";
-
-            try shared.stdout.print("[line {}:{}] in {s}\n", .{ location.line, location.start_column, name });
-        }
     }
 };

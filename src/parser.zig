@@ -12,7 +12,9 @@ const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
 const Emitter = @import("emitter.zig").Emitter;
 const Reporter = @import("reporter.zig");
-const Object = @import("value.zig").Object;
+const _val = @import("value.zig");
+const Object = _val.Object;
+const FunctionType = _val.FunctionType;
 const _storage = @import("storage.zig");
 const Local = _storage.Local;
 
@@ -176,6 +178,8 @@ pub const Parser = struct {
     fn declaration(self: *Self) void {
         if (self.match(.prm) or self.match(.konst)) {
             self.variableDeclaration() catch {};
+        } else if (self.match(.funkce)) {
+            self.functionDeclaration();
         } else {
             self.statement();
         }
@@ -265,6 +269,7 @@ pub const Parser = struct {
     }
 
     fn markInit(self: *Self) void {
+        if (self.currentBlock().scope_depth == 0) return;
         var locals = &self.emitter.locals;
 
         locals.items[locals.items.len - 1].depth = self.emitter.scope_depth;
@@ -416,6 +421,25 @@ pub const Parser = struct {
         ) catch {
             @panic("Nepadařilo se alokovat");
         };
+    }
+
+    fn functionDeclaration(self: *Self) void {
+        const glob = self.parseVar("");
+        self.markInit();
+        self.parseFunction();
+        self.defineVar(glob, false);
+    }
+
+    fn parseFunction(self: *Self, func_type: FunctionType) void {
+        const emitter = Emitter.init(self.allocator, self.vm, func_type);
+        self.beginScope();
+
+        self.eat(.colon, "");
+        self.eat(.right_brace, "");
+        self.block();
+
+        const func = emitter.deinit();
+        self.emitter.emitOpCodes(.op_value, self.emitter.makeValue(func.obj.val()), self.previous);
     }
 
     fn printStmt(self: *Self) void {

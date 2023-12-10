@@ -4,6 +4,7 @@ const shared = @import("shared.zig");
 const Allocator = std.mem.Allocator;
 
 const VM = @import("virtualmachine.zig").VirtualMachine;
+const Block = @import("block.zig").Block;
 const Formatter = @import("formatter.zig");
 
 pub const Val = union(enum) {
@@ -75,7 +76,7 @@ pub const Val = union(enum) {
 const DeinitFn = *const fn (*Object, *VM) void;
 
 pub const Object = struct {
-    const ObjectType = enum { string };
+    const ObjectType = enum { string, function };
 
     type: ObjectType,
     deinit: DeinitFn,
@@ -90,7 +91,7 @@ pub const Object = struct {
             @panic("Nepodařilo se alokovat");
         };
 
-        descendent.obj = .{ .type = obj_type, .deinit = T.deinit };
+        descendent.obj = Object{ .type = obj_type, .deinit = T.deinit };
 
         descendent.obj.next = vm.objects;
         vm.objects = &descendent.obj;
@@ -111,6 +112,15 @@ pub const Object = struct {
                 defer allocator.free(formatted);
                 try shared.stdout.print("{s}", .{formatted});
             },
+            .function => {
+                const func = self.function();
+
+                if (func.name) |name| {
+                    try shared.stdout.print("<fn {s}>", .{name});
+                    return;
+                }
+                try shared.stdout.print("<script>", .{});
+            },
         }
     }
 
@@ -122,6 +132,10 @@ pub const Object = struct {
     /// Převedení objektu na string s tím spojený
     pub fn string(self: *Object) *String {
         return @fieldParentPtr(String, "obj", self);
+    }
+
+    pub fn function(self: *Object) *Function {
+        return @fieldParentPtr(Function, "obj", self);
     }
 
     pub const String = struct {
@@ -175,4 +189,29 @@ pub const Object = struct {
             vm.allocator.destroy(self);
         }
     };
+
+    pub const Function = struct {
+        obj: Object,
+        arity: u9,
+        block: Block,
+        name: ?[]const u8,
+        type: FunctionType,
+
+        pub fn init(vm: *VM, func_type: FunctionType) *Function {
+            const func = Object.alloc(vm, Function, .function);
+            func.arity = 0;
+            func.name = null;
+            func.block = Block.init(vm.allocator);
+            func.type = func_type;
+            return func;
+        }
+
+        pub fn deinit(object: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(Function, "obj", object);
+            self.block.deinit();
+            vm.allocator.destroy(self);
+        }
+    };
 };
+
+pub const FunctionType = enum { function, script };

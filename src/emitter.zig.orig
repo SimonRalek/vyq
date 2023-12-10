@@ -4,7 +4,6 @@ const debug = @import("debug.zig");
 const Allocator = std.mem.Allocator;
 
 const _value = @import("value.zig");
-const FunctionType = _value.FunctionType;
 const Val = _value.Val;
 const Function = _value.Object.Function;
 const ResultError = shared.ResultError;
@@ -23,8 +22,6 @@ const localArray = std.ArrayList(Local);
 pub const Emitter = struct {
     const Self = @This();
 
-    function: *Function,
-
     allocator: Allocator,
     vm: *VM,
     parser: ?Parser = null,
@@ -35,8 +32,10 @@ pub const Emitter = struct {
     locals: localArray,
     scope_depth: i16,
 
+    function: *Function,
+
     /// Inicializace Emitteru
-    pub fn init(allocator: Allocator, vm: *VM, func_type: FunctionType) Self {
+    pub fn init(allocator: Allocator, vm: *VM, emitter: ?*Self) Self {
         var locals = localArray.init(vm.allocator);
 
         locals.append(.{
@@ -51,8 +50,8 @@ pub const Emitter = struct {
             .reporter = vm.reporter,
             .locals = locals,
             .scope_depth = 0,
-            // .wrapped = emitter,
-            .function = Function.init(vm, func_type),
+            .wrapped = emitter,
+            .function = Function.init(vm),
         };
     }
 
@@ -63,7 +62,11 @@ pub const Emitter = struct {
 
         const function = self.function;
         if (!self.reporter.had_error and debug.debugging) {
+<<<<<<< HEAD
+            debug.disBlock(self.currentBlock(), "code");
+=======
             debug.disBlock(self.currentBlock(), if (function.name) |name| name else "script");
+>>>>>>> fdb6ccb (Function preparation)
         }
 
         return function;
@@ -85,16 +88,23 @@ pub const Emitter = struct {
 
     /// Získat aktuální blok
     pub fn currentBlock(self: *Self) *Block {
+<<<<<<< HEAD
+        return self.block.?;
+=======
         return &self.function.block;
+>>>>>>> fdb6ccb (Function preparation)
     }
 
     /// Zapsat instrukci do bloku
     pub fn emitOpCode(self: *Self, op_code: Block.OpCode, loc: Location) void {
         self.currentBlock().writeOp(op_code, loc);
+<<<<<<< HEAD
     }
 
     pub fn emitByte(self: *Self, byte: u8, loc: Location) void {
         self.currentBlock().writeOpByte(byte, loc);
+=======
+>>>>>>> fdb6ccb (Function preparation)
     }
 
     /// Zapis hodnotu do bloku
@@ -111,8 +121,11 @@ pub const Emitter = struct {
     /// Přidání hodnoty do aktuálního bloku
     pub fn makeValue(self: *Self, val: Val) u8 {
         const value = self.currentBlock().addValue(val);
+<<<<<<< HEAD
+=======
         if (value > 255) @panic("Stack overflow");
 
+>>>>>>> fdb6ccb (Function preparation)
         return value;
     }
 };
