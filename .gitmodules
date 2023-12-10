@@ -1,6 +1,0 @@
-[submodule "src/lib/zig-clap"]
-	path = src/lib/zig-clap
-	url = https://github.com/Hejsil/zig-clap
-[submodule "src/lib/zig-time"]
-	path = src/lib/zig-time
-	url = https://github.com/nektro/zig-time
