@@ -11,11 +11,9 @@ const Emitter = @import("emitter.zig").Emitter;
 const _storage = @import("storage.zig");
 const Global = _storage.Global;
 const Object = _val.Object;
-const String = Object.String;
 const Function = Object.Function;
 const Reporter = @import("reporter.zig");
 const stack_list = std.ArrayList(Val);
-
 const BinaryOp = enum {
     sub,
     mult,
@@ -27,8 +25,6 @@ const BinaryOp = enum {
     bit_xor,
 };
 const ShiftOp = enum { left, right };
-
-const stack_list = std.ArrayList(Val);
 
 const CallFrame = struct {
     function: *Function,
@@ -68,20 +64,15 @@ pub const VirtualMachine = struct {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
-        self.stack.deinit();
     }
 
     /// Projíždění objekt linked listu a free každý objekt
     fn deinitObjs(self: *Self) void {
-        // var obj = self.objects;
-        // while (obj) |curr| {
-        //     const next = curr.next;
-        //     curr.deinit(curr, self);
-        //     obj = next;
-        // }
-        var it = self.strings.iterator();
-        while (it.next()) |string| {
-            String.deinit(&string.value_ptr.*.obj, self);
+        var obj = self.objects;
+        while (obj) |curr| {
+            const next = curr.next;
+            curr.deinit(curr, self);
+            obj = next;
         }
     }
 
@@ -114,7 +105,7 @@ pub const VirtualMachine = struct {
 
             try switch (instruction) {
                 .op_value => {
-                    const value = self.readValue();
+                    var value = self.readValue();
                     self.push(value);
                 },
                 .op_ano => self.push(Val{ .boolean = true }),
@@ -127,7 +118,7 @@ pub const VirtualMachine = struct {
                 .op_div => self.binary(.div),
 
                 .op_increment => {
-                    const a = self.pop();
+                    var a = self.pop();
 
                     if (a != .number) {
                         self.runtimeErr(
@@ -141,7 +132,7 @@ pub const VirtualMachine = struct {
                     self.push(Val{ .number = a.number + 1 });
                 },
                 .op_decrement => {
-                    const a = self.pop();
+                    var a = self.pop();
 
                     if (a != .number) {
                         self.runtimeErr(
@@ -158,8 +149,8 @@ pub const VirtualMachine = struct {
                 .op_greater => self.binary(.greater),
                 .op_less => self.binary(.less),
                 .op_equal => {
-                    const a = self.pop();
-                    const b = self.pop();
+                    var a = self.pop();
+                    var b = self.pop();
 
                     self.push(Val{ .boolean = Val.isEqual(a, b) });
                 },
@@ -196,7 +187,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_pop => _ = self.pop(),
                 .op_popn => {
-                    const n = self.readByte();
+                    var n = self.readByte();
                     var i: usize = 0;
 
                     while (i < n) : (i += 1) {
@@ -210,7 +201,7 @@ pub const VirtualMachine = struct {
                             "Neexistující prvek '{s}'",
                             .{name.repre},
                             &.{
-                                .{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v aktuálním kontextu" },
+                                .{ .message = "Zkontrolujte zda jste správně specifikovali jméno prvku a zda je tento prvek k dispozici v akuálním kontextu" },
                             },
                         );
                         return ResultError.runtime;
@@ -260,13 +251,13 @@ pub const VirtualMachine = struct {
                 },
 
                 .op_get_loc => {
-                    const slot = self.readByte();
-                    self.push(self.stack.items[slot]);
+                    var slot = self.readByte();
+                    self.push(self.stack.items[frame.start + slot]);
                 },
 
                 .op_set_loc => {
-                    const slot = self.readByte();
-                    self.stack.items[slot] = self.peek(0);
+                    var slot = self.readByte();
+                    self.stack.items[frame.start + slot] = self.peek(0);
                 },
 
                 .op_jmp => {
@@ -337,12 +328,22 @@ pub const VirtualMachine = struct {
 
     /// Spojení dvou stringů
     inline fn concatObj(self: *Self) void {
-        const b = self.pop();
-        const a = self.pop();
+        const b = self.pop().obj;
+        const a = self.pop().obj;
+        defer {
+            a.deinit(a, self);
+            b.deinit(b, self);
+        }
 
-        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.obj.string().repre, b.obj.string().repre }) catch @panic("");
+        const new = std.mem.concat(
+            self.allocator,
+            u8,
+            &.{ a.string().repre, b.string().repre },
+        ) catch {
+            @panic("Nedostatečné množství paměti");
+        };
 
-        const val = Val{ .obj = Object.String.take(self, buff) };
+        const val = Val{ .obj = Object.String.take(self, new) };
         self.push(val);
     }
 
@@ -366,6 +367,8 @@ pub const VirtualMachine = struct {
             ) catch {
                 @panic("Chyba při alokaci");
             };
+
+            a.obj.deinit(a.obj, self);
         } else if (b.obj.type == .string) {
             string = a.stringVal(self.allocator) catch {
                 @panic("Chyba při alokaci");
@@ -378,6 +381,8 @@ pub const VirtualMachine = struct {
             ) catch {
                 @panic("Chyba při alokaci");
             };
+
+            b.obj.deinit(b.obj, self);
         }
 
         if (a == .number or b == .number) {
@@ -430,13 +435,7 @@ pub const VirtualMachine = struct {
         const result = switch (operation) {
             .sub => a - b,
             .mult => a * b,
-            .div => blk: {
-                if (b == 0) {
-                    self.runtimeErr("Nelze dělit nulou", .{}, &.{});
-                    return ResultError.runtime;
-                }
-                break :blk a / b;
-            },
+            .div => a / b,
 
             .greater => a > b,
             .less => a < b,

@@ -81,7 +81,6 @@ pub const Type = enum(u8) {
     vyber,
     pripad,
     arrow,
-    interpolation,
 };
 
 pub const Keywords = std.ComptimeStringMap(Type, .{

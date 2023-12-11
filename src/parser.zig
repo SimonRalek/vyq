@@ -205,23 +205,6 @@ pub const Parser = struct {
 
     fn expression(self: *Self) void {
         self.parsePrecedence(.assignment);
-        if (self.match(.question_mark)) {
-            self.ternaryOperator();
-        }
-    }
-
-    fn ternaryOperator(self: *Self) void {
-        const jmp = self.emitJmp(.op_jmp_on_false);
-        self.emitOpCode(.op_pop);
-        self.expression();
-        if (!self.match(.colon)) {
-            self.report(&self.current, "");
-        }
-        const thenJmp = self.emitJmp(.op_jmp);
-        self.patchJmp(jmp);
-        self.emitOpCode(.op_pop);
-        self.expression();
-        self.patchJmp(thenJmp);
     }
 
     fn statement(self: *Self) void {
@@ -249,7 +232,7 @@ pub const Parser = struct {
             self.declaration();
         }
 
-        self.eat(.right_brace, "Očekávaná '}' na konci bloku");
+        self.eat(.right_brace, "Očekávaná '}' za blokem");
     }
 
     fn beginScope(self: *Self) void {
@@ -259,7 +242,7 @@ pub const Parser = struct {
     fn endScope(self: *Self) void {
         self.emitter.scope_depth -= 1;
 
-        const locals = &self.emitter.locals;
+        var locals = &self.emitter.locals;
         var popN: u8 = 0;
         while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.scope_depth) {
             popN += 1;
@@ -270,7 +253,7 @@ pub const Parser = struct {
     }
 
     fn variableDeclaration(self: *Self) !void {
-        const is_const = self.previous.type == .konst;
+        var is_const = self.previous.type == .konst;
 
         const glob = try self.parseVar("Očekávané jméno prvku po 'prm'");
 
@@ -311,7 +294,7 @@ pub const Parser = struct {
     fn declareVar(self: *Self, is_const: bool) void {
         if (self.emitter.scope_depth == 0) return;
 
-        const name = &self.previous;
+        var name = &self.previous;
 
         var i: usize = 0;
         const locals = &self.emitter.locals;
@@ -331,7 +314,7 @@ pub const Parser = struct {
     }
 
     fn parseVar(self: *Self, message: []const u8) !u8 {
-        const is_const = self.previous.type == .konst;
+        var is_const = self.previous.type == .konst;
 
         if (self.match(.dot)) {
             self.report(&self.current, "Pro jméno prvku nelze použít '.'");
@@ -425,7 +408,7 @@ pub const Parser = struct {
     }
 
     fn resolveLocal(self: *Self, token: *Token) struct { isize, bool } {
-        const locals = &self.emitter.locals;
+        var locals = &self.emitter.locals;
         var i: usize = 0;
 
         while (i < locals.items.len) : (i += 1) {
@@ -435,8 +418,7 @@ pub const Parser = struct {
                     &self.previous,
                     "Proměnná nelze přiřadit sama sobě",
                 );
-
-                const result: isize = @intCast(locals.items.len - 1 - i);
+                var result: isize = @intCast(locals.items.len - 1 - i);
                 return .{ result, local.is_const };
             }
         }
@@ -494,8 +476,14 @@ pub const Parser = struct {
         self.emitter.emitOpCodes(.op_value, self.emitter.makeValue(func.obj.val()), self.previous.location);
     }
 
+    fn call(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+        const arg_count = self.argumentList();
+        self.emitter.emitOpCodes(.op_call, arg_count, self.current.location);
+    }
+
     fn printStmt(self: *Self) void {
-        const token = self.previous;
+        var token = self.previous;
         self.expression();
         self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(if (token.type == .tiskni) .op_println else .op_print);
@@ -521,7 +509,7 @@ pub const Parser = struct {
         self.beginScope();
 
         if (self.match(.jako)) {
-            const prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
+            var prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
                 return;
             };
 
@@ -559,7 +547,7 @@ pub const Parser = struct {
                 self.emitVal(Val{ .number = 1 });
             }
             self.emitOpCode(if (directionUp) .op_add else .op_sub);
-            const resolve = self.resolveLocal(&token);
+            var resolve = self.resolveLocal(&token);
             self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0]), self.previous.location);
             self.emitOpCode(.op_pop);
 
@@ -823,7 +811,7 @@ pub const Parser = struct {
     fn number(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        const buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
+        var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
@@ -898,7 +886,7 @@ pub const Parser = struct {
 
     fn getRule(t_type: _token.Type) ParseRule {
         return switch (t_type) {
-            .left_paren => .{ .prefix = Parser.group },
+            .left_paren => .{ .prefix = Parser.group, .infix = Parser.call, .precedence = .call },
 
             .increment, .decrement => .{ .infix = Parser.crement },
 
@@ -934,7 +922,7 @@ pub const Parser = struct {
 };
 
 fn testParser(source: []const u8, expected: f64) !void {
-    const allocator = std.testing.allocator;
+    var allocator = std.testing.allocator;
     var reporter = Reporter.init(allocator);
     var vm = VM.init(allocator, &reporter);
     try vm.interpret(source);

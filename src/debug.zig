@@ -9,7 +9,7 @@ pub const test_alloc = true;
 /// Výpis instrukcí s hodnoty v bloku
 pub fn disBlock(block: *Block, name: []const u8) void {
     std.debug.print("--- {s} ---\n", .{name});
-    const allocator = std.heap.page_allocator;
+    var allocator = std.heap.page_allocator;
 
     var i: usize = 0;
     while (i < block.code.items.len) {
@@ -82,7 +82,7 @@ inline fn value(
     idx: usize,
     allocator: std.mem.Allocator,
 ) usize {
-    const val = block.*.code.items[idx + 1];
+    var val = block.*.code.items[idx + 1];
     std.debug.print("{s} {} ", .{ name, val });
 
     block.*.values.items[val].print(allocator);
@@ -91,7 +91,7 @@ inline fn value(
 }
 
 inline fn byte(name: []const u8, block: *Block, idx: usize) usize {
-    const k = block.code.items[idx + 1];
+    var k = block.code.items[idx + 1];
     std.debug.print("{s} {}\n", .{ name, k });
     return idx + 2;
 }
