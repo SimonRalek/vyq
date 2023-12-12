@@ -22,13 +22,6 @@ pub fn build(b: *std.Build) void {
 
     exe.linkLibC();
 
-    const linenoise = b.dependency("linenoise", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    exe.addModule("linenoise", linenoise.module("linenoise"));
-    exe.linkLibrary(linenoise.artifact("linenoise"));
-
     const clap = b.dependency("clap", .{
         .target = target,
         .optimize = optimize,

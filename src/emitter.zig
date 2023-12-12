@@ -3,7 +3,10 @@ const shared = @import("shared.zig");
 const debug = @import("debug.zig");
 const Allocator = std.mem.Allocator;
 
-const Val = @import("value.zig").Val;
+const _value = @import("value.zig");
+const FunctionType = _value.FunctionType;
+const Val = _value.Val;
+const Function = _value.Object.Function;
 const ResultError = shared.ResultError;
 const Reporter = @import("reporter.zig");
 const _scanner = @import("scanner.zig");
@@ -20,10 +23,11 @@ const localArray = std.ArrayList(Local);
 pub const Emitter = struct {
     const Self = @This();
 
+    function: *Function,
+
     allocator: Allocator,
     vm: *VM,
     parser: ?Parser = null,
-    block: ?*Block = null,
     reporter: *Reporter,
 
     wrapped: ?*Emitter,
@@ -32,42 +36,48 @@ pub const Emitter = struct {
     scope_depth: i16,
 
     /// Inicializace Emitteru
-    pub fn init(allocator: Allocator, vm: *VM, emitter: ?*Self) Self {
+    pub fn init(vm: *VM, func_type: FunctionType, wrapped: ?*Emitter) Self {
+        var locals = localArray.init(vm.allocator);
+
+        locals.append(.{
+            .depth = 0,
+            .name = "",
+            .is_const = false,
+        }) catch {};
+
         return .{
-            .allocator = allocator,
+            .allocator = vm.allocator,
             .vm = vm,
             .reporter = vm.reporter,
-            .locals = localArray.init(allocator),
+            .locals = locals,
             .scope_depth = 0,
-            .wrapped = emitter,
+            .wrapped = wrapped,
+            .function = Function.init(vm, func_type),
         };
     }
 
     // Emit returnu a disassemble pokud debug mod
     pub fn deinit(self: *Self) void {
         self.locals.deinit();
-        self.emitOpCode(.op_return, self.parser.?.previous.location);
-        if (!self.reporter.had_error and debug.debugging) {
-            debug.disBlock(self.currentBlock(), "code");
-        }
     }
 
     /// Kompilace
-    pub fn compile(self: *Self, source: []const u8, block: *Block) ResultError!void {
+    pub fn compile(self: *Self, source: []const u8) ResultError!*Function {
         self.reporter.had_error = false;
         self.reporter.panic_mode = false;
 
         self.parser = Parser.init(self.allocator, self, self.vm, self.reporter);
-        self.block = block;
         self.parser.?.parse(source);
 
-        self.deinit();
+        const func = self.parser.?.deinit();
         if (self.reporter.had_error) return ResultError.compile;
+
+        return func;
     }
 
     /// Získat aktuální blok
     pub fn currentBlock(self: *Self) *Block {
-        return self.block.?;
+        return &self.function.block;
     }
 
     /// Zapsat instrukci do bloku
@@ -93,6 +103,8 @@ pub const Emitter = struct {
     /// Přidání hodnoty do aktuálního bloku
     pub fn makeValue(self: *Self, val: Val) u8 {
         const value = self.currentBlock().addValue(val);
+        if (value > 255) @panic("Stack overflow");
+
         return value;
     }
 };

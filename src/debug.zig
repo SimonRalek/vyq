@@ -9,7 +9,7 @@ pub const test_alloc = true;
 /// Výpis instrukcí s hodnoty v bloku
 pub fn disBlock(block: *Block, name: []const u8) void {
     std.debug.print("--- {s} ---\n", .{name});
-    const allocator = std.heap.page_allocator;
+    var allocator = std.heap.page_allocator;
 
     var i: usize = 0;
     while (i < block.code.items.len) {
@@ -19,7 +19,7 @@ pub fn disBlock(block: *Block, name: []const u8) void {
 
 /// Rozebrat instrukci
 pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) usize {
-    std.debug.print("{} ", .{idx});
+    std.debug.print("{:0>3} ", .{idx});
 
     if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
         std.debug.print("|    ", .{});
@@ -65,6 +65,7 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_jmp_on_false => jmp("op_jmp_on_false", 1, block, idx),
         .op_loop => jmp("op_loop", -1, block, idx),
         .op_case => simple("op_case", idx),
+        .op_call => byte("op_call", block, idx),
         .op_return => simple("op_return", idx),
     };
 }
@@ -82,7 +83,7 @@ inline fn value(
     idx: usize,
     allocator: std.mem.Allocator,
 ) usize {
-    const val = block.*.code.items[idx + 1];
+    var val = block.*.code.items[idx + 1];
     std.debug.print("{s} {} ", .{ name, val });
 
     block.*.values.items[val].print(allocator);
@@ -91,7 +92,7 @@ inline fn value(
 }
 
 inline fn byte(name: []const u8, block: *Block, idx: usize) usize {
-    const k = block.code.items[idx + 1];
+    var k = block.code.items[idx + 1];
     std.debug.print("{s} {}\n", .{ name, k });
     return idx + 2;
 }

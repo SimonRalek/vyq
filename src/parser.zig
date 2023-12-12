@@ -1,7 +1,8 @@
 const std = @import("std");
 const shared = @import("shared.zig");
-const Allocator = std.mem.Allocator;
+const debug = @import("debug.zig");
 
+const Allocator = std.mem.Allocator;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 
 const ResultError = shared.ResultError;
@@ -12,7 +13,9 @@ const Scanner = @import("scanner.zig").Scanner;
 const Block = @import("block.zig").Block;
 const Emitter = @import("emitter.zig").Emitter;
 const Reporter = @import("reporter.zig");
-const Object = @import("value.zig").Object;
+const _val = @import("value.zig");
+const Object = _val.Object;
+const FunctionType = _val.FunctionType;
 const _storage = @import("storage.zig");
 const Local = _storage.Local;
 
@@ -65,6 +68,21 @@ pub const Parser = struct {
             .current = undefined,
             .previous = undefined,
         };
+    }
+
+    pub fn deinit(self: *Self) *Object.Function {
+        self.emitReturn();
+
+        const function = self.emitter.function;
+        if (!self.reporter.had_error and debug.debugging) {
+            debug.disBlock(self.currentBlock(), if (function.name) |name| name else "script");
+        }
+
+        if (self.emitter.wrapped) |emitter| {
+            self.emitter = emitter;
+        }
+
+        return function;
     }
 
     pub fn parse(self: *Self, source: []const u8) void {
@@ -150,6 +168,11 @@ pub const Parser = struct {
         self.emitByte(@intCast(idx & 0xff));
     }
 
+    fn emitReturn(self: *Self) void {
+        self.emitOpCode(.op_nic);
+        self.emitOpCode(.op_return);
+    }
+
     fn patchJmp(self: *Self, idx: usize) void {
         const jmp = self.currentBlock().code.items.len - idx - 2;
 
@@ -176,6 +199,8 @@ pub const Parser = struct {
     fn declaration(self: *Self) void {
         if (self.match(.prm) or self.match(.konst)) {
             self.variableDeclaration() catch {};
+        } else if (self.match(.funkce)) {
+            self.functionDeclaration();
         } else {
             self.statement();
         }
@@ -195,7 +220,7 @@ pub const Parser = struct {
         self.emitOpCode(.op_pop);
         self.expression();
         if (!self.match(.colon)) {
-            self.report(&self.current, "");
+            self.report(&self.current, "Chybí ':' v ternárním operátoru");
         }
         const thenJmp = self.emitJmp(.op_jmp);
         self.patchJmp(jmp);
@@ -217,6 +242,8 @@ pub const Parser = struct {
             self.forStmt();
         } else if (self.match(.dokud)) {
             self.whileStmt();
+        } else if (self.match(.vrat)) {
+            self.returnStmt();
         } else if (self.match(.vyber)) {
             self.switchStmt();
         } else {
@@ -239,7 +266,7 @@ pub const Parser = struct {
     fn endScope(self: *Self) void {
         self.emitter.scope_depth -= 1;
 
-        const locals = &self.emitter.locals;
+        var locals = &self.emitter.locals;
         var popN: u8 = 0;
         while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.scope_depth) {
             popN += 1;
@@ -250,7 +277,7 @@ pub const Parser = struct {
     }
 
     fn variableDeclaration(self: *Self) !void {
-        const is_const = self.previous.type == .konst;
+        var is_const = self.previous.type == .konst;
 
         const glob = try self.parseVar("Očekávané jméno prvku po 'prm'");
 
@@ -282,6 +309,7 @@ pub const Parser = struct {
     }
 
     fn markInit(self: *Self) void {
+        if (self.emitter.scope_depth == 0) return;
         var locals = &self.emitter.locals;
 
         locals.items[locals.items.len - 1].depth = self.emitter.scope_depth;
@@ -290,7 +318,7 @@ pub const Parser = struct {
     fn declareVar(self: *Self, is_const: bool) void {
         if (self.emitter.scope_depth == 0) return;
 
-        const name = &self.previous;
+        var name = &self.previous;
 
         var i: usize = 0;
         const locals = &self.emitter.locals;
@@ -309,8 +337,8 @@ pub const Parser = struct {
         self.addLocal(name.lexeme, is_const);
     }
 
-    fn parseVar(self: *Self, message: []const u8) !u8 {
-        const is_const = self.previous.type == .konst;
+    fn parseVar(self: *Self, message: []const u8) ResultError!u8 {
+        var is_const = self.previous.type == .konst;
 
         if (self.match(.dot)) {
             self.report(&self.current, "Pro jméno prvku nelze použít '.'");
@@ -404,7 +432,7 @@ pub const Parser = struct {
     }
 
     fn resolveLocal(self: *Self, token: *Token) struct { isize, bool } {
-        const locals = &self.emitter.locals;
+        var locals = &self.emitter.locals;
         var i: usize = 0;
 
         while (i < locals.items.len) : (i += 1) {
@@ -414,8 +442,7 @@ pub const Parser = struct {
                     &self.previous,
                     "Proměnná nelze přiřadit sama sobě",
                 );
-
-                const result: isize = @intCast(locals.items.len - 1 - i);
+                var result: isize = @intCast(locals.items.len - 1 - i);
                 return .{ result, local.is_const };
             }
         }
@@ -436,8 +463,69 @@ pub const Parser = struct {
         };
     }
 
+    fn functionDeclaration(self: *Self) void {
+        const glob = self.parseVar("Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.") catch return;
+        self.markInit();
+        self.parseFunction(.function);
+        self.defineVar(glob, false);
+    }
+
+    fn parseFunction(self: *Self, func_type: FunctionType) void {
+        var emitter = Emitter.init(self.vm, func_type, self.emitter);
+        defer emitter.deinit();
+        self.emitter = &emitter;
+        self.emitter.function.name = Object.String.copy(self.vm, self.previous.lexeme).string().repre;
+        self.beginScope();
+
+        self.eat(.left_paren, "Chybí '(' po jménu funkce");
+        if (!self.check(.right_paren)) {
+            while (true) {
+                if (self.emitter.function.arity > 255) {
+                    self.report(&self.current, "Příliš mnoho parametrů. Maximální počet je 255");
+                }
+
+                self.emitter.function.arity += 1;
+                const name = self.parseVar("Chybí jméno parametru") catch return;
+                self.defineVar(name, false);
+
+                if (!self.match(.comma)) break;
+            }
+        }
+        self.eat(.right_paren, "Chybí ')' na konci seznamu paramerů funkce");
+        self.eat(.colon, "Chybí ':' po konci seznamu parametrů funkce");
+        self.eat(.left_brace, "Chybí '{' pro začátek bloku funkce");
+        self.block();
+
+        const func = self.deinit();
+        self.emitter.emitOpCodes(.op_value, self.emitter.makeValue(func.obj.val()), self.previous.location);
+    }
+
+    fn call(self: *Self, canAssign: bool) !void {
+        _ = canAssign;
+        const arg_count = self.argumentList();
+        self.emitter.emitOpCodes(.op_call, arg_count, self.current.location);
+    }
+
+    fn argumentList(self: *Self) u8 {
+        var arg_count: u8 = 0;
+
+        if (!self.check(.right_paren)) {
+            while (true) {
+                if (arg_count == 255)
+                    self.report(&self.current, "Příliš mnoho argumentů. Maximální počet je 255.");
+
+                self.expression();
+                arg_count += 1;
+                if (!self.match(.comma)) break;
+            }
+        }
+
+        self.eat(.right_paren, "Chybí ')' na konci seznamu argumentů funkce.");
+        return arg_count;
+    }
+
     fn printStmt(self: *Self) void {
-        const token = self.previous;
+        var token = self.previous;
         self.expression();
         self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(if (token.type == .tiskni) .op_println else .op_print);
@@ -463,7 +551,7 @@ pub const Parser = struct {
         self.beginScope();
 
         if (self.match(.jako)) {
-            const prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
+            var prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
                 return;
             };
 
@@ -501,7 +589,7 @@ pub const Parser = struct {
                 self.emitVal(Val{ .number = 1 });
             }
             self.emitOpCode(if (directionUp) .op_add else .op_sub);
-            const resolve = self.resolveLocal(&token);
+            var resolve = self.resolveLocal(&token);
             self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0]), self.previous.location);
             self.emitOpCode(.op_pop);
 
@@ -632,6 +720,20 @@ pub const Parser = struct {
         }
 
         self.emitOpCode(.op_pop);
+    }
+
+    fn returnStmt(self: *Self) void {
+        if (self.emitter.function.type == .script) {
+            self.report(&self.current, "Nelze vrátit hodnotu z hlavního scriptu");
+        }
+
+        if (self.match(.semicolon)) {
+            self.emitReturn();
+        } else {
+            self.expression();
+            self.eat(.semicolon, "Chybí ';' za příkazem");
+            self.emitOpCode(.op_return);
+        }
     }
 
     fn exprStmt(self: *Self) void {
@@ -765,7 +867,7 @@ pub const Parser = struct {
     fn number(self: *Self, canAssign: bool) !void {
         _ = canAssign;
 
-        const buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
+        var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
@@ -840,7 +942,7 @@ pub const Parser = struct {
 
     fn getRule(t_type: _token.Type) ParseRule {
         return switch (t_type) {
-            .left_paren => .{ .prefix = Parser.group },
+            .left_paren => .{ .prefix = Parser.group, .infix = Parser.call, .precedence = .call },
 
             .increment, .decrement => .{ .infix = Parser.crement },
 
@@ -876,7 +978,7 @@ pub const Parser = struct {
 };
 
 fn testParser(source: []const u8, expected: f64) !void {
-    const allocator = std.testing.allocator;
+    var allocator = std.testing.allocator;
     var reporter = Reporter.init(allocator);
     var vm = VM.init(allocator, &reporter);
     try vm.interpret(source);
