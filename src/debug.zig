@@ -2,8 +2,8 @@ const std = @import("std");
 const _block = @import("block.zig");
 const Block = _block.Block;
 
-pub const debugging = true;
-pub const benchmark = false;
+pub const debugging = false;
+pub const benchmark = true;
 pub const test_alloc = true;
 
 /// Výpis instrukcí s hodnoty v bloku
@@ -19,7 +19,7 @@ pub fn disBlock(block: *Block, name: []const u8) void {
 
 /// Rozebrat instrukci
 pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) usize {
-    std.debug.print("{} ", .{idx});
+    std.debug.print("{:0>3} ", .{idx});
 
     if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
         std.debug.print("|    ", .{});
@@ -65,6 +65,7 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_jmp_on_false => jmp("op_jmp_on_false", 1, block, idx),
         .op_loop => jmp("op_loop", -1, block, idx),
         .op_case => simple("op_case", idx),
+        .op_call => byte("op_call", block, idx),
         .op_return => simple("op_return", idx),
     };
 }

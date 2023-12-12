@@ -71,7 +71,7 @@ pub const Parser = struct {
     }
 
     pub fn deinit(self: *Self) *Object.Function {
-        self.emitOpCode(.op_return);
+        self.emitReturn();
 
         const function = self.emitter.function;
         if (!self.reporter.had_error and debug.debugging) {
@@ -168,6 +168,11 @@ pub const Parser = struct {
         self.emitByte(@intCast(idx & 0xff));
     }
 
+    fn emitReturn(self: *Self) void {
+        self.emitOpCode(.op_nic);
+        self.emitOpCode(.op_return);
+    }
+
     fn patchJmp(self: *Self, idx: usize) void {
         const jmp = self.currentBlock().code.items.len - idx - 2;
 
@@ -220,6 +225,8 @@ pub const Parser = struct {
             self.forStmt();
         } else if (self.match(.dokud)) {
             self.whileStmt();
+        } else if (self.match(.vrat)) {
+            self.returnStmt();
         } else if (self.match(.vyber)) {
             self.switchStmt();
         } else {
@@ -313,7 +320,7 @@ pub const Parser = struct {
         self.addLocal(name.lexeme, is_const);
     }
 
-    fn parseVar(self: *Self, message: []const u8) !u8 {
+    fn parseVar(self: *Self, message: []const u8) ResultError!u8 {
         var is_const = self.previous.type == .konst;
 
         if (self.match(.dot)) {
@@ -440,7 +447,7 @@ pub const Parser = struct {
     }
 
     fn functionDeclaration(self: *Self) void {
-        const glob = self.parseVar("") catch @panic("");
+        const glob = self.parseVar("") catch return;
         self.markInit();
         self.parseFunction(.function);
         self.defineVar(glob, false);
@@ -461,7 +468,7 @@ pub const Parser = struct {
                 }
 
                 self.emitter.function.arity += 1;
-                const name = self.parseVar("jmeno") catch @panic("");
+                const name = self.parseVar("jmeno") catch return;
                 self.defineVar(name, false);
 
                 if (!self.match(.comma)) break;
@@ -480,6 +487,24 @@ pub const Parser = struct {
         _ = canAssign;
         const arg_count = self.argumentList();
         self.emitter.emitOpCodes(.op_call, arg_count, self.current.location);
+    }
+
+    fn argumentList(self: *Self) u8 {
+        var arg_count: u8 = 0;
+
+        if (!self.check(.right_paren)) {
+            while (true) {
+                if (arg_count == 255)
+                    self.report(&self.current, "");
+
+                self.expression();
+                arg_count += 1;
+                if (!self.match(.comma)) break;
+            }
+        }
+
+        self.eat(.right_paren, "");
+        return arg_count;
     }
 
     fn printStmt(self: *Self) void {
@@ -678,6 +703,20 @@ pub const Parser = struct {
         }
 
         self.emitOpCode(.op_pop);
+    }
+
+    fn returnStmt(self: *Self) void {
+        if (self.emitter.function.type == .script) {
+            self.report(&self.current, "Nelze vrátit hodnotu z hlavního scriptu");
+        }
+
+        if (self.match(.semicolon)) {
+            self.emitReturn();
+        } else {
+            self.expression();
+            self.eat(.semicolon, "");
+            self.emitOpCode(.op_return);
+        }
     }
 
     fn exprStmt(self: *Self) void {

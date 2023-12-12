@@ -76,7 +76,7 @@ pub const Val = union(enum) {
 const DeinitFn = *const fn (*Object, *VM) void;
 
 pub const Object = struct {
-    const ObjectType = enum { string, function };
+    const ObjectType = enum { string, function, native };
 
     type: ObjectType,
     deinit: DeinitFn,
@@ -91,9 +91,12 @@ pub const Object = struct {
             @panic("Nepodařilo se alokovat");
         };
 
-        descendent.obj = Object{ .type = obj_type, .deinit = T.deinit };
+        descendent.obj = .{
+            .type = obj_type,
+            .deinit = T.deinit,
+            .next = vm.objects,
+        };
 
-        descendent.obj.next = vm.objects;
         vm.objects = &descendent.obj;
 
         return descendent;
@@ -121,6 +124,9 @@ pub const Object = struct {
                 }
                 try shared.stdout.print("<script>", .{});
             },
+            .native => {
+                try shared.stdout.print("<native fn>", .{});
+            },
         }
     }
 
@@ -138,6 +144,10 @@ pub const Object = struct {
         return @fieldParentPtr(Function, "obj", self);
     }
 
+    pub fn native(self: *Object) *Native {
+        return @fieldParentPtr(Native, "obj", self);
+    }
+
     pub const String = struct {
         const Self = @This();
 
@@ -149,7 +159,6 @@ pub const Object = struct {
             const alloc_string = Object.alloc(vm, Self, .string);
 
             alloc_string.repre = buff;
-            alloc_string.obj = .{ .type = .string, .deinit = Self.deinit };
 
             vm.strings.put(buff, alloc_string) catch @panic("Nepodařilo se alokovat");
 
@@ -209,6 +218,24 @@ pub const Object = struct {
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Function, "obj", object);
             self.block.deinit();
+            vm.allocator.destroy(self);
+        }
+    };
+
+    pub const Native = struct {
+        obj: Object,
+        function: NativeFn,
+
+        pub const NativeFn = *const fn (vm: *VM, args: []Val) ?Val;
+
+        pub fn init(vm: *VM, func: NativeFn) *Native {
+            const obj = Object.alloc(vm, Native, .native);
+            obj.function = func;
+            return obj;
+        }
+
+        pub fn deinit(object: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(Native, "obj", object);
             vm.allocator.destroy(self);
         }
     };
