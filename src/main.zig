@@ -26,16 +26,11 @@ const ArenaAlloc = std.heap.ArenaAllocator;
 extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
 extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
 
-const Linenoise = @import("linenoise").Linenoise;
-
 const c = @cImport({
     @cInclude("stdio.h");
     @cInclude("readline/readline.h");
     @cInclude("readline/history.h");
 });
-//
-// const Self = @This();
-// var alloc: std.mem.Allocator = undefined;
 
 /// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
@@ -47,8 +42,6 @@ pub fn main() !void {
     var heap = getAllocatorType();
     defer _ = heap.deinit();
     const allocator = heap.allocator();
-
-    // Self.alloc = allocator;
 
     var reporter = Reporter{ .allocator = allocator };
     var vm = VM.init(allocator, &reporter);
@@ -135,8 +128,8 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
 /// Read-Eval-Print loop mod
 fn repl(allocator: Allocator, vm: *VM) !void {
-    _ = allocator;
     defer vm.deinit();
+
     if (builtin.os.tag == .windows) {
         while (true) {
             try shared.stdout.print(">>> ", .{});
@@ -154,7 +147,9 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         }
     } else {
         c.using_history();
-        _ = c.read_history(null);
+        var path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
+        defer allocator.free(path);
+        _ = c.read_history(path.ptr);
         c.stifle_history(50);
 
         c.rl_attempted_completion_function = History.completion;
@@ -162,7 +157,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         while (true) {
             const line = c.readline(">>> ") orelse @panic("");
             c.add_history(line);
-            _ = c.write_history(null);
+            _ = c.write_history(path.ptr);
 
             try vm.interpret(std.mem.span(line));
         }

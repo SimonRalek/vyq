@@ -81,7 +81,6 @@ pub const Type = enum(u8) {
     vyber,
     pripad,
     arrow,
-    interpolation,
 };
 
 pub const Keywords = std.ComptimeStringMap(Type, .{
@@ -106,4 +105,6 @@ pub const Keywords = std.ComptimeStringMap(Type, .{
     .{ "vyber", .vyber },
     .{ "pripad", .pripad },
     .{ "po", .po },
+    .{ "funkce", .funkce },
+    .{ "vrat", .vrat },
 });

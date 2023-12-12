@@ -4,6 +4,7 @@ const shared = @import("shared.zig");
 const Allocator = std.mem.Allocator;
 
 const VM = @import("virtualmachine.zig").VirtualMachine;
+const Block = @import("block.zig").Block;
 const Formatter = @import("formatter.zig");
 
 pub const Val = union(enum) {
@@ -74,7 +75,7 @@ pub const Val = union(enum) {
             .number => |val| blk: {
                 const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
 
-                const buff = try allocator.alloc(u8, number.len);
+                var buff = try allocator.alloc(u8, number.len);
                 _ = std.mem.replace(u8, number, ".", ",", buff);
                 allocator.free(number);
                 break :blk buff;
@@ -89,7 +90,7 @@ pub const Val = union(enum) {
 const DeinitFn = *const fn (*Object, *VM) void;
 
 pub const Object = struct {
-    const ObjectType = enum { string };
+    const ObjectType = enum { string, function, native };
 
     type: ObjectType,
     deinit: DeinitFn,
@@ -99,17 +100,20 @@ pub const Object = struct {
         vm: *VM,
         comptime T: type,
         obj_type: Object.ObjectType,
-    ) *Object {
+    ) *T {
         const descendent = vm.allocator.create(T) catch {
             @panic("Nepodařilo se alokovat");
         };
 
-        descendent.obj = .{ .type = obj_type, .deinit = T.deinit };
+        descendent.obj = .{
+            .type = obj_type,
+            .deinit = T.deinit,
+            .next = vm.objects,
+        };
 
-        descendent.obj.next = vm.objects;
         vm.objects = &descendent.obj;
 
-        return &descendent.obj;
+        return descendent;
     }
 
     /// Vytisknout objekt
@@ -118,12 +122,24 @@ pub const Object = struct {
             .string => {
                 var arrlist = std.ArrayList(u8).init(allocator);
                 defer arrlist.deinit();
-                const writer = arrlist.writer();
+                var writer = arrlist.writer();
                 try Formatter.escapeFmt(self.string().repre).format(writer);
 
-                const formatted = try arrlist.toOwnedSlice();
+                var formatted = try arrlist.toOwnedSlice();
                 defer allocator.free(formatted);
                 try shared.stdout.print("{s}", .{formatted});
+            },
+            .function => {
+                const func = self.function();
+
+                if (func.name) |name| {
+                    try shared.stdout.print("<fn {s}>", .{name});
+                    return;
+                }
+                try shared.stdout.print("<script>", .{});
+            },
+            .native => {
+                try shared.stdout.print("<native fn>", .{});
             },
         }
     }
@@ -138,6 +154,14 @@ pub const Object = struct {
         return @fieldParentPtr(String, "obj", self);
     }
 
+    pub fn function(self: *Object) *Function {
+        return @fieldParentPtr(Function, "obj", self);
+    }
+
+    pub fn native(self: *Object) *Native {
+        return @fieldParentPtr(Native, "obj", self);
+    }
+
     pub const String = struct {
         const Self = @This();
 
@@ -146,11 +170,9 @@ pub const Object = struct {
 
         /// Alokace s objektem
         fn alloc(vm: *VM, buff: []const u8) *Object {
-            const alloc_obj = Object.alloc(vm, Self, .string);
-            const alloc_string = alloc_obj.string();
+            const alloc_string = Object.alloc(vm, Self, .string);
 
             alloc_string.repre = buff;
-            alloc_string.obj = .{ .type = .string, .deinit = Self.deinit };
 
             vm.strings.put(buff, alloc_string) catch @panic("Nepodařilo se alokovat");
 
@@ -190,4 +212,47 @@ pub const Object = struct {
             vm.allocator.destroy(self);
         }
     };
+
+    pub const Function = struct {
+        obj: Object,
+        arity: u9,
+        block: Block,
+        name: ?[]const u8,
+        type: FunctionType,
+
+        pub fn init(vm: *VM, func_type: FunctionType) *Function {
+            const func = Object.alloc(vm, Function, .function);
+            func.arity = 0;
+            func.name = null;
+            func.block = Block.init(vm.allocator);
+            func.type = func_type;
+            return func;
+        }
+
+        pub fn deinit(object: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(Function, "obj", object);
+            self.block.deinit();
+            vm.allocator.destroy(self);
+        }
+    };
+
+    pub const Native = struct {
+        obj: Object,
+        function: NativeFn,
+
+        pub const NativeFn = *const fn (vm: *VM, args: []Val) ?Val;
+
+        pub fn init(vm: *VM, func: NativeFn) *Native {
+            const obj = Object.alloc(vm, Native, .native);
+            obj.function = func;
+            return obj;
+        }
+
+        pub fn deinit(object: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(Native, "obj", object);
+            vm.allocator.destroy(self);
+        }
+    };
 };
+
+pub const FunctionType = enum { function, script };

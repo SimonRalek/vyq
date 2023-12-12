@@ -5,10 +5,6 @@
     .minimum_zig_version = "0.11.0",
 
     .dependencies = .{
-        .linenoise = .{
-            .url = "https://github.com/joachimschmidt557/linenoize/archive/6e351c6763fbc1dfef75331dcce708a7b4f1abeb.tar.gz",
-            .hash = "1220c8b24b06f5d1de0bc6e6f554aad5b278b64d2b151fdfe3c5245549eb84ea9a44",
-        },
         .clap = .{
           .url = "https://github.com/Hejsil/zig-clap/archive/f49b94700e0761b7514abdca0e4f0e7f3f938a93.tar.gz",
           .hash = "122066d86920926a4a674adaaa10f158dc4961c2a47e588e605765455d74ca72c2ad",
