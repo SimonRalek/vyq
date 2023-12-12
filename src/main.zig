@@ -28,11 +28,11 @@ extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.
 
 const Linenoise = @import("linenoise").Linenoise;
 
-// const c = @cImport({
-//     @cInclude("stdio.h");
-//     @cInclude("readline/readline.h");
-//     @cInclude("readline/history.h");
-// });
+const c = @cImport({
+    @cInclude("stdio.h");
+    @cInclude("readline/readline.h");
+    @cInclude("readline/history.h");
+});
 //
 // const Self = @This();
 // var alloc: std.mem.Allocator = undefined;
@@ -135,6 +135,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
 /// Read-Eval-Print loop mod
 fn repl(allocator: Allocator, vm: *VM) !void {
+    _ = allocator;
     defer vm.deinit();
     if (builtin.os.tag == .windows) {
         while (true) {
@@ -152,22 +153,18 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             vm.interpret(source) catch {};
         }
     } else {
-        var ln = Linenoise.init(allocator);
-        defer ln.deinit();
+        c.using_history();
+        _ = c.read_history(null);
+        c.stifle_history(50);
 
-        const path = try std.mem.concat(allocator, u8, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
-        defer allocator.free(path);
+        c.rl_attempted_completion_function = History.completion;
 
-        try ln.history.setMaxLen(50);
-        ln.history.load(path) catch try shared.stdout.print("Nepodařilo se načíst historii", .{});
-        defer ln.history.save(path) catch std.debug.print("Nepodařilo se uložit historii", .{});
+        while (true) {
+            const line = c.readline(">>> ") orelse @panic("");
+            c.add_history(line);
+            _ = c.write_history(null);
 
-        ln.completions_callback = History.completion;
-
-        while (ln.linenoise(">>> ") catch null) |input| {
-            defer allocator.free(input);
-            try vm.interpret(input);
-            try ln.history.add(input);
+            try vm.interpret(std.mem.span(line));
         }
     }
 }
