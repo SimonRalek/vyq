@@ -316,7 +316,7 @@ pub const VirtualMachine = struct {
                     }
 
                     frame = &self.frames[self.frame_count - 1];
-                    self.stack.resize(frame.start) catch @panic("");
+                    self.stack.resize(frame.start + 1) catch @panic("");
                     self.push(result);
                 },
             };
@@ -338,7 +338,7 @@ pub const VirtualMachine = struct {
                     const native = callee.obj.native();
 
                     const result = native.function(self, self.stack.items[self.stack.items.len - arg_count ..]);
-                    if (result != null) self.stack.resize(self.stack.items.len - arg_count) catch {};
+                    if (result != null) self.stack.resize(self.stack.items.len - arg_count - 1) catch {};
                     if (result) |val| {
                         self.push(val);
                         return true;
@@ -474,6 +474,7 @@ pub const VirtualMachine = struct {
     }
 
     fn sqrtNative(vm: *VirtualMachine, args: []const Val) ?Val {
+        std.debug.print("{any}", .{args});
         if (args.len != 2) {
             vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
             return null;

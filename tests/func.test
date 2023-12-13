@@ -1,0 +1,2 @@
+funkce a(name): { tiskni .name; } funkce b(): { funkce c(): { vrat 8; } vrat .c(); } .a(.b());
+8
