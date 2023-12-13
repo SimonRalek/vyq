@@ -14,6 +14,8 @@ const Object = _val.Object;
 const Function = Object.Function;
 const Native = Object.Native;
 const Reporter = @import("reporter.zig");
+const unicode = @import("utils/unicode.zig");
+
 const stack_list = std.ArrayList(Val);
 const BinaryOp = enum {
     sub,
@@ -398,7 +400,9 @@ pub const VirtualMachine = struct {
             return null;
         }
 
-        const result: f64 = @floatFromInt(args[0].obj.string().repre.len);
+        const string = args[0].obj.string().repre;
+
+        const result: f64 = @floatFromInt(std.unicode.utf8CountCodepoints(string) catch @panic(""));
         return Val{ .number = result };
     }
 
