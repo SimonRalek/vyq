@@ -15,6 +15,7 @@ const Function = Object.Function;
 const Native = Object.Native;
 const Reporter = @import("reporter.zig");
 const unicode = @import("utils/unicode.zig");
+const natives = @import("natives.zig");
 
 const stack_list = std.ArrayList(Val);
 const BinaryOp = enum {
@@ -61,12 +62,15 @@ pub const VirtualMachine = struct {
             .reporter = reporter,
         };
 
-        vm.defineNative("delka", str_lenNative);
-        vm.defineNative("cti", inputNative);
-        vm.defineNative("typ", getTypeNative);
-        vm.defineNative("random", randNative);
-        vm.defineNative("pow", sqrtNative);
-        vm.defineNative("odmocnit", rootNative);
+        vm.defineNative("delka", natives.str_lenNative);
+        vm.defineNative("nactiVstup", natives.inputNative);
+        vm.defineNative("ziskejTyp", natives.getTypeNative);
+        vm.defineNative("nahoda", natives.randNative);
+        vm.defineNative("mocnina", natives.sqrtNative);
+        vm.defineNative("odmocnit", natives.rootNative);
+        vm.defineNative("jeCislo", natives.isDigitNative);
+        vm.defineNative("jeRetezec", natives.isStringNative);
+        vm.defineNative("casovaZnacka", natives.getTimeStampNative);
 
         return vm;
     }
@@ -359,8 +363,8 @@ pub const VirtualMachine = struct {
     fn call(self: *Self, function: *Function, arg_count: u8) bool {
         if (arg_count != function.arity) {
             self.runtimeErr(
-                "Očekávaný počet argumentů {d}, dostal {d}",
-                .{ function.arity, arg_count },
+                "Funkce '{s}' očekává počet argumentů {d}, dostala {d}",
+                .{ function.name.?, function.arity, arg_count },
                 &.{},
             );
             return false;
@@ -387,123 +391,6 @@ pub const VirtualMachine = struct {
         self.globals.put(str.string().repre, Global{ .is_const = true, .val = functionVal }) catch @panic("");
         _ = self.pop();
         _ = self.pop();
-    }
-
-    fn str_lenNative(vm: *VirtualMachine, args: []const Val) ?Val {
-        if (args.len != 1) {
-            vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
-            return null;
-        }
-
-        if (args[0] != .obj or args[0].obj.type != .string) {
-            vm.runtimeErr("Argument musí být sekvence znaků", .{}, &.{});
-            return null;
-        }
-
-        const string = args[0].obj.string().repre;
-
-        const result: f64 = @floatFromInt(std.unicode.utf8CountCodepoints(string) catch @panic(""));
-        return Val{ .number = result };
-    }
-
-    fn inputNative(vm: *VirtualMachine, args: []const Val) ?Val {
-        _ = args;
-
-        var buf: [256]u8 = undefined;
-        var buf_stream = std.io.fixedBufferStream(&buf);
-
-        var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
-        const stdin = buffered_stdin.reader();
-        stdin.streamUntilDelimiter(
-            buf_stream.writer(),
-            '\n',
-            buf.len,
-        ) catch {
-            @panic("");
-        };
-        const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
-
-        if (input.len == buf.len) {
-            vm.runtimeErr("Vstup je příliš dlouhý", .{}, &.{});
-            std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n') catch {};
-        }
-
-        return Val{ .obj = Object.String.copy(vm, buf[0..input.len]) };
-    }
-
-    fn getTypeNative(vm: *VirtualMachine, args: []const Val) ?Val {
-        if (args.len != 1) {
-            vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
-            return null;
-        }
-
-        const val = switch (args[0]) {
-            .number => "číslo",
-            .boolean => "pravdivost",
-            .nic => "nic",
-            .obj => switch (args[0].obj.type) {
-                .string => "sekvence znaků",
-                .function => "funkce",
-                .native => "výchozí funkce",
-            },
-        };
-
-        return Val{ .obj = Object.String.copy(vm, val) };
-    }
-
-    fn randNative(vm: *VirtualMachine, args: []const Val) ?Val {
-        if (args.len != 1 and args.len != 0) {
-            vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}' nebo '{}'", .{ args.len, 0, 1 }, &.{});
-            return null;
-        }
-
-        if (args.len == 1 and args[0] != .number) {
-            vm.runtimeErr("Argument musí být číselné hodnoty", .{}, &.{});
-            return null;
-        }
-
-        var rnd = std.rand.DefaultPrng.init(0);
-        rnd.seed(@intCast(std.time.nanoTimestamp()));
-
-        var mod: u64 = undefined;
-        if (args.len == 1) {
-            mod = @intFromFloat(args[0].number);
-        }
-
-        var result: f64 = @floatFromInt(
-            if (args.len == 0) rnd.random().int(u32) else @mod(rnd.random().int(u32), mod + 1),
-        );
-
-        return Val{ .number = result };
-    }
-
-    fn sqrtNative(vm: *VirtualMachine, args: []const Val) ?Val {
-        std.debug.print("{any}", .{args});
-        if (args.len != 2) {
-            vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
-            return null;
-        }
-
-        if (args[0] != .number or args[1] != .number) {
-            vm.runtimeErr("Oba argumenty funkce musí být číselné hodnoty", .{}, &.{});
-            return null;
-        }
-
-        return Val{ .number = std.math.pow(f64, args[0].number, args[1].number) };
-    }
-
-    fn rootNative(vm: *VirtualMachine, args: []const Val) ?Val {
-        if (args.len != 1 or args[0] != .number) {
-            vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
-            return null;
-        }
-
-        if (args[0] != .number) {
-            vm.runtimeErr("Argument funkce musí být číselné hodnoty", .{}, &.{});
-            return null;
-        }
-
-        return Val{ .number = @sqrt(args[0].number) };
     }
 
     /// Přidání hodnoty do stacku
@@ -728,7 +615,7 @@ pub const VirtualMachine = struct {
     }
 
     /// Vypisování run-time errorů s trace stackem
-    fn runtimeErr(
+    pub fn runtimeErr(
         self: *Self,
         comptime message: []const u8,
         args: anytype,
@@ -740,14 +627,31 @@ pub const VirtualMachine = struct {
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
 
+        var stdout = std.io.getStdOut();
+        const config = std.io.tty.detectConfig(stdout);
+        config.setColor(stdout, .dim) catch {};
         var i = self.frame_count;
         while (i > 0) : (i -= 1) {
+            const branch = if (i == self.frame_count)
+                "╰─┬─"
+            else if (i != 1)
+                "  ├─"
+            else
+                "  ╰─";
+
             const frame = self.frames[i - 1];
             const location = frame.function.block.locations.items[frame.ip -| 1];
             const name = if (frame.function.name) |name| name else "skript";
 
-            shared.stdout.print("[line {}:{}] in {s}\n", .{ location.line, location.start_column, name }) catch @panic("");
+            shared.stdout.print("{s} {s}{s}: na řádce {}:{}\n", .{
+                branch,
+                name,
+                if (std.mem.eql(u8, name, "skript")) "" else "()",
+                location.line,
+                location.start_column,
+            }) catch @panic("");
         }
+        config.setColor(stdout, .reset) catch {};
 
         self.resetStack();
     }

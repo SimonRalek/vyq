@@ -1,0 +1,11 @@
+funkce a(): {
+  .b(); 
+} 
+funkce b(): {
+  .c(); 
+} 
+funkce c(): {
+  .c('a'); 
+} 
+
+.a();

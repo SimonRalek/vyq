@@ -104,43 +104,22 @@ pub const Report = struct {
         var count: usize = 1;
         while (it.next()) |line| : (count += 1) {
             if (count == loc.line) {
-                var arr = std.ArrayList(u8).init(self.reporter.allocator);
-
-                for (line, 0..line.len) |char, i| {
-                    if (i == loc.start_column - 1) {
-                        try arr.append('\x1b');
-                        try arr.append('[');
-                        try arr.append('3');
-                        try arr.append('2');
-                        try arr.append('m');
-                    }
-
-                    try arr.append(char);
-
-                    if (i == loc.end_column - 1) {
-                        try arr.append('\x1b');
-                        try arr.append('[');
-                        try arr.append('m');
-                    }
-                }
-
-                const new = try arr.toOwnedSlice();
-                try shared.stdout.print("   {s}\n", .{new});
+                // try shared.stdout.print("\n  {s}\n", .{if (line.len > 10) line[(if (loc.start_column > 4) loc.start_column - 4 else 0)..if (loc.end_column + 5 < line.len) loc.end_column + 5 else line.len] else line});
+                try shared.stdout.print("{s}", .{line});
 
                 for (0..loc.start_column - 1) |_| {
-                    try arr.append('-');
+                    try shared.stdout.print(" ", .{});
                 }
 
                 for (loc.start_column..loc.end_column + 1) |_| {
-                    try arr.append('^');
+                    const stdout = std.io.getStdOut();
+                    var config = std.io.tty.detectConfig(stdout);
+                    try config.setColor(stdout, .green);
+                    try stdout.writer().print("^", .{});
+                    try config.setColor(stdout, .reset);
                 }
 
-                for (loc.end_column..line.len) |_| {
-                    try arr.append('-');
-                }
-
-                const underline = try arr.toOwnedSlice();
-                try shared.stdout.print("   {s}\n", .{underline});
+                try shared.stdout.print("\n\n", .{});
 
                 break;
             }
