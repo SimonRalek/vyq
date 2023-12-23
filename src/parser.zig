@@ -488,7 +488,7 @@ pub const Parser = struct {
                 const name = self.parseVar("Chybí jméno parametru") catch return;
                 self.defineVar(name, false);
 
-                if (!self.match(.comma)) break;
+                if (!self.match(.semicolon)) break;
             }
         }
         self.eat(.right_paren, "Chybí ')' na konci seznamu paramerů funkce");
@@ -497,7 +497,7 @@ pub const Parser = struct {
         self.block();
 
         const func = self.deinit();
-        self.emitter.emitOpCodes(.op_value, self.emitter.makeValue(func.obj.val()), self.previous.location);
+        self.emitter.emitOpCodes(.op_closure, self.emitter.makeValue(func.obj.val()), self.previous.location);
     }
 
     fn call(self: *Self, canAssign: bool) !void {
@@ -516,7 +516,7 @@ pub const Parser = struct {
 
                 self.expression();
                 arg_count += 1;
-                if (!self.match(.comma)) break;
+                if (!self.match(.semicolon)) break;
             }
         }
 

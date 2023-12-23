@@ -66,6 +66,13 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_loop => jmp("op_loop", -1, block, idx),
         .op_case => simple("op_case", idx),
         .op_call => byte("op_call", block, idx),
+        .op_closure => blk: {
+            const val = block.code.items[idx + 1];
+            std.debug.print("{s} {}", .{ "OP_CLOSURE", val });
+            block.values.items[val].print(allocator);
+            std.debug.print("\n", .{});
+            break :blk idx + 2;
+        },
         .op_return => simple("op_return", idx),
     };
 }

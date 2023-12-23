@@ -90,7 +90,7 @@ pub const Val = union(enum) {
 const DeinitFn = *const fn (*Object, *VM) void;
 
 pub const Object = struct {
-    const ObjectType = enum { string, function, native };
+    const ObjectType = enum { string, function, closure, native };
 
     type: ObjectType,
     deinit: DeinitFn,
@@ -138,6 +138,16 @@ pub const Object = struct {
                 }
                 try shared.stdout.print("<script>", .{});
             },
+            .closure => {
+                const clos = self.closure();
+                const func = clos.function;
+
+                if (func.name) |name| {
+                    try shared.stdout.print("<fn {s}>", .{name});
+                    return;
+                }
+                try shared.stdout.print("<script>", .{});
+            },
             .native => {
                 try shared.stdout.print("<native fn>", .{});
             },
@@ -156,6 +166,10 @@ pub const Object = struct {
 
     pub fn function(self: *Object) *Function {
         return @fieldParentPtr(Function, "obj", self);
+    }
+
+    pub fn closure(self: *Object) *Closure {
+        return @fieldParentPtr(Closure, "obj", self);
     }
 
     pub fn native(self: *Object) *Native {
@@ -232,6 +246,22 @@ pub const Object = struct {
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Function, "obj", object);
             self.block.deinit();
+            vm.allocator.destroy(self);
+        }
+    };
+
+    pub const Closure = struct {
+        obj: Object,
+        function: *Function,
+
+        pub fn init(vm: *VM, func: Function) *Closure {
+            const obj = Object.alloc(vm, Closure, .closure);
+            obj.function = func;
+            return obj;
+        }
+
+        pub fn deinit(obj: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(Native, "obj", obj);
             vm.allocator.destroy(self);
         }
     };

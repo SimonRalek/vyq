@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const clap = @import("clap");
+const clap = @import("lib/zig-clap/clap.zig");
 
 const debug = @import("debug.zig");
 const shared = @import("shared.zig");
@@ -25,6 +25,8 @@ const ArenaAlloc = std.heap.ArenaAllocator;
 
 extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
 extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
+
+const MAX_HISTORY = 250;
 
 const c = @cImport({
     @cInclude("stdio.h");
@@ -150,7 +152,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         var path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
         defer allocator.free(path);
         _ = c.read_history(path.ptr);
-        c.stifle_history(50);
+        c.stifle_history(MAX_HISTORY);
 
         c.rl_attempted_completion_function = History.completion;
 
