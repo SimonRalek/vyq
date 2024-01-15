@@ -18,7 +18,7 @@ const Reporter = @import("reporter.zig");
 const unicode = @import("utils/unicode.zig");
 const natives = @import("natives.zig");
 
-const stack_list = std.ArrayList(Val);
+// const stack_list = std.ArrayList(Val);
 const BinaryOp = enum {
     sub,
     mult,
@@ -44,11 +44,13 @@ pub const VirtualMachine = struct {
     frame_count: u8 = 0,
 
     allocator: Allocator,
-    stack: stack_list,
+    stack: [256]Val,
+    stack_count: u9 = 0,
     globals: std.StringHashMap(Global),
 
     strings: std.StringHashMap(*Object.String),
     objects: ?*Object = null,
+    openELV: ?*Object.ELV = null,
 
     reporter: *Reporter,
 
@@ -58,7 +60,7 @@ pub const VirtualMachine = struct {
             .allocator = allocator,
             .globals = std.StringHashMap(Global).init(allocator),
             .strings = std.StringHashMap(*Object.String).init(allocator),
-            .stack = stack_list.init(allocator),
+            .stack = undefined,
             .objects = null,
             .reporter = reporter,
         };
@@ -81,7 +83,7 @@ pub const VirtualMachine = struct {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
-        self.stack.deinit();
+        // self.stack;
     }
 
     /// Projíždění objekt linked listu a free každý objekt
@@ -279,12 +281,12 @@ pub const VirtualMachine = struct {
 
                 .op_get_loc => {
                     var slot = self.readByte();
-                    self.push(self.stack.items[frame.start + slot - 1]);
+                    self.push(self.stack[frame.start + slot - 1]);
                 },
 
                 .op_set_loc => {
                     var slot = self.readByte();
-                    self.stack.items[frame.start + slot - 1] = self.peek(0);
+                    self.stack[frame.start + slot - 1] = self.peek(0);
                 },
 
                 .op_jmp => {
@@ -318,33 +320,33 @@ pub const VirtualMachine = struct {
                 .op_closure => {
                     const func = self.readValue().obj.function();
                     const closure = Object.Closure.init(self, func);
-                    self.push(closure.obj.val());
 
                     for (0..closure.elv_count) |i| {
                         const is_local = self.readByte() != 0;
                         const idx = self.readByte();
 
-                        closure.elvs[i] = if (is_local) self.captureELV(&self.stack.items[frame.start + idx - 1]) else frame.closure.elvs[idx];
+                        closure.elvs[i] = if (is_local) self.captureELV(&self.stack[frame.start + idx - 1]) else frame.closure.elvs[idx];
                     }
+
+                    self.push(closure.obj.val());
                 },
 
                 .op_get_elv => {
                     const slot = self.readByte();
-                    const elv = frame.closure.elvs[slot].?;
-                    // for (0..frame.closure.elvs.len) |i| {
-                    //     std.debug.print("{any}\n", .{frame.closure.elvs[i].?.location.*});
-                    // }
-                    self.push(elv.location.*);
-                    // std.debug.print("\n", .{});
+                    self.push(self.currentFrame().closure.elvs[slot].?.location.*);
                 },
                 .op_set_elv => {
                     const slot = self.readByte();
                     frame.closure.elvs[slot].?.location.* = self.peek(0);
                 },
-                .op_close_elv => {},
+                .op_close_elv => {
+                    self.closeELV(&self.stack[self.stack_count - 2]);
+                    _ = self.pop();
+                },
 
                 .op_return => {
                     const result = self.pop();
+                    self.closeELV(&self.stack[frame.start - 1]);
                     self.frame_count -= 1;
 
                     if (self.frame_count == 0) {
@@ -352,9 +354,9 @@ pub const VirtualMachine = struct {
                         return;
                     }
 
-                    frame = &self.frames[self.frame_count - 1];
-                    self.stack.resize(frame.start + 1) catch @panic("");
+                    self.stack_count = @intCast(frame.start);
                     self.push(result);
+                    frame = &self.frames[self.frame_count - 1];
                 },
             };
         }
@@ -378,11 +380,11 @@ pub const VirtualMachine = struct {
 
                     const result = native.function(
                         self,
-                        self.stack.items[self.stack.items.len - arg_count ..],
+                        self.stack[self.stack_count - arg_count ..],
                     );
-                    if (result != null) self.stack.resize(
-                        self.stack.items.len - arg_count - 1,
-                    ) catch {};
+
+                    if (result != null) self.stack_count -= arg_count - 1;
+
                     if (result) |val| {
                         self.push(val);
                         return true;
@@ -417,7 +419,7 @@ pub const VirtualMachine = struct {
         self.frame_count += 1;
         frame.closure = closure;
         frame.ip = 0;
-        frame.start = self.stack.items.len - arg_count; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
+        frame.start = self.stack_count - arg_count; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
         return true;
     }
 
@@ -432,32 +434,65 @@ pub const VirtualMachine = struct {
     }
 
     fn captureELV(self: *Self, local: *Val) *Object.ELV {
+        var prev: ?*Object.ELV = null;
+        var elv = self.openELV;
+        while (elv != null and @intFromPtr(elv.?.location) > @intFromPtr(local)) {
+            prev = elv;
+            elv = elv.?.next;
+        }
+
+        if (elv != null and elv.?.location == local) {
+            return elv.?;
+        }
+
         const created = Object.ELV.init(self, local);
+
+        created.next = elv;
+
+        if (prev) |new| {
+            new.next = elv;
+        } else {
+            self.openELV = elv;
+        }
+
         return created;
+    }
+
+    inline fn closeELV(self: *Self, last: *Val) void {
+        while (self.openELV) |elv| {
+            if (@intFromPtr(self.openELV.?.location) < @intFromPtr(last)) break;
+            elv.closed = elv.location.*;
+            elv.location = &elv.closed;
+            self.openELV = elv.next;
+        }
     }
 
     /// Přidání hodnoty do stacku
     fn push(self: *Self, val: Val) void {
-        self.stack.append(val) catch @panic("Nepovedlo se alokovat hodnotu");
+        self.stack[self.stack_count] = val;
+        self.stack_count += 1;
     }
 
     /// Odstranění hodnoty ze stacku
     fn pop(self: *Self) Val {
-        if (self.stack.items.len == 0) {
-            self.runtimeErr("Nelze provést", .{}, &.{});
-            std.process.exit(72);
-        }
-        return self.stack.pop();
+        self.stack_count -= 1;
+        return self.stack[self.stack_count];
+        // if (self.stack.items.len == 0) {
+        //     self.runtimeErr("Nelze provést", .{}, &.{});
+        //     std.process.exit(72);
+        // }
+        // return self.stack.pop();
     }
 
     /// Dostat hodnotu ze stacku podle vzdálenosti od stack_top
     fn peek(self: *Self, distance: u16) Val {
-        return self.stack.items[self.stack.items.len - 1 - distance];
+        return self.stack[self.stack_count - 1 - distance];
     }
 
     /// Resetovat stack
     fn resetStack(self: *Self) void {
-        self.stack.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
+        // self.stack.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
+        self.stack_count = 0;
         self.frame_count = 0;
     }
 

@@ -291,10 +291,14 @@ pub const Object = struct {
     pub const ELV = struct {
         obj: Object,
         location: *Val,
+        closed: Val,
+        next: ?*ELV,
 
         pub fn init(vm: *VM, slot: *Val) *ELV {
             const obj = Object.alloc(vm, ELV, .elv);
             obj.location = slot;
+            obj.next = null;
+            obj.closed = Val.nic;
             return obj;
         }
 

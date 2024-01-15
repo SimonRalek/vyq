@@ -2,7 +2,7 @@ const std = @import("std");
 const _block = @import("block.zig");
 const Block = _block.Block;
 
-pub const debugging = false;
+pub const debugging = true;
 pub const benchmark = false;
 pub const test_alloc = true;
 
@@ -78,7 +78,7 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
                 _ = i;
                 const loc = block.code.items[count + 2];
                 const index = block.code.items[count + 3];
-                std.debug.print("{:0>3} |    {s} {d}\n", .{ count + 2, if (loc == 1) "local" else "elv", index });
+                std.debug.print("{:0>3} |                {s} {d}\n", .{ count + 2, if (loc == 1) "local" else "elv", index });
                 count += 2;
             }
 
@@ -86,7 +86,7 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         },
         .op_set_elv => byte("op_set_elv", block, idx),
         .op_get_elv => byte("op_get_elv", block, idx),
-        .op_close_elv => simple("op_close_elv", block, idx),
+        .op_close_elv => simple("op_close_elv", idx),
 
         .op_return => simple("op_return", idx),
     };
