@@ -12,6 +12,7 @@ const _storage = @import("storage.zig");
 const Global = _storage.Global;
 const Object = _val.Object;
 const Function = Object.Function;
+const Closure = Object.Closure;
 const Native = Object.Native;
 const Reporter = @import("reporter.zig");
 const unicode = @import("utils/unicode.zig");
@@ -31,7 +32,7 @@ const BinaryOp = enum {
 const ShiftOp = enum { left, right };
 
 const CallFrame = struct {
-    function: *Function,
+    closure: *Closure,
     start: usize,
     ip: usize,
 };
@@ -101,7 +102,10 @@ pub const VirtualMachine = struct {
         defer emitter.deinit();
         const func = emitter.compile(source) catch return ResultError.compile;
         self.push(func.obj.val());
-        _ = self.call(func, 0);
+        const closure = Closure.init(self, func);
+        _ = self.pop();
+        self.push(closure.obj.val());
+        _ = self.call(closure, 0);
 
         return self.run();
     }
@@ -311,6 +315,33 @@ pub const VirtualMachine = struct {
                         return ResultError.runtime;
                     }
                 },
+                .op_closure => {
+                    const func = self.readValue().obj.function();
+                    const closure = Object.Closure.init(self, func);
+                    self.push(closure.obj.val());
+
+                    for (0..closure.elv_count) |i| {
+                        const is_local = self.readByte() != 0;
+                        const idx = self.readByte();
+
+                        closure.elvs[i] = if (is_local) self.captureELV(&self.stack.items[frame.start + idx - 1]) else frame.closure.elvs[idx];
+                    }
+                },
+
+                .op_get_elv => {
+                    const slot = self.readByte();
+                    const elv = frame.closure.elvs[slot].?;
+                    // for (0..frame.closure.elvs.len) |i| {
+                    //     std.debug.print("{any}\n", .{frame.closure.elvs[i].?.location.*});
+                    // }
+                    self.push(elv.location.*);
+                    // std.debug.print("\n", .{});
+                },
+                .op_set_elv => {
+                    const slot = self.readByte();
+                    frame.closure.elvs[slot].?.location.* = self.peek(0);
+                },
+                .op_close_elv => {},
 
                 .op_return => {
                     const result = self.pop();
@@ -336,15 +367,22 @@ pub const VirtualMachine = struct {
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
         if (callee == .obj) {
             switch (callee.obj.type) {
-                .function => return self.call(
-                    callee.obj.function(),
-                    arg_count,
-                ),
+                .closure => {
+                    return self.call(
+                        callee.obj.closure(),
+                        arg_count,
+                    );
+                },
                 .native => {
                     const native = callee.obj.native();
 
-                    const result = native.function(self, self.stack.items[self.stack.items.len - arg_count ..]);
-                    if (result != null) self.stack.resize(self.stack.items.len - arg_count - 1) catch {};
+                    const result = native.function(
+                        self,
+                        self.stack.items[self.stack.items.len - arg_count ..],
+                    );
+                    if (result != null) self.stack.resize(
+                        self.stack.items.len - arg_count - 1,
+                    ) catch {};
                     if (result) |val| {
                         self.push(val);
                         return true;
@@ -360,11 +398,11 @@ pub const VirtualMachine = struct {
         return false;
     }
 
-    fn call(self: *Self, function: *Function, arg_count: u8) bool {
-        if (arg_count != function.arity) {
+    fn call(self: *Self, closure: *Closure, arg_count: u8) bool {
+        if (arg_count != closure.function.arity) {
             self.runtimeErr(
                 "Funkce '{s}' očekává počet argumentů {d}, dostala {d}",
-                .{ function.name.?, function.arity, arg_count },
+                .{ closure.function.name.?, closure.function.arity, arg_count },
                 &.{},
             );
             return false;
@@ -377,7 +415,7 @@ pub const VirtualMachine = struct {
 
         var frame = &self.frames[self.frame_count];
         self.frame_count += 1;
-        frame.function = function;
+        frame.closure = closure;
         frame.ip = 0;
         frame.start = self.stack.items.len - arg_count; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
         return true;
@@ -391,6 +429,11 @@ pub const VirtualMachine = struct {
         self.globals.put(str.string().repre, Global{ .is_const = true, .val = functionVal }) catch @panic("");
         _ = self.pop();
         _ = self.pop();
+    }
+
+    fn captureELV(self: *Self, local: *Val) *Object.ELV {
+        const created = Object.ELV.init(self, local);
+        return created;
     }
 
     /// Přidání hodnoty do stacku
@@ -596,20 +639,20 @@ pub const VirtualMachine = struct {
     /// Dostat op_code dle IP
     inline fn readByte(self: *Self) u8 {
         const frame = self.currentFrame();
-        const byte = frame.function.block.code.items[frame.ip];
+        const byte = frame.closure.function.block.code.items[frame.ip];
         frame.ip += 1;
         return byte;
     }
 
     /// Dostat hodnotu dle IP
     inline fn readValue(self: *Self) Val {
-        const frame = self.currentFrame();
-        return frame.function.block.values.items[self.readByte()];
+        const func = self.currentFrame().closure.function;
+        return func.block.values.items[self.readByte()];
     }
 
     inline fn read16Bit(self: *Self) u16 {
         var frame = self.currentFrame();
-        var items = frame.function.block.code.items;
+        var items = frame.closure.function.block.code.items;
         frame.ip += 2;
         return (@as(u16, items[frame.ip - 2]) << 8 | items[frame.ip - 1]);
     }
@@ -621,7 +664,8 @@ pub const VirtualMachine = struct {
         args: anytype,
         notes: []const Reporter.Note,
     ) void {
-        const loc = self.currentFrame().function.block.locations.items[self.currentFrame().ip - 1];
+        const closure = self.currentFrame().closure;
+        const loc = closure.function.block.locations.items[self.currentFrame().ip - 1];
 
         const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("Nepodařilo se alokovat");
         defer self.allocator.free(new);
@@ -640,8 +684,8 @@ pub const VirtualMachine = struct {
                 "  ╰─";
 
             const frame = self.frames[i - 1];
-            const location = frame.function.block.locations.items[frame.ip -| 1];
-            const name = if (frame.function.name) |name| name else "skript";
+            const location = frame.closure.function.block.locations.items[frame.ip -| 1];
+            const name = if (frame.closure.function.name) |name| name else "skript";
 
             shared.stdout.print("{s} {s}{s}: na řádce {}:{}\n", .{
                 branch,

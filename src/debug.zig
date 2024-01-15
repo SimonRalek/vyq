@@ -68,11 +68,26 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_call => byte("op_call", block, idx),
         .op_closure => blk: {
             const val = block.code.items[idx + 1];
-            std.debug.print("{s} {}", .{ "OP_CLOSURE", val });
+            std.debug.print("{s} {} ", .{ "OP_CLOSURE", val });
             block.values.items[val].print(allocator);
             std.debug.print("\n", .{});
-            break :blk idx + 2;
+
+            const func = block.values.items[val].obj.function();
+            var count: usize = idx;
+            for (0..func.elv_count) |i| {
+                _ = i;
+                const loc = block.code.items[count + 2];
+                const index = block.code.items[count + 3];
+                std.debug.print("{:0>3} |    {s} {d}\n", .{ count + 2, if (loc == 1) "local" else "elv", index });
+                count += 2;
+            }
+
+            break :blk idx + 2 + func.elv_count * 2;
         },
+        .op_set_elv => byte("op_set_elv", block, idx),
+        .op_get_elv => byte("op_get_elv", block, idx),
+        .op_close_elv => simple("op_close_elv", block, idx),
+
         .op_return => simple("op_return", idx),
     };
 }

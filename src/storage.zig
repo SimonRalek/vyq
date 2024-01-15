@@ -26,6 +26,7 @@ pub const Local = struct {
     name: []const u8,
     depth: i32,
     is_const: bool,
+    is_captured: bool = false,
 
     pub fn init(name: []const u8, depth: i32, is_const: bool) Local {
         return Local{ .name = name, .depth = depth, .is_const = is_const };
