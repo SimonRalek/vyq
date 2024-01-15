@@ -43,6 +43,12 @@ const ParseRule = struct {
     precedence: Precedence = .none,
 };
 
+const State = struct {
+    innermostLoopStart: ?usize = null,
+    innermostLoopEnd: ?usize = null,
+    innermostScopeDepth: u16 = 0,
+};
+
 pub const Parser = struct {
     const Self = @This();
 
@@ -53,6 +59,8 @@ pub const Parser = struct {
     emitter: *Emitter,
     vm: *VM = undefined,
     reporter: *Reporter,
+    state: State,
+    breakList: std.ArrayList(usize),
 
     pub fn init(
         allocator: Allocator,
@@ -67,6 +75,8 @@ pub const Parser = struct {
             .reporter = reporter,
             .current = undefined,
             .previous = undefined,
+            .state = State{},
+            .breakList = std.ArrayList(usize).init(allocator),
         };
     }
 
@@ -244,8 +254,12 @@ pub const Parser = struct {
             self.whileStmt();
         } else if (self.match(.vrat)) {
             self.returnStmt();
+        } else if (self.match(.zastav)) {
+            self.breakStmt();
         } else if (self.match(.vyber)) {
             self.switchStmt();
+        } else if (self.match(.pokracuj)) {
+            self.continueStmt();
         } else {
             self.exprStmt();
         }
@@ -464,7 +478,9 @@ pub const Parser = struct {
     }
 
     fn functionDeclaration(self: *Self) void {
-        const glob = self.parseVar("Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.") catch return;
+        const glob = self.parseVar(
+            "Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.",
+        ) catch return;
         self.markInit();
         self.parseFunction(.function);
         self.defineVar(glob, false);
@@ -559,13 +575,18 @@ pub const Parser = struct {
             self.expression();
             self.defineVar(prm, false);
 
+            const surroundingLoopStart = self.state.innermostLoopStart;
+            const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
+
+            self.state.innermostLoopStart = self.currentBlock().code.items.len;
+            self.state.innermostScopeDepth = self.emitter.scope_depth;
+
             var directionUp = true;
             if (!self.match(.until)) {
                 directionUp = false;
                 self.eat(.dolu, "Očekává se specifikace směru iterace, '..' nebo 'dolu'");
             }
 
-            var start = self.currentBlock().code.items.len;
             self.namedVar(&token, false) catch {
                 return;
             };
@@ -593,15 +614,18 @@ pub const Parser = struct {
             self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0]), self.previous.location);
             self.emitOpCode(.op_pop);
 
-            self.emitLoop(start);
-            start = varStart;
+            self.emitLoop(self.state.innermostLoopStart.?);
+            self.state.innermostLoopStart = varStart;
             self.patchJmp(jmp);
             self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
 
             self.statement();
-            self.emitLoop(start);
+            self.emitLoop(self.state.innermostLoopStart.?);
             self.patchJmp(exitJmp);
             self.emitOpCode(.op_pop);
+
+            self.state.innermostLoopStart = surroundingLoopStart;
+            self.state.innermostScopeDepth = surroundingLoopScopeDepth;
         } else {
             if (self.match(.semicolon)) {
                 // nic nedělej
@@ -609,7 +633,12 @@ pub const Parser = struct {
                 self.variableDeclaration() catch {};
             } else self.exprStmt();
 
-            var start = self.currentBlock().code.items.len;
+            const surroundingLoopStart = self.state.innermostLoopStart;
+            const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
+
+            self.state.innermostLoopStart = self.currentBlock().code.items.len;
+            self.state.innermostScopeDepth = self.emitter.scope_depth;
+
             var exit: ?usize = null;
 
             if (!self.match(.semicolon)) {
@@ -628,18 +657,25 @@ pub const Parser = struct {
                 self.emitOpCode(.op_pop);
                 self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
 
-                self.emitLoop(start);
-                start = varStart;
+                self.emitLoop(self.state.innermostLoopStart.?);
+                self.state.innermostLoopStart = varStart;
                 self.patchJmp(jmp);
             }
 
             self.statement();
-            self.emitLoop(start);
+            self.emitLoop(self.state.innermostLoopStart.?);
+
+            for (self.breakList.items) |item| {
+                self.patchJmp(item);
+            }
 
             if (exit) |jmp| {
                 self.patchJmp(jmp);
-                self.emitOpCode(.op_pop);
+                // self.emitOpCode(.op_pop);
             }
+
+            self.state.innermostLoopStart = surroundingLoopStart;
+            self.state.innermostScopeDepth = surroundingLoopScopeDepth;
         }
 
         self.endScope();
@@ -720,6 +756,44 @@ pub const Parser = struct {
         }
 
         self.emitOpCode(.op_pop);
+    }
+
+    fn breakStmt(self: *Self) void {
+        if (self.state.innermostLoopStart == null) {
+            self.report(&self.previous, "Nelze použít 'zastav' mimo smyčku");
+            return;
+        }
+
+        self.eat(.semicolon, "Očekávaný ';' po 'zastav'");
+
+        // var count: u8 = 0;
+        // var i = self.emitter.locals.items.len - 1;
+        // while (i >= 0 and self.emitter.locals.items[i].depth > self.state.innermostScopeDepth) : (i -= 1) {
+        //     count += 1;
+        // }
+        //
+        // self.emitter.emitOpCodes(.op_popn, count, self.current.location);
+
+        self.breakList.append(self.emitJmp(.op_jmp)) catch {};
+    }
+
+    fn continueStmt(self: *Self) void {
+        if (self.state.innermostLoopStart == null) {
+            self.report(&self.previous, "Nelze použít 'pokracuj' mimo smyčku");
+            return;
+        }
+
+        self.eat(.semicolon, "Očekávaný ';' po 'pokracuj'");
+
+        var count: u8 = 0;
+        var i = self.emitter.locals.items.len - 1;
+        while (i >= 0 and self.emitter.locals.items[i].depth > self.state.innermostScopeDepth) : (i -= 1) {
+            count += 1;
+        }
+
+        self.emitter.emitOpCodes(.op_popn, count, self.current.location);
+
+        self.emitLoop(self.state.innermostLoopStart.?);
     }
 
     fn returnStmt(self: *Self) void {

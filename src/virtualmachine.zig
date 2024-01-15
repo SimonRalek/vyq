@@ -113,6 +113,7 @@ pub const VirtualMachine = struct {
             const instruction: Block.OpCode = @enumFromInt(self.readByte());
 
             try switch (instruction) {
+                .op_closure => {},
                 .op_value => {
                     var value = self.readValue();
                     self.push(value);
@@ -336,7 +337,7 @@ pub const VirtualMachine = struct {
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
         if (callee == .obj) {
             switch (callee.obj.type) {
-                .function => return self.call(
+                .closure, .function => return self.call(
                     callee.obj.function(),
                     arg_count,
                 ),
