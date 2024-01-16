@@ -324,6 +324,10 @@ pub const VirtualMachine = struct {
 
                     frame = &self.frames[self.frame_count - 1];
                     self.stack.resize(frame.start + 1) catch @panic("");
+                    for (self.stack.items) |item| {
+                        std.debug.print("{any}\n", .{item});
+                    }
+                    std.debug.print("\n", .{});
                     self.push(result);
                 },
             };

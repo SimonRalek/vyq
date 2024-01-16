@@ -621,8 +621,10 @@ pub const Parser = struct {
 
             self.statement();
             self.emitLoop(self.state.innermostLoopStart.?);
+
             self.patchJmp(exitJmp);
             self.emitOpCode(.op_pop);
+            self.patchBreaks();
 
             self.state.innermostLoopStart = surroundingLoopStart;
             self.state.innermostScopeDepth = surroundingLoopScopeDepth;
@@ -665,14 +667,12 @@ pub const Parser = struct {
             self.statement();
             self.emitLoop(self.state.innermostLoopStart.?);
 
-            for (self.breakList.items) |item| {
-                self.patchJmp(item);
-            }
-
             if (exit) |jmp| {
                 self.patchJmp(jmp);
-                // self.emitOpCode(.op_pop);
+                self.emitOpCode(.op_pop);
             }
+
+            self.patchBreaks();
 
             self.state.innermostLoopStart = surroundingLoopStart;
             self.state.innermostScopeDepth = surroundingLoopScopeDepth;
@@ -683,6 +683,8 @@ pub const Parser = struct {
 
     fn whileStmt(self: *Self) void {
         const start = self.currentBlock().code.items.len;
+        self.state.innermostLoopStart = start;
+        self.state.innermostScopeDepth = self.emitter.scope_depth;
 
         self.expression();
         self.eat(.colon, "Očekávaná ':' za podmínkou");
@@ -694,6 +696,17 @@ pub const Parser = struct {
 
         self.patchJmp(jmp);
         self.emitOpCode(.op_pop);
+
+        self.patchBreaks();
+    }
+
+    fn patchBreaks(self: *Self) void {
+        for (self.breakList.items) |item| {
+            self.patchJmp(item);
+        }
+
+        self.breakList.resize(0) catch {};
+        self.state.innermostLoopStart = null;
     }
 
     fn switchStmt(self: *Self) void {
