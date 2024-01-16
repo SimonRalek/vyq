@@ -18,7 +18,6 @@ const Reporter = @import("reporter.zig");
 const unicode = @import("utils/unicode.zig");
 const natives = @import("natives.zig");
 
-// const stack_list = std.ArrayList(Val);
 const BinaryOp = enum {
     sub,
     mult,
@@ -83,7 +82,7 @@ pub const VirtualMachine = struct {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
-        // self.stack;
+        self.stack_count = 0;
     }
 
     /// Projíždění objekt linked listu a free každý objekt
@@ -354,7 +353,7 @@ pub const VirtualMachine = struct {
                         return;
                     }
 
-                    self.stack_count = @intCast(frame.start);
+                    self.stack_count = @intCast(frame.start - 1);
                     self.push(result);
                     frame = &self.frames[self.frame_count - 1];
                 },
@@ -380,10 +379,11 @@ pub const VirtualMachine = struct {
 
                     const result = native.function(
                         self,
-                        self.stack[self.stack_count - arg_count ..],
+                        self.stack[self.stack_count - arg_count .. self.stack_count],
                     );
 
-                    if (result != null) self.stack_count -= arg_count - 1;
+                    if (result != null)
+                        self.stack_count -= arg_count + 1;
 
                     if (result) |val| {
                         self.push(val);
@@ -477,11 +477,6 @@ pub const VirtualMachine = struct {
     fn pop(self: *Self) Val {
         self.stack_count -= 1;
         return self.stack[self.stack_count];
-        // if (self.stack.items.len == 0) {
-        //     self.runtimeErr("Nelze provést", .{}, &.{});
-        //     std.process.exit(72);
-        // }
-        // return self.stack.pop();
     }
 
     /// Dostat hodnotu ze stacku podle vzdálenosti od stack_top
@@ -491,7 +486,6 @@ pub const VirtualMachine = struct {
 
     /// Resetovat stack
     fn resetStack(self: *Self) void {
-        // self.stack.resize(0) catch @panic("Nepodařilo se alokovat hodnotu");
         self.stack_count = 0;
         self.frame_count = 0;
     }

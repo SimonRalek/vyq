@@ -1,3 +1,3 @@
-prm k = .mocnina(.delka('ne'), 8); tiskni .k; tiskni .ziskejTyp(.k);
+prm k = .mocnina(.delka('ne'); 8); tiskni .k; tiskni .ziskejTyp(.k);
 256
 číslo
