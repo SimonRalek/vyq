@@ -1,0 +1,11 @@
+funkce outer(): {
+  prm a = 1;
+  prm b = 2;
+  funkce middle(): {
+    prm c = 3;
+    prm d = 4;
+    funkce inner(): {
+      tiskni .a + .b + .c + .d;
+    }
+  }
+}

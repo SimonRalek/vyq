@@ -52,6 +52,9 @@ pub const Block = struct {
         op_case,
         op_call,
         op_closure,
+        op_set_elv,
+        op_get_elv,
+        op_close_elv,
     };
 
     code: charList,

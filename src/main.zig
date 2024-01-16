@@ -159,7 +159,15 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         while (true) {
             const line = c.readline(">>> ") orelse @panic("");
             c.add_history(line);
-            _ = c.write_history(path.ptr);
+
+            const last_line = c.history_get(c.history_length - 1);
+            if (last_line == null) {
+                _ = c.write_history(path.ptr);
+            } else if (c.strcmp(last_line.*.line, line) != 0) {
+                _ = c.write_history(path.ptr);
+            } else {
+                _ = c.remove_history(c.history_length - 1);
+            }
 
             try vm.interpret(std.mem.span(line));
         }
