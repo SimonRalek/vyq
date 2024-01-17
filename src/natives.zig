@@ -60,8 +60,9 @@ pub fn getTypeNative(vm: *VM, args: []const Val) ?Val {
         .nic => "nic",
         .obj => switch (args[0].obj.type) {
             .string => "textový řetězec",
-            .function => "funkce",
+            .function, .closure => "funkce",
             .native => "výchozí funkce",
+            .elv => "external local variable",
         },
     };
 
@@ -95,7 +96,6 @@ pub fn randNative(vm: *VM, args: []const Val) ?Val {
 }
 
 pub fn sqrtNative(vm: *VM, args: []const Val) ?Val {
-    std.debug.print("{any}", .{args});
     if (args.len != 2) {
         vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
         return null;

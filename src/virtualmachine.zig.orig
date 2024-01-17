@@ -118,6 +118,7 @@ pub const VirtualMachine = struct {
             const instruction: Block.OpCode = @enumFromInt(self.readByte());
 
             try switch (instruction) {
+                .op_closure => {},
                 .op_value => {
                     var value = self.readValue();
                     self.push(value);
@@ -353,7 +354,16 @@ pub const VirtualMachine = struct {
                         return;
                     }
 
+<<<<<<< HEAD
+                    frame = &self.frames[self.frame_count - 1];
+                    self.stack.resize(frame.start + 1) catch @panic("");
+                    for (self.stack.items) |item| {
+                        std.debug.print("{any}\n", .{item});
+                    }
+                    std.debug.print("\n", .{});
+=======
                     self.stack_count = @intCast(frame.start - 1);
+>>>>>>> a4e73b848db44e60ddffc3a07d8bfafc0ec8cf53
                     self.push(result);
                     frame = &self.frames[self.frame_count - 1];
                 },
@@ -368,12 +378,19 @@ pub const VirtualMachine = struct {
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
         if (callee == .obj) {
             switch (callee.obj.type) {
+<<<<<<< HEAD
+                .closure, .function => return self.call(
+                    callee.obj.function(),
+                    arg_count,
+                ),
+=======
                 .closure => {
                     return self.call(
                         callee.obj.closure(),
                         arg_count,
                     );
                 },
+>>>>>>> a4e73b848db44e60ddffc3a07d8bfafc0ec8cf53
                 .native => {
                     const native = callee.obj.native();
 

@@ -90,7 +90,13 @@ pub const Val = union(enum) {
 const DeinitFn = *const fn (*Object, *VM) void;
 
 pub const Object = struct {
-    const ObjectType = enum { string, function, native };
+    const ObjectType = enum {
+        string,
+        function,
+        closure,
+        elv,
+        native,
+    };
 
     type: ObjectType,
     deinit: DeinitFn,
@@ -138,6 +144,20 @@ pub const Object = struct {
                 }
                 try shared.stdout.print("<script>", .{});
             },
+            .closure => {
+                const clos = self.closure();
+                const func = clos.function;
+
+                if (func.name) |name| {
+                    try shared.stdout.print("<fn {s}>", .{name});
+                    return;
+                }
+                try shared.stdout.print("<script>", .{});
+            },
+            // není možné aby se stalo
+            .elv => {
+                try shared.stdout.print("elv", .{});
+            },
             .native => {
                 try shared.stdout.print("<native fn>", .{});
             },
@@ -156,6 +176,10 @@ pub const Object = struct {
 
     pub fn function(self: *Object) *Function {
         return @fieldParentPtr(Function, "obj", self);
+    }
+
+    pub fn closure(self: *Object) *Closure {
+        return @fieldParentPtr(Closure, "obj", self);
     }
 
     pub fn native(self: *Object) *Native {
@@ -215,23 +239,71 @@ pub const Object = struct {
 
     pub const Function = struct {
         obj: Object,
-        arity: u9,
+        arity: u9 = 0,
         block: Block,
         name: ?[]const u8,
         type: FunctionType,
+        elv_count: u9 = 0,
 
         pub fn init(vm: *VM, func_type: FunctionType) *Function {
             const func = Object.alloc(vm, Function, .function);
-            func.arity = 0;
             func.name = null;
+            func.arity = 0;
             func.block = Block.init(vm.allocator);
             func.type = func_type;
+            func.elv_count = 0;
+
             return func;
         }
 
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Function, "obj", object);
             self.block.deinit();
+            vm.allocator.destroy(self);
+        }
+    };
+
+    pub const Closure = struct {
+        obj: Object,
+        function: *Function,
+        elvs: []?*ELV,
+        elv_count: u9,
+
+        pub fn init(vm: *VM, func: *Function) *Closure {
+            const elvs = vm.allocator.alloc(?*ELV, func.elv_count) catch @panic("");
+
+            for (elvs) |*elv| elv.* = null;
+
+            const obj = Object.alloc(vm, Closure, .closure);
+            obj.function = func;
+            obj.elvs = elvs;
+            obj.elv_count = func.elv_count;
+            return obj;
+        }
+
+        pub fn deinit(obj: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(Closure, "obj", obj);
+            vm.allocator.free(self.elvs);
+            vm.allocator.destroy(self);
+        }
+    };
+
+    pub const ELV = struct {
+        obj: Object,
+        location: *Val,
+        closed: Val,
+        next: ?*ELV,
+
+        pub fn init(vm: *VM, slot: *Val) *ELV {
+            const obj = Object.alloc(vm, ELV, .elv);
+            obj.location = slot;
+            obj.next = null;
+            obj.closed = Val.nic;
+            return obj;
+        }
+
+        pub fn deinit(obj: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(ELV, "obj", obj);
             vm.allocator.destroy(self);
         }
     };

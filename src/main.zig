@@ -26,6 +26,8 @@ const ArenaAlloc = std.heap.ArenaAllocator;
 extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
 extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
 
+const MAX_HISTORY = 250;
+
 const c = @cImport({
     @cInclude("stdio.h");
     @cInclude("readline/readline.h");
@@ -71,7 +73,7 @@ pub fn main() !void {
 /// Parsování argumentů při spuštení programu
 fn arguments(allocator: Allocator, vm: *VM) !void {
     const params = comptime clap.parseParamsComptime(
-        \\-h, --pomoc            Zobraz pomoc a použití 
+        \\-h, --pomoc            Zobraz pomoc a použití
         \\-v, --verze            Zobraz verzi
         \\-b, --bezbarev         Vypisování bez barev
         \\<FILE>...
@@ -150,14 +152,22 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         var path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
         defer allocator.free(path);
         _ = c.read_history(path.ptr);
-        c.stifle_history(50);
+        c.stifle_history(MAX_HISTORY);
 
         c.rl_attempted_completion_function = History.completion;
 
         while (true) {
             const line = c.readline(">>> ") orelse @panic("");
             c.add_history(line);
-            _ = c.write_history(path.ptr);
+
+            const last_line = c.history_get(c.history_length - 1);
+            if (last_line == null) {
+                _ = c.write_history(path.ptr);
+            } else if (c.strcmp(last_line.*.line, line) != 0) {
+                _ = c.write_history(path.ptr);
+            } else {
+                _ = c.remove_history(c.history_length - 1);
+            }
 
             try vm.interpret(std.mem.span(line));
         }

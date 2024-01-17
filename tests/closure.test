@@ -1,0 +1,2 @@
+funkce outer(): { prm a = 1; funkce middle(): { prm b = 2; funkce inner(): { tiskni .a + .b;} .inner();}.middle();}.outer();
+3

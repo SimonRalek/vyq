@@ -35,12 +35,18 @@ const Precedence = enum(u8) {
     primary,
 };
 
-const ParseFn = *const fn (self: *Parser, canAssign: bool) anyerror!void;
+const ParseFn = *const fn (self: *Parser, assignable: bool) anyerror!void;
 
 const ParseRule = struct {
     infix: ?ParseFn = null,
     prefix: ?ParseFn = null,
     precedence: Precedence = .none,
+};
+
+const State = struct {
+    innermostLoopStart: ?usize = null,
+    innermostLoopEnd: ?usize = null,
+    innermostScopeDepth: u16 = 0,
 };
 
 pub const Parser = struct {
@@ -53,6 +59,9 @@ pub const Parser = struct {
     emitter: *Emitter,
     vm: *VM = undefined,
     reporter: *Reporter,
+    state: State,
+    breakList: [64]usize,
+    break_count: u6 = 0,
 
     pub fn init(
         allocator: Allocator,
@@ -67,6 +76,8 @@ pub const Parser = struct {
             .reporter = reporter,
             .current = undefined,
             .previous = undefined,
+            .state = State{},
+            .breakList = undefined,
         };
     }
 
@@ -244,8 +255,12 @@ pub const Parser = struct {
             self.whileStmt();
         } else if (self.match(.vrat)) {
             self.returnStmt();
+        } else if (self.match(.zastav)) {
+            self.breakStmt();
         } else if (self.match(.vyber)) {
             self.switchStmt();
+        } else if (self.match(.pokracuj)) {
+            self.continueStmt();
         } else {
             self.exprStmt();
         }
@@ -267,13 +282,14 @@ pub const Parser = struct {
         self.emitter.scope_depth -= 1;
 
         var locals = &self.emitter.locals;
-        var popN: u8 = 0;
         while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.scope_depth) {
-            popN += 1;
-            _ = self.emitter.locals.pop();
+            if (locals.items[locals.items.len - 1].is_captured) {
+                self.emitOpCode(.op_close_elv);
+            } else {
+                self.emitOpCode(.op_pop);
+                _ = self.emitter.locals.pop();
+            }
         }
-
-        self.emitter.emitOpCodes(.op_popn, popN, self.current.location);
     }
 
     fn variableDeclaration(self: *Self) !void {
@@ -354,85 +370,93 @@ pub const Parser = struct {
         );
     }
 
-    fn variable(self: *Self, canAssign: bool) !void {
+    fn variable(self: *Self, assignable: bool) !void {
         self.advance();
         const token = &self.previous;
-        try self.namedVar(token, canAssign);
+        try self.namedVar(token, assignable);
     }
 
-    fn namedVar(self: *Self, token: *Token, canAssign: bool) !void {
-        var getOp: Block.OpCode = undefined;
-        var setOp: Block.OpCode = undefined;
-        var arg = self.resolveLocal(token);
+    fn namedVar(self: *Self, token: *Token, assignable: bool) !void {
+        var get_op: Block.OpCode = undefined;
+        var set_op: Block.OpCode = undefined;
+        var arg = self.resolveLocal(self.emitter, token);
 
         if (token.type != .identifier) {
             self.report(token, "Po tečce se očekává jméno prvku");
             return ResultError.parser;
         }
 
-        if (arg[0] != -1) {
-            getOp = .op_get_loc;
-            setOp = .op_set_loc;
+        if (arg[0] != null) {
+            get_op = .op_get_loc;
+            set_op = .op_set_loc;
         } else {
-            arg = .{
-                self.makeVal(Val{
-                    .obj = Object.String.copy(self.vm, token.lexeme),
-                }),
-                false,
-            };
-            getOp = .op_get_glob;
-            setOp = .op_set_glob;
+            if (self.resolveELV(self.emitter, token)) |new| {
+                arg[0] = @intCast(new);
+                get_op = .op_get_elv;
+                set_op = .op_set_elv;
+            } else {
+                arg = .{
+                    self.makeVal(Val{
+                        .obj = Object.String.copy(self.vm, token.lexeme),
+                    }),
+                    false,
+                };
+                get_op = .op_get_glob;
+                set_op = .op_set_glob;
+            }
         }
 
-        if (canAssign and self.match(.assign)) {
-            if (arg[1]) {
-                self.report(&self.previous, "Nelze změnit hodnotu konstanty");
-                return ResultError.compile;
+        if (arg[0]) |index| {
+            if (assignable and self.match(.assign)) {
+                if (arg[1]) {
+                    self.report(&self.previous, "Nelze změnit hodnotu konstanty");
+                    return ResultError.compile;
+                }
+                self.expression();
+                self.emitter.emitOpCodes(
+                    set_op,
+                    @intCast(index),
+                    self.current.location,
+                );
+            } else if (assignable and self.isAdditionalOperator()) {
+                if (arg[1]) {
+                    self.report(&self.previous, "Nelze změnit hodnotu konstanty");
+                    return ResultError.compile;
+                }
+                const operator = self.previous.type;
+
+                self.emitter.emitOpCodes(
+                    get_op,
+                    @intCast(index),
+                    self.current.location,
+                );
+                self.expression();
+
+                self.emitOpCode(switch (operator) {
+                    .add_operator => .op_add,
+                    .min_operator => .op_sub,
+                    .div_operator => .op_div,
+                    .mul_operator => .op_mult,
+                    else => unreachable,
+                });
+
+                self.emitter.emitOpCodes(
+                    set_op,
+                    @intCast(index),
+                    self.current.location,
+                );
+            } else {
+                self.emitter.emitOpCodes(
+                    get_op,
+                    @intCast(index),
+                    self.current.location,
+                );
             }
-            self.expression();
-            self.emitter.emitOpCodes(
-                setOp,
-                @intCast(arg[0]),
-                self.current.location,
-            );
-        } else if (canAssign and self.isAdditionalOperator()) {
-            if (arg[1]) {
-                self.report(&self.previous, "Nelze změnit hodnotu konstanty");
-                return ResultError.compile;
-            }
-            const operator = self.previous.type;
-
-            self.emitter.emitOpCodes(
-                getOp,
-                @intCast(arg[0]),
-                self.current.location,
-            );
-            self.expression();
-
-            self.emitOpCode(switch (operator) {
-                .add_operator => .op_add,
-                .min_operator => .op_sub,
-                .div_operator => .op_div,
-                .mul_operator => .op_mult,
-                else => unreachable,
-            });
-
-            self.emitter.emitOpCodes(
-                setOp,
-                @intCast(arg[0]),
-                self.current.location,
-            );
-        } else {
-            self.emitter.emitOpCodes(
-                getOp,
-                @intCast(arg[0]),
-                self.current.location,
-            );
         }
     }
 
-    fn resolveLocal(self: *Self, token: *Token) struct { isize, bool } {
-        var locals = &self.emitter.locals;
+    fn resolveLocal(self: *Self, emitter: *Emitter, token: *Token) struct { ?usize, bool } {
+        var locals = &emitter.locals;
         var i: usize = 0;
 
         while (i < locals.items.len) : (i += 1) {
@@ -442,12 +466,53 @@ pub const Parser = struct {
                     &self.previous,
                     "Proměnná nelze přiřadit sama sobě",
                 );
-                var result: isize = @intCast(locals.items.len - 1 - i);
+                var result: usize = locals.items.len - 1 - i;
                 return .{ result, local.is_const };
             }
         }
 
-        return .{ -1, false };
+        return .{ null, false };
+    }
+
+    fn resolveELV(self: *Self, emitter: *Emitter, token: *Token) ?usize {
+        if (emitter.wrapped == null) return null;
+
+        const local = self.resolveLocal(emitter.wrapped.?, token);
+        if (local[0]) |elv| {
+            emitter.wrapped.?.locals.items[elv].is_captured = true;
+            return self.addELV(emitter, @intCast(elv), true);
+        }
+
+        const elv = self.resolveELV(emitter.wrapped.?, token);
+        if (elv) |idx| {
+            return self.addELV(emitter, @intCast(idx), false);
+        }
+
+        return null;
+    }
+
+    fn addELV(self: *Self, emitter: *Emitter, idx: u8, is_local: bool) usize {
+        const count = emitter.function.elv_count;
+
+        if (count == 255) {
+            self.report(&self.current, "Příliš mnoho referencovaných proměnných mimo funkci");
+            return 0;
+        }
+
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            const elv = &emitter.elvs[i];
+            if (elv.idx == idx and elv.is_local == is_local) {
+                return i;
+            }
+        }
+
+        emitter.elvs[count].is_local = is_local;
+        emitter.elvs[count].idx = idx;
+
+        defer emitter.function.elv_count += 1;
+
+        return emitter.function.elv_count;
     }
 
     fn addLocal(self: *Self, name: []const u8, is_const: bool) void {
@@ -464,7 +529,9 @@ pub const Parser = struct {
     }
 
     fn functionDeclaration(self: *Self) void {
-        const glob = self.parseVar("Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.") catch return;
+        const glob = self.parseVar(
+            "Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.",
+        ) catch return;
         self.markInit();
         self.parseFunction(.function);
         self.defineVar(glob, false);
@@ -488,7 +555,7 @@ pub const Parser = struct {
                 const name = self.parseVar("Chybí jméno parametru") catch return;
                 self.defineVar(name, false);
 
-                if (!self.match(.comma)) break;
+                if (!self.match(.semicolon)) break;
             }
         }
         self.eat(.right_paren, "Chybí ')' na konci seznamu paramerů funkce");
@@ -497,11 +564,17 @@ pub const Parser = struct {
         self.block();
 
         const func = self.deinit();
-        self.emitter.emitOpCodes(.op_value, self.emitter.makeValue(func.obj.val()), self.previous.location);
+        self.emitter.emitOpCodes(.op_closure, self.emitter.makeValue(func.obj.val()), self.previous.location);
+
+        for (0..func.elv_count) |i| {
+            const elv = emitter.elvs[i];
+            self.emitByte(if (elv.is_local) 1 else 0);
+            self.emitByte(elv.idx);
+        }
     }
 
-    fn call(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn call(self: *Self, assignable: bool) !void {
+        _ = assignable;
         const arg_count = self.argumentList();
         self.emitter.emitOpCodes(.op_call, arg_count, self.current.location);
     }
@@ -516,7 +589,7 @@ pub const Parser = struct {
 
                 self.expression();
                 arg_count += 1;
-                if (!self.match(.comma)) break;
+                if (!self.match(.semicolon)) break;
             }
         }
 
@@ -559,13 +632,19 @@ pub const Parser = struct {
             self.expression();
             self.defineVar(prm, false);
 
+            const previousBreaks = self.break_count;
+            const surroundingLoopStart = self.state.innermostLoopStart;
+            const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
+
+            self.state.innermostLoopStart = self.currentBlock().code.items.len;
+            self.state.innermostScopeDepth = self.emitter.scope_depth;
+
             var directionUp = true;
             if (!self.match(.until)) {
                 directionUp = false;
                 self.eat(.dolu, "Očekává se specifikace směru iterace, '..' nebo 'dolu'");
             }
 
-            var start = self.currentBlock().code.items.len;
             self.namedVar(&token, false) catch {
                 return;
             };
@@ -589,19 +668,25 @@ pub const Parser = struct {
                 self.emitVal(Val{ .number = 1 });
             }
             self.emitOpCode(if (directionUp) .op_add else .op_sub);
-            var resolve = self.resolveLocal(&token);
-            self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0]), self.previous.location);
+            var resolve = self.resolveLocal(self.emitter, &token);
+            self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0].?), self.previous.location);
             self.emitOpCode(.op_pop);
 
-            self.emitLoop(start);
-            start = varStart;
+            self.emitLoop(self.state.innermostLoopStart.?);
+            self.state.innermostLoopStart = varStart;
             self.patchJmp(jmp);
             self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
 
             self.statement();
-            self.emitLoop(start);
+            self.emitLoop(self.state.innermostLoopStart.?);
+
             self.patchJmp(exitJmp);
             self.emitOpCode(.op_pop);
+            self.patchBreaks();
+            self.break_count = previousBreaks;
+
+            self.state.innermostLoopStart = surroundingLoopStart;
+            self.state.innermostScopeDepth = surroundingLoopScopeDepth;
         } else {
             if (self.match(.semicolon)) {
                 // nic nedělej
@@ -609,7 +694,13 @@ pub const Parser = struct {
                 self.variableDeclaration() catch {};
             } else self.exprStmt();
 
-            var start = self.currentBlock().code.items.len;
+            const previousBreaks = self.break_count;
+            const surroundingLoopStart = self.state.innermostLoopStart;
+            const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
+
+            self.state.innermostLoopStart = self.currentBlock().code.items.len;
+            self.state.innermostScopeDepth = self.emitter.scope_depth;
+
             var exit: ?usize = null;
 
             if (!self.match(.semicolon)) {
@@ -628,18 +719,24 @@ pub const Parser = struct {
                 self.emitOpCode(.op_pop);
                 self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
 
-                self.emitLoop(start);
-                start = varStart;
+                self.emitLoop(self.state.innermostLoopStart.?);
+                self.state.innermostLoopStart = varStart;
                 self.patchJmp(jmp);
             }
 
             self.statement();
-            self.emitLoop(start);
+            self.emitLoop(self.state.innermostLoopStart.?);
 
             if (exit) |jmp| {
                 self.patchJmp(jmp);
                 self.emitOpCode(.op_pop);
             }
+
+            self.patchBreaks();
+            self.break_count = previousBreaks;
+
+            self.state.innermostLoopStart = surroundingLoopStart;
+            self.state.innermostScopeDepth = surroundingLoopScopeDepth;
         }
 
         self.endScope();
@@ -647,6 +744,9 @@ pub const Parser = struct {
 
     fn whileStmt(self: *Self) void {
         const start = self.currentBlock().code.items.len;
+        const previousBreaks = self.break_count;
+        self.state.innermostLoopStart = start;
+        self.state.innermostScopeDepth = self.emitter.scope_depth;
 
         self.expression();
         self.eat(.colon, "Očekávaná ':' za podmínkou");
@@ -658,6 +758,15 @@ pub const Parser = struct {
 
         self.patchJmp(jmp);
         self.emitOpCode(.op_pop);
+
+        self.patchBreaks();
+        self.break_count = previousBreaks;
+    }
+
+    fn patchBreaks(self: *Self) void {
+        for (0..self.break_count) |i| {
+            self.patchJmp(self.breakList[i]);
+        }
     }
 
     fn switchStmt(self: *Self) void {
@@ -722,6 +831,45 @@ pub const Parser = struct {
         self.emitOpCode(.op_pop);
     }
 
+    fn breakStmt(self: *Self) void {
+        if (self.state.innermostLoopStart == null) {
+            self.report(&self.previous, "Nelze použít 'zastav' mimo smyčku");
+            return;
+        }
+
+        self.eat(.semicolon, "Očekávaný ';' po 'zastav'");
+
+        // var count: u8 = 0;
+        // var i = self.emitter.locals.items.len - 1;
+        // while (i >= 0 and self.emitter.locals.items[i].depth > self.state.innermostScopeDepth) : (i -= 1) {
+        //     count += 1;
+        // }
+        //
+        // self.emitter.emitOpCodes(.op_popn, count, self.current.location);
+
+        self.breakList[self.break_count] = self.emitJmp(.op_jmp);
+        self.break_count += 1;
+    }
+
+    fn continueStmt(self: *Self) void {
+        if (self.state.innermostLoopStart == null) {
+            self.report(&self.previous, "Nelze použít 'pokracuj' mimo smyčku");
+            return;
+        }
+
+        self.eat(.semicolon, "Očekávaný ';' po 'pokracuj'");
+
+        var count: u8 = 0;
+        var i = self.emitter.locals.items.len - 1;
+        while (i >= 0 and self.emitter.locals.items[i].depth > self.state.innermostScopeDepth) : (i -= 1) {
+            count += 1;
+        }
+
+        self.emitter.emitOpCodes(.op_popn, count, self.current.location);
+
+        self.emitLoop(self.state.innermostLoopStart.?);
+    }
+
     fn returnStmt(self: *Self) void {
         if (self.emitter.function.type == .script) {
             self.report(&self.current, "Nelze vrátit hodnotu z hlavního scriptu");
@@ -755,8 +903,8 @@ pub const Parser = struct {
         }
     }
 
-    fn zaroven(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn zaroven(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         const jmp = self.emitJmp(.op_jmp_on_false);
 
@@ -766,8 +914,8 @@ pub const Parser = struct {
         self.patchJmp(jmp);
     }
 
-    fn nebo(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn nebo(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         const jmp = self.emitJmp(.op_jmp_on_true);
 
@@ -777,15 +925,15 @@ pub const Parser = struct {
         self.patchJmp(jmp);
     }
 
-    fn group(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn group(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         self.expression();
         self.eat(.right_paren, "Očekávaná ')' nebyla nalezena");
     }
 
-    fn unary(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn unary(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         const op_type = self.previous.type;
 
@@ -801,8 +949,8 @@ pub const Parser = struct {
         }
     }
 
-    fn binary(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn binary(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         const op_type = self.previous.type;
         const rule = getRule(op_type);
@@ -864,8 +1012,8 @@ pub const Parser = struct {
         }
     }
 
-    fn number(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn number(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
@@ -879,8 +1027,8 @@ pub const Parser = struct {
         }
     }
 
-    fn base(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn base(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         const val = std.fmt.parseUnsigned(i64, self.previous.lexeme, 0) catch {
             @panic("Parsování nešlo");
@@ -888,8 +1036,8 @@ pub const Parser = struct {
         self.emitVal(Val{ .number = @floatFromInt(val) });
     }
 
-    fn crement(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn crement(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         switch (self.previous.type) {
             .increment => self.emitOpCode(.op_increment),
@@ -898,15 +1046,15 @@ pub const Parser = struct {
         }
     }
 
-    fn string(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn string(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         const source = self.previous.lexeme[1 .. self.previous.lexeme.len - 1];
         self.emitVal(Object.String.copy(self.vm, source).val());
     }
 
-    fn literal(self: *Self, canAssign: bool) !void {
-        _ = canAssign;
+    fn literal(self: *Self, assignable: bool) !void {
+        _ = assignable;
 
         switch (self.previous.type) {
             .ano => self.emitOpCode(.op_ano),
@@ -923,15 +1071,15 @@ pub const Parser = struct {
             return;
         };
 
-        const canAssign = @intFromEnum(precedence) <= @intFromEnum(Precedence.assignment);
-        prefix(self, canAssign) catch {};
+        const can_assign = @intFromEnum(precedence) <= @intFromEnum(Precedence.assignment);
+        prefix(self, can_assign) catch {};
         while (@intFromEnum(precedence) <= @intFromEnum(getRule(self.current.type).precedence)) {
             self.advance();
             const infix = getRule(self.previous.type).infix orelse unreachable;
-            infix(self, canAssign) catch {};
+            infix(self, can_assign) catch {};
         }
 
-        if (canAssign and self.match(.assign)) {
+        if (can_assign and self.match(.assign)) {
             self.report(&self.previous, "K hodnotě nelze přiřadit hodnotu");
         }
     }

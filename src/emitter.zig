@@ -20,6 +20,8 @@ const Local = @import("storage.zig").Local;
 
 const localArray = std.ArrayList(Local);
 
+const ELV = struct { idx: u8, is_local: bool };
+
 pub const Emitter = struct {
     const Self = @This();
 
@@ -33,7 +35,10 @@ pub const Emitter = struct {
     wrapped: ?*Emitter,
 
     locals: localArray,
-    scope_depth: i16,
+    scope_depth: u16,
+
+    elvs: [255]ELV = undefined,
+    elv_count: usize = 0,
 
     /// Inicializace Emitteru
     pub fn init(vm: *VM, func_type: FunctionType, wrapped: ?*Emitter) Self {
