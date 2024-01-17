@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const clap = @import("lib/zig-clap/clap.zig");
+const clap = @import("clap");
 
 const debug = @import("debug.zig");
 const shared = @import("shared.zig");
@@ -73,7 +73,7 @@ pub fn main() !void {
 /// Parsování argumentů při spuštení programu
 fn arguments(allocator: Allocator, vm: *VM) !void {
     const params = comptime clap.parseParamsComptime(
-        \\-h, --pomoc            Zobraz pomoc a použití 
+        \\-h, --pomoc            Zobraz pomoc a použití
         \\-v, --verze            Zobraz verzi
         \\-b, --bezbarev         Vypisování bez barev
         \\<FILE>...

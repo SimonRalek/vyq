@@ -22,13 +22,13 @@ pub fn build(b: *std.Build) !void {
 
     exe.linkLibC();
 
-    // const clap = b.dependency("clap", .{
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-    // exe.addModule("clap", clap.module("clap"));
+    const clap = b.dependency("clap", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.addModule("clap", clap.module("clap"));
     // exe.linkLibrary(clap.artifact("clap"));
-    //
+
     exe.linkSystemLibrary("readline");
 
     b.installArtifact(exe);

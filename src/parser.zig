@@ -60,7 +60,8 @@ pub const Parser = struct {
     vm: *VM = undefined,
     reporter: *Reporter,
     state: State,
-    breakList: std.ArrayList(usize),
+    breakList: [64]usize,
+    break_count: u6 = 0,
 
     pub fn init(
         allocator: Allocator,
@@ -76,7 +77,7 @@ pub const Parser = struct {
             .current = undefined,
             .previous = undefined,
             .state = State{},
-            .breakList = std.ArrayList(usize).init(allocator),
+            .breakList = undefined,
         };
     }
 
@@ -631,6 +632,7 @@ pub const Parser = struct {
             self.expression();
             self.defineVar(prm, false);
 
+            const previousBreaks = self.break_count;
             const surroundingLoopStart = self.state.innermostLoopStart;
             const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
 
@@ -681,6 +683,7 @@ pub const Parser = struct {
             self.patchJmp(exitJmp);
             self.emitOpCode(.op_pop);
             self.patchBreaks();
+            self.break_count = previousBreaks;
 
             self.state.innermostLoopStart = surroundingLoopStart;
             self.state.innermostScopeDepth = surroundingLoopScopeDepth;
@@ -691,6 +694,7 @@ pub const Parser = struct {
                 self.variableDeclaration() catch {};
             } else self.exprStmt();
 
+            const previousBreaks = self.break_count;
             const surroundingLoopStart = self.state.innermostLoopStart;
             const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
 
@@ -729,6 +733,7 @@ pub const Parser = struct {
             }
 
             self.patchBreaks();
+            self.break_count = previousBreaks;
 
             self.state.innermostLoopStart = surroundingLoopStart;
             self.state.innermostScopeDepth = surroundingLoopScopeDepth;
@@ -739,6 +744,7 @@ pub const Parser = struct {
 
     fn whileStmt(self: *Self) void {
         const start = self.currentBlock().code.items.len;
+        const previousBreaks = self.break_count;
         self.state.innermostLoopStart = start;
         self.state.innermostScopeDepth = self.emitter.scope_depth;
 
@@ -754,15 +760,13 @@ pub const Parser = struct {
         self.emitOpCode(.op_pop);
 
         self.patchBreaks();
+        self.break_count = previousBreaks;
     }
 
     fn patchBreaks(self: *Self) void {
-        for (self.breakList.items) |item| {
-            self.patchJmp(item);
+        for (0..self.break_count) |i| {
+            self.patchJmp(self.breakList[i]);
         }
-
-        self.breakList.resize(0) catch {};
-        self.state.innermostLoopStart = null;
     }
 
     fn switchStmt(self: *Self) void {
@@ -843,7 +847,8 @@ pub const Parser = struct {
         //
         // self.emitter.emitOpCodes(.op_popn, count, self.current.location);
 
-        self.breakList.append(self.emitJmp(.op_jmp)) catch {};
+        self.breakList[self.break_count] = self.emitJmp(.op_jmp);
+        self.break_count += 1;
     }
 
     fn continueStmt(self: *Self) void {
