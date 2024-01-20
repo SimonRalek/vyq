@@ -6,6 +6,21 @@ const Allocator = std.mem.Allocator;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 const Block = @import("block.zig").Block;
 const Formatter = @import("formatter.zig");
+const IndexError = shared.IndexError;
+
+fn indexValidation(index: f64, length: f64) IndexError!void {
+    if (index < 0) {
+        return IndexError.negative_index;
+    }
+
+    if (index > length) {
+        return IndexError.bigger_index;
+    }
+
+    if (std.math.floor(index) != index) {
+        return IndexError.float_index;
+    }
+}
 
 pub const Val = union(enum) {
     const Self = @This();
@@ -92,6 +107,7 @@ const DeinitFn = *const fn (*Object, *VM) void;
 pub const Object = struct {
     const ObjectType = enum {
         string,
+        list,
         function,
         closure,
         elv,
@@ -154,6 +170,19 @@ pub const Object = struct {
                 }
                 try shared.stdout.print("<script>", .{});
             },
+            .list => {
+                const array = self.list();
+
+                try shared.stdout.print("[ ", .{});
+                for (array.items.items, 0..) |item, i| {
+                    item.print(allocator);
+
+                    if (i != array.items.items.len - 1) {
+                        try shared.stdout.print("; ", .{});
+                    }
+                }
+                try shared.stdout.print(" ]", .{});
+            },
             // není možné aby se stalo
             .elv => {
                 try shared.stdout.print("elv", .{});
@@ -186,14 +215,18 @@ pub const Object = struct {
         return @fieldParentPtr(Native, "obj", self);
     }
 
+    pub fn list(self: *Object) *List {
+        return @fieldParentPtr(List, "obj", self);
+    }
+
     pub const String = struct {
         const Self = @This();
 
         obj: Object,
-        repre: []const u8,
+        repre: []u8,
 
         /// Alokace s objektem
-        fn alloc(vm: *VM, buff: []const u8) *Object {
+        fn alloc(vm: *VM, buff: []u8) *Object {
             const alloc_string = Object.alloc(vm, Self, .string);
 
             alloc_string.repre = buff;
@@ -220,7 +253,7 @@ pub const Object = struct {
         }
 
         /// Alokace stringu
-        pub fn take(vm: *VM, chars: []const u8) *Object {
+        pub fn take(vm: *VM, chars: []u8) *Object {
             return Self.alloc(vm, chars);
         }
 
@@ -229,11 +262,54 @@ pub const Object = struct {
             return std.mem.eql(u8, self.repre, expected.repre);
         }
 
+        pub fn isValidIndex(self: *String, index: f64) IndexError!void {
+            const length: f64 = @floatFromInt(self.repre.len - 1);
+            try indexValidation(index, length);
+        }
+
         /// Free string
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Self, "obj", object);
             vm.allocator.free(self.repre);
             vm.allocator.destroy(self);
+        }
+    };
+
+    pub const List = struct {
+        obj: Object,
+        items: std.ArrayList(Val),
+
+        pub fn init(vm: *VM) *List {
+            const array = Object.alloc(vm, List, .list);
+            array.items = std.ArrayList(Val).init(vm.allocator);
+            return array;
+        }
+
+        pub fn deinit(obj: *Object, vm: *VM) void {
+            const self = @fieldParentPtr(List, "obj", obj);
+            self.items.deinit();
+            vm.allocator.destroy(self);
+        }
+
+        pub fn append(array: *List, value: Val) void {
+            array.items.append(value) catch {};
+        }
+
+        pub fn insert(self: *List, idx: f64, value: Val) void {
+            self.items.insert(@intFromFloat(idx), value) catch {};
+        }
+
+        pub fn getItem(self: *List, idx: f64) Val {
+            return self.items.items[@intFromFloat(idx)];
+        }
+
+        pub fn delete(self: *List, idx: u32) void {
+            _ = self.items.orderedRemove(idx);
+        }
+
+        pub fn isValidIndex(self: *List, index: f64) IndexError!void {
+            const length: f64 = @floatFromInt(self.items.items.len - 1);
+            try indexValidation(index, length);
         }
     };
 

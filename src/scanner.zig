@@ -74,6 +74,8 @@ pub const Scanner = struct {
             '?' => self.createToken(.question_mark),
             '(' => self.createToken(.left_paren),
             ')' => self.createToken(.right_paren),
+            '[' => self.createToken(.left_square),
+            ']' => self.createToken(.right_square),
             '{' => self.createToken(.left_brace),
             '}' => self.createToken(.right_brace),
             '.' => self.createToken(if (self.match('.'))
@@ -490,7 +492,7 @@ test "string" {
         \\ 'This is a test of a single line string'
     , &.{.string});
     try testScanner(
-        \\ "This is a multiline 
+        \\ "This is a multiline
         \\ string"
     , &.{.string});
     try testScanner(

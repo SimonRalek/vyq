@@ -63,6 +63,7 @@ pub fn getTypeNative(vm: *VM, args: []const Val) ?Val {
             .function, .closure => "funkce",
             .native => "výchozí funkce",
             .elv => "external local variable",
+            .list => "list",
         },
     };
 

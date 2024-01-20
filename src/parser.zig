@@ -32,6 +32,7 @@ const Precedence = enum(u8) {
     factor,
     unary,
     call,
+    subscript,
     primary,
 };
 
@@ -1053,6 +1054,45 @@ pub const Parser = struct {
         self.emitVal(Object.String.copy(self.vm, source).val());
     }
 
+    fn list(self: *Self, assignable: bool) !void {
+        _ = assignable;
+
+        var item_count: u8 = 0;
+        if (!self.check(.right_square)) {
+            while (true) {
+                if (self.check(.right_square)) break;
+
+                self.parsePrecedence(.nebo);
+
+                if (item_count == 255) {
+
+                    // TODO
+                }
+
+                item_count += 1;
+
+                if (!self.match(.semicolon)) break;
+            }
+        }
+
+        self.eat(.right_square, "");
+
+        self.emitOpCode(.op_build_list);
+        self.emitByte(item_count);
+    }
+
+    fn subscript(self: *Self, assignable: bool) !void {
+        self.parsePrecedence(.nebo);
+        self.eat(.right_square, "");
+
+        if (assignable and self.match(.assign)) {
+            self.expression();
+            self.emitOpCode(.op_store_subr);
+        } else {
+            self.emitOpCode(.op_index_subr);
+        }
+    }
+
     fn literal(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -1091,6 +1131,7 @@ pub const Parser = struct {
     fn getRule(t_type: _token.Type) ParseRule {
         return switch (t_type) {
             .left_paren => .{ .prefix = Parser.group, .infix = Parser.call, .precedence = .call },
+            .left_square => .{ .prefix = Parser.list, .infix = Parser.subscript, .precedence = .subscript },
 
             .increment, .decrement => .{ .infix = Parser.crement },
 

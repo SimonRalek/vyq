@@ -55,6 +55,9 @@ pub const Block = struct {
         op_set_elv,
         op_get_elv,
         op_close_elv,
+        op_build_list,
+        op_index_subr,
+        op_store_subr,
     };
 
     code: charList,

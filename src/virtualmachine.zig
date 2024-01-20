@@ -6,7 +6,8 @@ const Allocator = std.mem.Allocator;
 const _val = @import("value.zig");
 const Val = _val.Val;
 const Block = @import("block.zig").Block;
-const ResultError = @import("shared.zig").ResultError;
+const ResultError = shared.ResultError;
+const IndexError = shared.IndexError;
 const Emitter = @import("emitter.zig").Emitter;
 const _storage = @import("storage.zig");
 const Global = _storage.Global;
@@ -343,6 +344,58 @@ pub const VirtualMachine = struct {
                     _ = self.pop();
                 },
 
+                .op_build_list => {
+                    const list = Object.List.init(self);
+                    var item_count = self.readByte();
+
+                    self.push(list.obj.val());
+                    for (0..item_count) |i| {
+                        list.append(self.peek(@intCast(item_count - i)));
+                    }
+                    _ = self.pop();
+
+                    while (item_count > 0) : (item_count -= 1) {
+                        _ = self.pop();
+                    }
+
+                    self.push(list.obj.val());
+                },
+                .op_index_subr => {
+                    const idx = self.pop();
+                    const val = self.pop();
+
+                    try self.indexValidate(val, idx);
+
+                    if (val.obj.type == .list) {
+                        self.push(val.obj.list().getItem(idx.number));
+                    } else {
+                        const index: usize = @intFromFloat(idx.number);
+                        self.push(Val{ .obj = Object.String.copy(self, val.obj.string().repre[index .. index + 1]) });
+                    }
+                },
+                .op_store_subr => {
+                    const item = self.pop();
+                    const idx = self.pop();
+                    const val = self.pop();
+
+                    try self.indexValidate(val, idx);
+
+                    if (val.obj.type == .list) {
+                        val.obj.list().insert(idx.number, item);
+                    } else {
+                        const char = item.obj.string().repre;
+
+                        if (char.len > 1) {
+                            self.runtimeErr("Na místo písmena jde přiřadit jen písmeno", .{}, &.{});
+                            return ResultError.runtime;
+                        }
+
+                        const index: usize = @intFromFloat(idx.number);
+                        val.obj.string().repre[index] = char[0];
+                    }
+                    self.push(item);
+                },
+
                 .op_return => {
                     const result = self.pop();
                     self.closeELV(&self.stack[frame.start - 1]);
@@ -467,6 +520,56 @@ pub const VirtualMachine = struct {
         }
     }
 
+    fn indexValidate(self: *Self, val: Val, idx: Val) ResultError!void {
+        if (val != .obj or (val.obj.type != .string and val.obj.type != .list)) {
+            self.runtimeErr("Pouze pole můžete indexovat", .{}, &.{});
+            return ResultError.runtime;
+        }
+
+        if (idx != .number) {
+            self.runtimeErr("Index může být pouze číslo", .{}, &.{});
+            return ResultError.runtime;
+        }
+
+        if (val.obj.type == .list) {
+            const list = val.obj.list();
+
+            list.isValidIndex(idx.number) catch |err| {
+                switch (err) {
+                    IndexError.float_index => {
+                        self.runtimeErr("Index musí být celé číslo", .{}, &.{});
+                    },
+                    IndexError.negative_index => {
+                        self.runtimeErr("Index nemůže být záporné číslo", .{}, &.{});
+                    },
+                    IndexError.bigger_index => {
+                        self.runtimeErr("Index je větší než délka pole", .{}, &.{});
+                    },
+                }
+
+                return ResultError.runtime;
+            };
+        } else {
+            const string = val.obj.string();
+
+            string.isValidIndex(idx.number) catch |err| {
+                switch (err) {
+                    IndexError.float_index => {
+                        self.runtimeErr("Index musí být celé číslo", .{}, &.{});
+                    },
+                    IndexError.negative_index => {
+                        self.runtimeErr("Index nemůže být záporné číslo", .{}, &.{});
+                    },
+                    IndexError.bigger_index => {
+                        self.runtimeErr("Index je větší než délka řetězce", .{}, &.{});
+                    },
+                }
+
+                return ResultError.runtime;
+            };
+        }
+    }
+
     /// Přidání hodnoty do stacku
     fn push(self: *Self, val: Val) void {
         self.stack[self.stack_count] = val;
@@ -515,7 +618,7 @@ pub const VirtualMachine = struct {
         var b = self.pop();
         var a = self.pop();
 
-        var new: []const u8 = undefined;
+        var new: []u8 = undefined;
         var string: []const u8 = undefined;
 
         if (a == .obj and a.obj.type == .string) {
