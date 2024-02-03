@@ -101,6 +101,7 @@ pub const Object = struct {
     type: ObjectType,
     deinit: DeinitFn,
     next: ?*Object = null,
+    is_marked: bool = false,
 
     pub fn alloc(
         vm: *VM,
@@ -139,7 +140,7 @@ pub const Object = struct {
                 const func = self.function();
 
                 if (func.name) |name| {
-                    try shared.stdout.print("<fn {s}>", .{name});
+                    try shared.stdout.print("<fn {s}>", .{name.repre});
                     return;
                 }
                 try shared.stdout.print("<script>", .{});
@@ -149,7 +150,7 @@ pub const Object = struct {
                 const func = clos.function;
 
                 if (func.name) |name| {
-                    try shared.stdout.print("<fn {s}>", .{name});
+                    try shared.stdout.print("<fn {s}>", .{name.repre});
                     return;
                 }
                 try shared.stdout.print("<script>", .{});
@@ -182,6 +183,10 @@ pub const Object = struct {
         return @fieldParentPtr(Closure, "obj", self);
     }
 
+    pub fn elv(self: *Object) *ELV {
+        return @fieldParentPtr(ELV, "obj", self);
+    }
+
     pub fn native(self: *Object) *Native {
         return @fieldParentPtr(Native, "obj", self);
     }
@@ -198,7 +203,9 @@ pub const Object = struct {
 
             alloc_string.repre = buff;
 
+            vm.push(alloc_string.obj.val());
             vm.strings.put(buff, alloc_string) catch @panic("Nepodařilo se alokovat");
+            _ = vm.pop();
 
             return &alloc_string.obj;
         }
@@ -241,7 +248,7 @@ pub const Object = struct {
         obj: Object,
         arity: u9 = 0,
         block: Block,
-        name: ?[]const u8,
+        name: ?*String,
         type: FunctionType,
         elv_count: u9 = 0,
 
@@ -272,7 +279,7 @@ pub const Object = struct {
         pub fn init(vm: *VM, func: *Function) *Closure {
             const elvs = vm.allocator.alloc(?*ELV, func.elv_count) catch @panic("");
 
-            for (elvs) |*elv| elv.* = null;
+            for (elvs) |*elvariable| elvariable.* = null;
 
             const obj = Object.alloc(vm, Closure, .closure);
             obj.function = func;

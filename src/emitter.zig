@@ -72,6 +72,8 @@ pub const Emitter = struct {
         self.reporter.panic_mode = false;
 
         self.parser = Parser.init(self.allocator, self, self.vm, self.reporter);
+        self.vm.parser = &(self.parser.?);
+
         self.parser.?.parse(source);
 
         const func = self.parser.?.deinit();
@@ -107,9 +109,18 @@ pub const Emitter = struct {
 
     /// Přidání hodnoty do aktuálního bloku
     pub fn makeValue(self: *Self, val: Val) u8 {
-        const value = self.currentBlock().addValue(val);
+        const value = self.addValue(val);
         if (value > 255) @panic("Stack overflow");
 
         return value;
+    }
+
+    /// Přidat hodnotu do bloku
+    pub fn addValue(self: *Self, value: Val) u8 {
+        self.vm.push(value);
+        const index = self.currentBlock().values.items.len;
+        self.currentBlock().values.append(value) catch @panic("Alokace selhala");
+        _ = self.vm.pop();
+        return @intCast(index);
     }
 };

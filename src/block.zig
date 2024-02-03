@@ -87,11 +87,4 @@ pub const Block = struct {
         self.code.append(byte) catch @panic("Alokace selhala");
         self.locations.append(loc) catch @panic("Alokace selhala");
     }
-
-    /// Přidat hodnotu do bloku
-    pub fn addValue(self: *Self, value: Val) u8 {
-        const index = self.values.items.len;
-        self.values.append(value) catch @panic("Alokace selhala");
-        return @intCast(index);
-    }
 };

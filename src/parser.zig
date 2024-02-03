@@ -75,7 +75,7 @@ pub const Parser = struct {
 
         const function = self.emitter.function;
         if (!self.reporter.had_error and debug.debugging) {
-            debug.disBlock(self.currentBlock(), if (function.name) |name| name else "script");
+            debug.disBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
         }
 
         if (self.emitter.wrapped) |emitter| {
@@ -524,7 +524,7 @@ pub const Parser = struct {
         var emitter = Emitter.init(self.vm, func_type, self.emitter);
         defer emitter.deinit();
         self.emitter = &emitter;
-        self.emitter.function.name = Object.String.copy(self.vm, self.previous.lexeme).string().repre;
+        self.emitter.function.name = Object.String.copy(self.vm, self.previous.lexeme).string();
         self.beginScope();
 
         self.eat(.left_paren, "Chybí '(' po jménu funkce");

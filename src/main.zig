@@ -30,8 +30,8 @@ const MAX_HISTORY = 250;
 
 const c = @cImport({
     @cInclude("stdio.h");
-    @cInclude("readline/readline.h");
-    @cInclude("readline/history.h");
+    // @cInclude("readline/readline.h");
+    // @cInclude("readline/history.h");
 });
 
 /// Inicializace individuálních částí a spuštení dle modu
@@ -46,7 +46,8 @@ pub fn main() !void {
     const allocator = heap.allocator();
 
     var reporter = Reporter{ .allocator = allocator };
-    var vm = VM.init(allocator, &reporter);
+    var vm = VM.create(allocator);
+    vm.init(&reporter);
 
     var bench: BenchMark = undefined;
     var timer: *Timer = undefined;
@@ -130,6 +131,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
 /// Read-Eval-Print loop mod
 fn repl(allocator: Allocator, vm: *VM) !void {
+_ = allocator;
     defer vm.deinit();
 
     if (builtin.os.tag == .windows) {
@@ -148,28 +150,50 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             vm.interpret(source) catch {};
         }
     } else {
-        c.using_history();
-        var path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
-        defer allocator.free(path);
-        _ = c.read_history(path.ptr);
-        c.stifle_history(MAX_HISTORY);
+        // c.using_history();
+        // var path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
+        // defer allocator.free(path);
+        // _ = c.read_history(path.ptr);
+        // c.stifle_history(MAX_HISTORY);
 
-        c.rl_attempted_completion_function = History.completion;
+        // c.rl_attempted_completion_function = History.completion;
 
         while (true) {
-            const line = c.readline(">>> ") orelse @panic("");
-            c.add_history(line);
+            // const line = c.readline(">>> ") orelse @panic("");
+            // c.add_history(line);
 
-            const last_line = c.history_get(c.history_length - 1);
-            if (last_line == null) {
-                _ = c.write_history(path.ptr);
-            } else if (c.strcmp(last_line.*.line, line) != 0) {
-                _ = c.write_history(path.ptr);
-            } else {
-                _ = c.remove_history(c.history_length - 1);
-            }
+            // const last_line = c.history_get(c.history_length - 1);
+            // if (last_line == null) {
+            //     _ = c.write_history(path.ptr);
+            // } else if (c.strcmp(last_line.*.line, line) != 0) {
+            //     _ = c.write_history(path.ptr);
+            // } else {
+            //     _ = c.remove_history(c.history_length - 1);
+            // }
+            var buf: [256]u8 = undefined;
+                        var buf_stream = std.io.fixedBufferStream(&buf);
 
-            try vm.interpret(std.mem.span(line));
+                        try shared.stdout.print(">>> ", .{});
+
+                        var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
+                        const stdin = buffered_stdin.reader();
+                        stdin.streamUntilDelimiter(
+                            buf_stream.writer(),
+                            '\n',
+                            buf.len,
+                        ) catch {
+                            std.process.exit(60);
+                        };
+                        const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+
+                        if (input.len == buf.len) {
+                            Reporter.printErr("Vstup je příliš dlouhý", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+                            try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
+                            continue;
+                        }
+                        const source = buf[0..input.len];
+                        vm.interpret(source) catch {};
+
         }
     }
 }

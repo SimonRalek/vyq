@@ -3,6 +3,7 @@ const shared = @import("shared.zig");
 
 const Allocator = std.mem.Allocator;
 
+const Parser = @import("parser.zig").Parser;
 const _val = @import("value.zig");
 const Val = _val.Val;
 const Block = @import("block.zig").Block;
@@ -17,6 +18,7 @@ const Native = Object.Native;
 const Reporter = @import("reporter.zig");
 const unicode = @import("utils/unicode.zig");
 const natives = @import("natives.zig");
+const GC = @import("gc.zig").GC;
 
 const BinaryOp = enum {
     sub,
@@ -43,38 +45,48 @@ pub const VirtualMachine = struct {
     frame_count: u8 = 0,
 
     allocator: Allocator,
-    stack: [256]Val,
+    stack: [256]Val = undefined,
     stack_count: u9 = 0,
-    globals: std.StringHashMap(Global),
+    globals: std.AutoHashMap(*Object.String, Global),
 
     strings: std.StringHashMap(*Object.String),
     objects: ?*Object = null,
     openELV: ?*Object.ELV = null,
 
-    reporter: *Reporter,
+    reporter: *Reporter = undefined,
+    parser: ?*Parser = null,
+
+    gc: GC,
+    grays: std.ArrayList(*Object),
+
+    pub fn create(allocator: Allocator) Self {
+        return .{
+            .allocator = allocator,
+            .gc = undefined,
+            .grays = undefined,
+            .strings = undefined,
+            .globals = undefined,
+        };
+    }
 
     /// Inicializace virtuální mašiny
-    pub fn init(allocator: Allocator, reporter: *Reporter) Self {
-        var vm: Self = .{
-            .allocator = allocator,
-            .globals = std.StringHashMap(Global).init(allocator),
-            .strings = std.StringHashMap(*Object.String).init(allocator),
-            .stack = undefined,
-            .objects = null,
-            .reporter = reporter,
-        };
+    pub fn init(self: *Self, reporter: *Reporter) void {
+        self.gc = GC.init(self);
 
-        vm.defineNative("delka", natives.str_lenNative);
-        vm.defineNative("nactiVstup", natives.inputNative);
-        vm.defineNative("ziskejTyp", natives.getTypeNative);
-        vm.defineNative("nahoda", natives.randNative);
-        vm.defineNative("mocnina", natives.sqrtNative);
-        vm.defineNative("odmocnit", natives.rootNative);
-        vm.defineNative("jeCislo", natives.isDigitNative);
-        vm.defineNative("jeRetezec", natives.isStringNative);
-        vm.defineNative("casovaZnacka", natives.getTimeStampNative);
+        self.reporter = reporter;
+        self.globals = std.AutoHashMap(*Object.String, Global).init(self.gc.allocator());
+        self.strings = std.StringHashMap(*Object.String).init(self.gc.allocator());
+        self.grays = std.ArrayList(*Object).init(self.allocator);
 
-        return vm;
+        self.defineNative("delka", natives.str_lenNative);
+        self.defineNative("nactiVstup", natives.inputNative);
+        self.defineNative("ziskejTyp", natives.getTypeNative);
+        self.defineNative("nahoda", natives.randNative);
+        self.defineNative("mocnina", natives.sqrtNative);
+        self.defineNative("odmocnit", natives.rootNative);
+        self.defineNative("jeCislo", natives.isDigitNative);
+        self.defineNative("jeRetezec", natives.isStringNative);
+        self.defineNative("casovaZnacka", natives.getTimeStampNative);
     }
 
     /// "Free"nout objekty a listy
@@ -82,6 +94,7 @@ pub const VirtualMachine = struct {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
+        self.grays.deinit();
         self.stack_count = 0;
     }
 
@@ -215,7 +228,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_get_glob => {
                     const name = self.readValue().obj.string();
-                    if (!self.globals.contains(name.repre)) {
+                    if (!self.globals.contains(name)) {
                         self.runtimeErr(
                             "Neexistující prvek '{s}'",
                             .{name.repre},
@@ -225,12 +238,12 @@ pub const VirtualMachine = struct {
                         );
                         return ResultError.runtime;
                     }
-                    self.push(self.globals.get(name.repre).?.val);
+                    self.push(self.globals.get(name).?.val);
                 },
                 .op_def_glob_var => {
                     const name = self.readValue().obj.string();
                     self.globals.put(
-                        name.repre,
+                        name,
                         Global.initPrm(self.peek(0)),
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
@@ -239,7 +252,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_set_glob => {
                     const name = self.readValue().obj.string();
-                    if (!self.globals.contains(name.repre)) {
+                    if (!self.globals.contains(name)) {
                         self.runtimeErr(
                             "Neexistující prvek '{s}'",
                             .{name.repre},
@@ -250,7 +263,7 @@ pub const VirtualMachine = struct {
                         return ResultError.runtime;
                     }
 
-                    if (self.globals.get(name.repre).?.is_const) {
+                    if (self.globals.get(name).?.is_const) {
                         self.runtimeErr(
                             "Nelze změnit hodnotu konstanty '{s}'",
                             .{name.repre},
@@ -260,7 +273,7 @@ pub const VirtualMachine = struct {
                     }
 
                     self.globals.put(
-                        name.repre,
+                        name,
                         Global.initPrm(self.peek(0)),
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
@@ -270,7 +283,7 @@ pub const VirtualMachine = struct {
                 .op_def_glob_const => {
                     const name = self.readValue().obj.string();
                     self.globals.put(
-                        name.repre,
+                        name,
                         Global.initKonst(self.peek(0)),
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
@@ -280,12 +293,12 @@ pub const VirtualMachine = struct {
 
                 .op_get_loc => {
                     var slot = self.readByte();
-                    self.push(self.stack[frame.start + slot - 1]);
+                    self.push(self.stack[frame.start + slot]);
                 },
 
                 .op_set_loc => {
                     var slot = self.readByte();
-                    self.stack[frame.start + slot - 1] = self.peek(0);
+                    self.stack[frame.start + slot] = self.peek(0);
                 },
 
                 .op_jmp => {
@@ -324,7 +337,7 @@ pub const VirtualMachine = struct {
                         const is_local = self.readByte() != 0;
                         const idx = self.readByte();
 
-                        closure.elvs[i] = if (is_local) self.captureELV(&self.stack[frame.start + idx - 1]) else frame.closure.elvs[idx];
+                        closure.elvs[i] = if (is_local) self.captureELV(&self.stack[frame.start + idx]) else frame.closure.elvs[idx];
                     }
 
                     self.push(closure.obj.val());
@@ -332,7 +345,7 @@ pub const VirtualMachine = struct {
 
                 .op_get_elv => {
                     const slot = self.readByte();
-                    self.push(self.currentFrame().closure.elvs[slot].?.location.*);
+                    self.push(frame.closure.elvs[slot].?.location.*);
                 },
                 .op_set_elv => {
                     const slot = self.readByte();
@@ -345,7 +358,7 @@ pub const VirtualMachine = struct {
 
                 .op_return => {
                     const result = self.pop();
-                    self.closeELV(&self.stack[frame.start - 1]);
+                    self.closeELV(&self.stack[frame.start]);
                     self.frame_count -= 1;
 
                     if (self.frame_count == 0) {
@@ -353,9 +366,18 @@ pub const VirtualMachine = struct {
                         return;
                     }
 
-                    self.stack_count = @intCast(frame.start - 1);
+                    self.stack_count = @intCast(frame.start);
                     self.push(result);
                     frame = &self.frames[self.frame_count - 1];
+
+                    // for (0..self.stack_count) |i| {
+                    //     std.debug.print("{any}\n", .{self.stack[i]});
+                    // }
+                    // const latest = self.stack[self.stack_count - 1].obj.closure();
+                    // for (0..latest.elv_count) |i| {
+                    //     std.debug.print("{any}\n", .{latest.elvs[i].?.location});
+                    // }
+                    // std.debug.print("\n", .{ });
                 },
             };
         }
@@ -404,7 +426,7 @@ pub const VirtualMachine = struct {
         if (arg_count != closure.function.arity) {
             self.runtimeErr(
                 "Funkce '{s}' očekává počet argumentů {d}, dostala {d}",
-                .{ closure.function.name.?, closure.function.arity, arg_count },
+                .{ closure.function.name.?.repre, closure.function.arity, arg_count },
                 &.{},
             );
             return false;
@@ -419,7 +441,7 @@ pub const VirtualMachine = struct {
         self.frame_count += 1;
         frame.closure = closure;
         frame.ip = 0;
-        frame.start = self.stack_count - arg_count; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
+        frame.start = self.stack_count - arg_count - 1; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
         return true;
     }
 
@@ -428,7 +450,7 @@ pub const VirtualMachine = struct {
         self.push(str.val());
         const functionVal = (Object.Native.init(self, function)).obj.val();
         self.push(functionVal);
-        self.globals.put(str.string().repre, Global{ .is_const = true, .val = functionVal }) catch @panic("");
+        self.globals.put(str.string(), Global{ .is_const = true, .val = functionVal }) catch @panic("");
         _ = self.pop();
         _ = self.pop();
     }
@@ -461,6 +483,7 @@ pub const VirtualMachine = struct {
     inline fn closeELV(self: *Self, last: *Val) void {
         while (self.openELV) |elv| {
             if (@intFromPtr(self.openELV.?.location) < @intFromPtr(last)) break;
+            std.debug.print("asd", .{ });
             elv.closed = elv.location.*;
             elv.location = &elv.closed;
             self.openELV = elv.next;
@@ -468,13 +491,13 @@ pub const VirtualMachine = struct {
     }
 
     /// Přidání hodnoty do stacku
-    fn push(self: *Self, val: Val) void {
+    pub fn push(self: *Self, val: Val) void {
         self.stack[self.stack_count] = val;
         self.stack_count += 1;
     }
 
     /// Odstranění hodnoty ze stacku
-    fn pop(self: *Self) Val {
+    pub fn pop(self: *Self) Val {
         self.stack_count -= 1;
         return self.stack[self.stack_count];
     }
@@ -501,12 +524,16 @@ pub const VirtualMachine = struct {
 
     /// Spojení dvou stringů
     inline fn concatObj(self: *Self) void {
-        const b = self.pop();
-        const a = self.pop();
+        const b = self.peek(0).obj.string();
+        const a = self.peek(1).obj.string();
 
-        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.obj.string().repre, b.obj.string().repre }) catch @panic("");
+        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.repre, b.repre }) catch @panic("");
 
         const val = Val{ .obj = Object.String.take(self, buff) };
+
+        _ = self.pop();
+        _ = self.pop();
+
         self.push(val);
     }
 
@@ -714,7 +741,7 @@ pub const VirtualMachine = struct {
 
             const frame = self.frames[i - 1];
             const location = frame.closure.function.block.locations.items[frame.ip -| 1];
-            const name = if (frame.closure.function.name) |name| name else "skript";
+            const name = if (frame.closure.function.name) |name| name.repre else "skript";
 
             shared.stdout.print("{s} {s}{s}: na řádce {}:{}\n", .{
                 branch,
