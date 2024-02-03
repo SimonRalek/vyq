@@ -387,6 +387,11 @@ pub const VirtualMachine = struct {
         return &self.frames[self.frame_count - 1];
     }
 
+    fn arrayContainsVal(self: *Self, val: Val) bool {
+        _ = val;
+        _ = self;
+    }
+
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
         if (callee == .obj) {
             switch (callee.obj.type) {
@@ -426,7 +431,11 @@ pub const VirtualMachine = struct {
         if (arg_count != closure.function.arity) {
             self.runtimeErr(
                 "Funkce '{s}' očekává počet argumentů {d}, dostala {d}",
-                .{ closure.function.name.?.repre, closure.function.arity, arg_count },
+                .{
+                    closure.function.name.?.repre,
+                    closure.function.arity,
+                    arg_count,
+                },
                 &.{},
             );
             return false;
@@ -441,16 +450,23 @@ pub const VirtualMachine = struct {
         self.frame_count += 1;
         frame.closure = closure;
         frame.ip = 0;
-        frame.start = self.stack_count - arg_count - 1; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
+        frame.start = self.stack_count - arg_count - 1;
         return true;
     }
 
-    fn defineNative(self: *Self, name: []const u8, function: Native.NativeFn) void {
+    fn defineNative(
+        self: *Self,
+        name: []const u8,
+        function: Native.NativeFn,
+    ) void {
         const str = Object.String.copy(self, name);
         self.push(str.val());
         const functionVal = (Object.Native.init(self, function)).obj.val();
         self.push(functionVal);
-        self.globals.put(str.string(), Global{ .is_const = true, .val = functionVal }) catch @panic("");
+        self.globals.put(
+            str.string(),
+            Global{ .is_const = true, .val = functionVal },
+        ) catch @panic("");
         _ = self.pop();
         _ = self.pop();
     }
@@ -483,7 +499,7 @@ pub const VirtualMachine = struct {
     inline fn closeELV(self: *Self, last: *Val) void {
         while (self.openELV) |elv| {
             if (@intFromPtr(self.openELV.?.location) < @intFromPtr(last)) break;
-            std.debug.print("asd", .{ });
+            std.debug.print("asd", .{});
             elv.closed = elv.location.*;
             elv.location = &elv.closed;
             self.openELV = elv.next;
