@@ -146,7 +146,7 @@ body {
 
     .navbar-brand {
         position: absolute;
-        left: 50%;
+        left: 52%;
         transform: translateX(-50%);
         z-index: 2;
     }
@@ -154,7 +154,7 @@ body {
     .navbar-toggler {
         position: absolute;
         right: 0;
-        margin-right: 20px;
+        margin-right: 10px;
         z-index: 3;
     }
 

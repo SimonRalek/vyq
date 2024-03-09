@@ -12824,6 +12824,11 @@ body {
   background-color: transparent;
 }
 
+  #mainNav.navbar-shrink {
+    background-color: #fff;
+    border-bottom: 1px solid #e8e8e8;
+  }
+
 @media (min-width: 992px) {
   #mainNav {
     padding-top: 0;
@@ -12859,11 +12864,6 @@ body {
 
   #mainNav .nav-link:active {
     color: #000;
-  }
-
-  #mainNav.navbar-shrink {
-    background-color: #fff;
-    border-bottom: 1px solid #e8e8e8;
   }
 
   #mainNav.navbar-shrink .navbar-brand {
