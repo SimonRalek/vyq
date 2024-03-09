@@ -75,17 +75,52 @@ pub const Val = union(enum) {
             .number => |val| blk: {
                 const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
 
-                var buff = try allocator.alloc(u8, number.len);
+                const buff = try allocator.alloc(u8, number.len);
                 _ = std.mem.replace(u8, number, ".", ",", buff);
                 allocator.free(number);
                 break :blk buff;
             },
             .nic => "nic",
             .boolean => |val| if (val) "ano" else "ne",
-            else => unreachable, // TODO?
+            .obj => blk: {
+                switch (self.obj.type) {
+                    .string => break :blk self.obj.string().repre,
+                    .function => break :blk self.obj.function().name.?.repre,
+                    .closure => break :blk self.obj.closure().function.name.?.repre,
+                    .native => break :blk self.obj.native().name,
+                    else => unreachable,
+                }
+            },
         };
     }
+
+    /// Je hodnota textový řetězec
+    pub fn isString(self: Self) bool {
+        return self == .obj and self.obj.type == .string;
+    }
+
+    /// Je hodnota funkce
+    pub fn isFunction(self: Self) bool {
+        return self == .obj and self.obj.type == .function;
+    }
+
+    /// Je hodnota 'Closure'
+    pub fn isClosure(self: Self) bool {
+        return self == .obj and self.obj.type == .closure;
+    }
+
+    /// Je hodnota externé lokální proměnná
+    pub fn isELV(self: Self) bool {
+        return self == .obj and self.obj.type == .elv;
+    }
+
+    /// Je hodnota nativní funkce
+    pub fn isNative(self: Self) bool {
+        return self == .obj and self.obj.type == .native;
+    }
 };
+
+pub const FunctionType = enum { function, script };
 
 const DeinitFn = *const fn (*Object, *VM) void;
 
@@ -103,6 +138,7 @@ pub const Object = struct {
     next: ?*Object = null,
     is_marked: bool = false,
 
+    /// Alokace nového objektu
     pub fn alloc(
         vm: *VM,
         comptime T: type,
@@ -129,10 +165,10 @@ pub const Object = struct {
             .string => {
                 var arrlist = std.ArrayList(u8).init(allocator);
                 defer arrlist.deinit();
-                var writer = arrlist.writer();
+                const writer = arrlist.writer();
                 try Formatter.escapeFmt(self.string().repre).format(writer);
 
-                var formatted = try arrlist.toOwnedSlice();
+                const formatted = try arrlist.toOwnedSlice();
                 defer allocator.free(formatted);
                 try shared.stdout.print("{s}", .{formatted});
             },
@@ -170,23 +206,27 @@ pub const Object = struct {
         return Val{ .obj = self };
     }
 
-    /// Převedení objektu na string s tím spojený
+    /// Převedení objektu na řetězec s tím spojený
     pub fn string(self: *Object) *String {
         return @fieldParentPtr(String, "obj", self);
     }
 
+    /// Převedení objektu na funkci s tím spojenou
     pub fn function(self: *Object) *Function {
         return @fieldParentPtr(Function, "obj", self);
     }
 
+    /// Převedení objektu na 'closure' s tím spojený
     pub fn closure(self: *Object) *Closure {
         return @fieldParentPtr(Closure, "obj", self);
     }
 
+    /// Převedení objektu na 'Externí Lokální Proměnou' s tím spojenou
     pub fn elv(self: *Object) *ELV {
         return @fieldParentPtr(ELV, "obj", self);
     }
 
+    /// Převedení objektu na nativní funkci s tím spojenou
     pub fn native(self: *Object) *Native {
         return @fieldParentPtr(Native, "obj", self);
     }
@@ -252,6 +292,7 @@ pub const Object = struct {
         type: FunctionType,
         elv_count: u9 = 0,
 
+        /// Nová funkce
         pub fn init(vm: *VM, func_type: FunctionType) *Function {
             const func = Object.alloc(vm, Function, .function);
             func.name = null;
@@ -263,6 +304,7 @@ pub const Object = struct {
             return func;
         }
 
+        /// Deinicializace funkce
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Function, "obj", object);
             self.block.deinit();
@@ -276,6 +318,7 @@ pub const Object = struct {
         elvs: []?*ELV,
         elv_count: u9,
 
+        /// Nové 'Closure'
         pub fn init(vm: *VM, func: *Function) *Closure {
             const elvs = vm.allocator.alloc(?*ELV, func.elv_count) catch @panic("");
 
@@ -288,6 +331,7 @@ pub const Object = struct {
             return obj;
         }
 
+        /// Deinicializace 'Closure'
         pub fn deinit(obj: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Closure, "obj", obj);
             vm.allocator.free(self.elvs);
@@ -301,6 +345,7 @@ pub const Object = struct {
         closed: Val,
         next: ?*ELV,
 
+        /// Nová Externí Lokální Proměnná
         pub fn init(vm: *VM, slot: *Val) *ELV {
             const obj = Object.alloc(vm, ELV, .elv);
             obj.location = slot;
@@ -309,6 +354,7 @@ pub const Object = struct {
             return obj;
         }
 
+        /// Deinicializace Externí Lokální Proměnné
         pub fn deinit(obj: *Object, vm: *VM) void {
             const self = @fieldParentPtr(ELV, "obj", obj);
             vm.allocator.destroy(self);
@@ -317,21 +363,23 @@ pub const Object = struct {
 
     pub const Native = struct {
         obj: Object,
+        name: []const u8,
         function: NativeFn,
 
         pub const NativeFn = *const fn (vm: *VM, args: []Val) ?Val;
 
-        pub fn init(vm: *VM, func: NativeFn) *Native {
+        /// Nová nativní funkce
+        pub fn init(vm: *VM, func: NativeFn, name: []const u8) *Native {
             const obj = Object.alloc(vm, Native, .native);
             obj.function = func;
+            obj.name = name;
             return obj;
         }
 
+        /// Deinicializace nativní funkce
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Native, "obj", object);
             vm.allocator.destroy(self);
         }
     };
 };
-
-pub const FunctionType = enum { function, script };

@@ -16,8 +16,15 @@ file: []const u8 = undefined,
 source: []const u8 = undefined,
 nocolor: bool = false,
 
+/// Init reporteru
 pub fn init(allocator: Allocator) Reporter {
     return .{ .allocator = allocator };
+}
+
+/// Resetování hodnot
+pub fn reset(self: *Reporter) void {
+    self.had_error = false;
+    self.panic_mode = false;
 }
 
 pub const Kind = enum {
@@ -27,6 +34,7 @@ pub const Kind = enum {
     warn,
     hint,
 
+    /// Získat jméno
     pub fn name(self: Self) []const u8 {
         return switch (self) {
             .err => "Chyba",
@@ -35,6 +43,7 @@ pub const Kind = enum {
         };
     }
 
+    /// Získat barvu
     pub fn getColor(self: Self) Color {
         return switch (self) {
             .err => .red,
@@ -44,12 +53,14 @@ pub const Kind = enum {
     }
 };
 
+/// Položka zprávy
 pub const Item = struct {
     token: ?*Token = null,
     kind: Kind = .err,
     message: []const u8,
 };
 
+/// Poznámka (u runtime)
 pub const Note = struct {
     message: []const u8,
     kind: Kind = .hint,
@@ -93,11 +104,11 @@ pub const Report = struct {
         _ = loc;
         try shared.stdout.print("\"{s}\"\n", .{self.item.message});
 
-        // TODO callstack
         try self.printNotes();
         // try self.getSource(loc);
     }
 
+    // TODO
     fn getSource(self: *Self, loc: Location) !void {
         var it = std.mem.splitSequence(u8, self.reporter.source, "\n");
 
@@ -170,6 +181,24 @@ pub const Report = struct {
             else => unreachable,
         }
     }
+
+    /// Report obecné chyby bez lokace
+    fn reportGeneral(self: *Self) !void {
+        try shared.stdout.print("{s} ", .{
+            self.reporter.file,
+        });
+        var stdout = std.io.getStdOut();
+        var config = std.io.tty.detectConfig(stdout);
+        if (!self.reporter.nocolor)
+            try config.setColor(stdout, self.item.kind.getColor());
+        try stdout.writer().print("{s}: ", .{
+            self.item.kind.name(),
+        });
+        if (!self.reporter.nocolor)
+            try config.setColor(stdout, .reset);
+
+        try shared.stdout.print("{s}\n", .{self.item.message});
+    }
 };
 
 /// Report při parsování
@@ -195,6 +224,23 @@ pub fn report(
     rep.report(token.location) catch @panic("Nepodařilo se hodnotu vypsat");
 }
 
+/// Report z emitteru
+pub fn reportCompile(self: *Reporter, message: []const u8) void {
+    if (self.had_error) return;
+
+    var rep = Report{
+        .reporter = self,
+        .type = ResultError.compile,
+        .item = .{ .message = message },
+        .notes = &.{},
+    };
+
+    rep.reportGeneral() catch {};
+
+    self.panic_mode = true;
+    self.had_error = true;
+}
+
 /// Report při běhu programu
 pub fn reportRuntime(self: *Reporter, message: []const u8, notes: []const Note, loc: Location) void {
     var rep = Report{
@@ -217,7 +263,7 @@ pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
     rep.report(token.location) catch {};
 }
 
-///
+/// Errory v main.zig
 pub fn printErr(
     comptime message: []const u8,
     args: anytype,

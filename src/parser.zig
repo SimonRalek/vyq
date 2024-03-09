@@ -19,6 +19,7 @@ const FunctionType = _val.FunctionType;
 const _storage = @import("storage.zig");
 const Local = _storage.Local;
 
+// Přednost
 const Precedence = enum(u8) {
     none,
     assignment,
@@ -54,6 +55,7 @@ pub const Parser = struct {
     vm: *VM = undefined,
     reporter: *Reporter,
 
+    /// Init parseru
     pub fn init(
         allocator: Allocator,
         emitter: *Emitter,
@@ -70,12 +72,13 @@ pub const Parser = struct {
         };
     }
 
+    /// Vyskočení z aktuálního emitteru a debug
     pub fn deinit(self: *Self) *Object.Function {
         self.emitReturn();
 
         const function = self.emitter.function;
         if (!self.reporter.had_error and debug.debugging) {
-            debug.disBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
+            debug.disassembleBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
         }
 
         if (self.emitter.wrapped) |emitter| {
@@ -85,6 +88,7 @@ pub const Parser = struct {
         return function;
     }
 
+    /// Parsovat hlavní funkce
     pub fn parse(self: *Self, source: []const u8) void {
         self.scanner = Scanner.init(source);
         self.advance();
@@ -94,6 +98,7 @@ pub const Parser = struct {
         }
     }
 
+    /// Další token
     fn advance(self: *Self) void {
         self.previous = self.current;
 
@@ -105,6 +110,7 @@ pub const Parser = struct {
         }
     }
 
+    /// 'Sníst' aktuální token pokud je očekáván
     fn eat(self: *Self, expected: _token.Type, message: []const u8) void {
         if (self.check(expected)) {
             self.advance();
@@ -114,6 +120,7 @@ pub const Parser = struct {
         self.report(&self.current, message);
     }
 
+    /// Vrací jestli je token očekávaného typu, jestli jo přejde na další token
     fn match(self: *Self, expected: _token.Type) bool {
         const result = self.check(expected);
         defer {
@@ -121,32 +128,33 @@ pub const Parser = struct {
         }
         return result;
     }
-    //
-    // fn getCurrent(self: *Self) _token.Type {
-    //     defer self.advance();
-    //     return self.current.type;
-    // }
 
+    /// Vrací jestli je token očekávaného typu
     fn check(self: *Self, expected: _token.Type) bool {
         return expected == self.current.type;
     }
 
+    /// Aktuální blok
     fn currentBlock(self: *Self) *Block {
         return self.emitter.currentBlock();
     }
 
+    /// Zapsat instrukci do bloku přes opcode
     fn emitOpCode(self: *Self, op_code: Block.OpCode) void {
         self.emitter.emitOpCode(op_code, self.previous.location);
     }
 
+    /// Zapsat hodnotu do bloku
     fn emitVal(self: *Self, val: Val) void {
         self.emitter.emitValue(val, self.previous.location);
     }
 
+    /// Zapsat byte do bloku
     fn emitByte(self: *Self, byte: u8) void {
         self.emitter.emitByte(byte, self.previous.location);
     }
 
+    /// Zapsat a připravit instrukci na přeskočení
     fn emitJmp(self: *Self, op: Block.OpCode) usize {
         self.emitOpCode(op);
         self.emitByte(0xff);
@@ -154,12 +162,9 @@ pub const Parser = struct {
         return self.currentBlock().code.items.len - 2;
     }
 
+    /// Zapsat instrukci pro skok do zadu
     fn emitLoop(self: *Self, start: usize) void {
-        self.emitJmpBack(.op_loop, start);
-    }
-
-    fn emitJmpBack(self: *Self, jump: Block.OpCode, start: usize) void {
-        self.emitOpCode(jump);
+        self.emitOpCode(.op_loop);
 
         const idx = self.currentBlock().code.items.len - start + 2;
         if (idx > std.math.maxInt(u16)) self.report(&self.current, "Přeskočení řádků může být maximálně o 65535 míst");
@@ -168,11 +173,13 @@ pub const Parser = struct {
         self.emitByte(@intCast(idx & 0xff));
     }
 
+    /// Zapsat instrukci pro vrácení hodnoty
     fn emitReturn(self: *Self) void {
         self.emitOpCode(.op_nic);
         self.emitOpCode(.op_return);
     }
 
+    /// Nastavit o kolik má skok být
     fn patchJmp(self: *Self, idx: usize) void {
         const jmp = self.currentBlock().code.items.len - idx - 2;
 
@@ -184,18 +191,22 @@ pub const Parser = struct {
         self.currentBlock().code.items[idx + 1] = @intCast(jmp & 0xff);
     }
 
+    /// Přidání hodnoty do bloku
     fn makeVal(self: *Self, val: Val) u8 {
-        return self.emitter.makeValue(val);
+        return self.emitter.createVal(val);
     }
 
+    /// Nahlásit chybu
     fn report(self: *Self, token: *Token, message: []const u8) void {
         self.reporter.report(ResultError.parser, token, message);
     }
 
+    /// Varovat
     fn warn(self: *Self, token: *Token, message: []const u8) void {
         self.reporter.warn(token, message);
     }
 
+    /// Parsování deklarace
     fn declaration(self: *Self) void {
         if (self.match(.prm) or self.match(.konst)) {
             self.variableDeclaration() catch {};
@@ -208,6 +219,7 @@ pub const Parser = struct {
         if (self.reporter.panic_mode) self.synchronize();
     }
 
+    /// Parsování výrazu
     fn expression(self: *Self) void {
         self.parsePrecedence(.assignment);
         if (self.match(.question_mark)) {
@@ -215,20 +227,25 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování ternárního operátoru
     fn ternaryOperator(self: *Self) void {
         const jmp = self.emitJmp(.op_jmp_on_false);
         self.emitOpCode(.op_pop);
+
         self.expression();
+
         if (!self.match(.colon)) {
             self.report(&self.current, "Chybí ':' v ternárním operátoru");
         }
         const thenJmp = self.emitJmp(.op_jmp);
         self.patchJmp(jmp);
         self.emitOpCode(.op_pop);
+
         self.expression();
         self.patchJmp(thenJmp);
     }
 
+    /// Parsování statementu
     fn statement(self: *Self) void {
         if (self.match(.tiskni) or self.match(.tiskniN)) {
             self.printStmt();
@@ -251,6 +268,7 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování bloku {}
     fn block(self: *Self) void {
         while (!self.check(.right_brace) and !self.check(.eof)) {
             self.declaration();
@@ -259,14 +277,16 @@ pub const Parser = struct {
         self.eat(.right_brace, "Očekávaná '}' na konci bloku");
     }
 
+    /// Začít scope
     fn beginScope(self: *Self) void {
         self.emitter.scope_depth += 1;
     }
 
+    /// Ukončit scope
     fn endScope(self: *Self) void {
         self.emitter.scope_depth -= 1;
 
-        var locals = &self.emitter.locals;
+        const locals = &self.emitter.locals;
         while (locals.items.len > 0 and locals.items[locals.items.len - 1].depth > self.emitter.scope_depth) {
             if (locals.items[locals.items.len - 1].is_captured) {
                 self.emitOpCode(.op_close_elv);
@@ -277,8 +297,9 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování deklarace proměnné
     fn variableDeclaration(self: *Self) !void {
-        var is_const = self.previous.type == .konst;
+        const is_const = self.previous.type == .konst;
 
         const glob = try self.parseVar("Očekávané jméno prvku po 'prm'");
 
@@ -296,6 +317,7 @@ pub const Parser = struct {
         self.defineVar(glob, is_const);
     }
 
+    /// Instrukce pro zápis proměnné či konstanty
     fn defineVar(self: *Self, glob: u8, is_const: bool) void {
         if (self.emitter.scope_depth > 0) {
             self.markInit();
@@ -309,6 +331,7 @@ pub const Parser = struct {
         );
     }
 
+    /// Označ poslední lokální proměnnou jako inicializovanou
     fn markInit(self: *Self) void {
         if (self.emitter.scope_depth == 0) return;
         var locals = &self.emitter.locals;
@@ -316,10 +339,11 @@ pub const Parser = struct {
         locals.items[locals.items.len - 1].depth = self.emitter.scope_depth;
     }
 
+    /// Přidání proměnné do emitteru locals, varování při výskytu stejné proměnné
     fn declareVar(self: *Self, is_const: bool) void {
         if (self.emitter.scope_depth == 0) return;
 
-        var name = &self.previous;
+        const name = &self.previous;
 
         var i: usize = 0;
         const locals = &self.emitter.locals;
@@ -339,7 +363,7 @@ pub const Parser = struct {
     }
 
     fn parseVar(self: *Self, message: []const u8) ResultError!u8 {
-        var is_const = self.previous.type == .konst;
+        const is_const = self.previous.type == .konst;
 
         if (self.match(.dot)) {
             self.report(&self.current, "Pro jméno prvku nelze použít '.'");
@@ -355,12 +379,14 @@ pub const Parser = struct {
         );
     }
 
+    /// Parsování přístupu k hodnotě
     fn variable(self: *Self, assignable: bool) !void {
         self.advance();
         const token = &self.previous;
         try self.namedVar(token, assignable);
     }
 
+    /// Získání hodnoty a nebo jí nastavení
     fn namedVar(self: *Self, token: *Token, assignable: bool) !void {
         var get_op: Block.OpCode = undefined;
         var set_op: Block.OpCode = undefined;
@@ -440,8 +466,9 @@ pub const Parser = struct {
         }
     }
 
+    /// Získání indexu lokální proměnné a informace zda je konstantní
     fn resolveLocal(self: *Self, emitter: *Emitter, token: *Token) struct { ?usize, bool } {
-        var locals = &emitter.locals;
+        const locals = &emitter.locals;
         var i: usize = 0;
 
         while (i < locals.items.len) : (i += 1) {
@@ -451,7 +478,7 @@ pub const Parser = struct {
                     &self.previous,
                     "Proměnná nelze přiřadit sama sobě",
                 );
-                var result: usize = locals.items.len - 1 - i;
+                const result: usize = locals.items.len - 1 - i;
                 return .{ result, local.is_const };
             }
         }
@@ -459,6 +486,7 @@ pub const Parser = struct {
         return .{ null, false };
     }
 
+    /// Rekurzivně hledá v emitterech locals externí lokální proměnnou
     fn resolveELV(self: *Self, emitter: *Emitter, token: *Token) ?usize {
         if (emitter.wrapped == null) return null;
 
@@ -476,6 +504,7 @@ pub const Parser = struct {
         return null;
     }
 
+    /// Přidání externí lokální proměnné do emitteru
     fn addELV(self: *Self, emitter: *Emitter, idx: u8, is_local: bool) usize {
         const count = emitter.function.elv_count;
 
@@ -500,6 +529,7 @@ pub const Parser = struct {
         return emitter.function.elv_count;
     }
 
+    /// Přidání lokální do emitteru locals
     fn addLocal(self: *Self, name: []const u8, is_const: bool) void {
         if (self.emitter.locals.items.len == 256) {
             self.report(&self.current, "Příliš mnoho proměnných");
@@ -513,6 +543,7 @@ pub const Parser = struct {
         };
     }
 
+    /// Parsování deklarace funkce
     fn functionDeclaration(self: *Self) void {
         const glob = self.parseVar("Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.") catch return;
         self.markInit();
@@ -520,6 +551,7 @@ pub const Parser = struct {
         self.defineVar(glob, false);
     }
 
+    /// Parsování jména, parametrů funkce a emit 'Closure'
     fn parseFunction(self: *Self, func_type: FunctionType) void {
         var emitter = Emitter.init(self.vm, func_type, self.emitter);
         defer emitter.deinit();
@@ -547,7 +579,7 @@ pub const Parser = struct {
         self.block();
 
         const func = self.deinit();
-        self.emitter.emitOpCodes(.op_closure, self.emitter.makeValue(func.obj.val()), self.previous.location);
+        self.emitter.emitOpCodes(.op_closure, self.emitter.createVal(func.obj.val()), self.previous.location);
 
         for (0..func.elv_count) |i| {
             const elv = emitter.elvs[i];
@@ -556,12 +588,14 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování volání hodnoty
     fn call(self: *Self, assignable: bool) !void {
         _ = assignable;
         const arg_count = self.argumentList();
         self.emitter.emitOpCodes(.op_call, arg_count, self.current.location);
     }
 
+    /// Parsování argumentů
     fn argumentList(self: *Self) u8 {
         var arg_count: u8 = 0;
 
@@ -580,13 +614,15 @@ pub const Parser = struct {
         return arg_count;
     }
 
+    /// Parsování 'tiskni'
     fn printStmt(self: *Self) void {
-        var token = self.previous;
+        const token = self.previous;
         self.expression();
         self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(if (token.type == .tiskni) .op_println else .op_print);
     }
 
+    /// Parsování 'pokud'
     fn ifStmt(self: *Self) void {
         self.expression();
         self.eat(.colon, "Očekávaná ':' za podmínkou");
@@ -603,61 +639,12 @@ pub const Parser = struct {
         self.patchJmp(else_jmp);
     }
 
+    /// Parsování 'opakuj'
     fn forStmt(self: *Self) void {
         self.beginScope();
 
         if (self.match(.jako)) {
-            var prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
-                return;
-            };
-
-            var token = self.previous;
-            self.expression();
-            self.defineVar(prm, false);
-
-            var directionUp = true;
-            if (!self.match(.until)) {
-                directionUp = false;
-                self.eat(.dolu, "Očekává se specifikace směru iterace, '..' nebo 'dolu'");
-            }
-
-            var start = self.currentBlock().code.items.len;
-            self.namedVar(&token, false) catch {
-                return;
-            };
-            self.expression();
-            self.emitOpCode(if (directionUp) .op_less else .op_greater);
-            const exitJmp = self.emitJmp(.op_jmp_on_false);
-            self.emitOpCode(.op_pop);
-
-            const jmp = self.emitJmp(.op_jmp);
-            const varStart = self.currentBlock().code.items.len;
-            if (!self.check(.colon)) {
-                self.eat(.po, "Očekává se ukončení bloku opakování");
-                self.namedVar(&token, false) catch {
-                    return;
-                };
-                self.expression();
-            } else {
-                self.namedVar(&token, false) catch {
-                    return;
-                };
-                self.emitVal(Val{ .number = 1 });
-            }
-            self.emitOpCode(if (directionUp) .op_add else .op_sub);
-            var resolve = self.resolveLocal(self.emitter, &token);
-            self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0].?), self.previous.location);
-            self.emitOpCode(.op_pop);
-
-            self.emitLoop(start);
-            start = varStart;
-            self.patchJmp(jmp);
-            self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
-
-            self.statement();
-            self.emitLoop(start);
-            self.patchJmp(exitJmp);
-            self.emitOpCode(.op_pop);
+            self.parseEnhancedFor();
         } else {
             if (self.match(.semicolon)) {
                 // nic nedělej
@@ -701,6 +688,62 @@ pub const Parser = struct {
         self.endScope();
     }
 
+    /// Parsování vylepšeného 'opakuj'
+    fn parseEnhancedFor(self: *Self) void {
+        const prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
+            return;
+        };
+
+        var token = self.previous;
+        self.expression();
+        self.defineVar(prm, false);
+
+        var directionUp = true;
+        if (!self.match(.until)) {
+            directionUp = false;
+            self.eat(.dolu, "Očekává se specifikace směru iterace, '..' nebo 'dolu'");
+        }
+
+        var start = self.currentBlock().code.items.len;
+        self.namedVar(&token, false) catch {
+            return;
+        };
+        self.expression();
+        self.emitOpCode(if (directionUp) .op_less else .op_greater);
+        const exitJmp = self.emitJmp(.op_jmp_on_false);
+        self.emitOpCode(.op_pop);
+
+        const jmp = self.emitJmp(.op_jmp);
+        const varStart = self.currentBlock().code.items.len;
+        if (!self.check(.colon)) {
+            self.eat(.po, "Očekává se ukončení bloku opakování");
+            self.namedVar(&token, false) catch {
+                return;
+            };
+            self.expression();
+        } else {
+            self.namedVar(&token, false) catch {
+                return;
+            };
+            self.emitVal(Val{ .number = 1 });
+        }
+        self.emitOpCode(if (directionUp) .op_add else .op_sub);
+        const resolve = self.resolveLocal(self.emitter, &token);
+        self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0].?), self.previous.location);
+        self.emitOpCode(.op_pop);
+
+        self.emitLoop(start);
+        start = varStart;
+        self.patchJmp(jmp);
+        self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
+
+        self.statement();
+        self.emitLoop(start);
+        self.patchJmp(exitJmp);
+        self.emitOpCode(.op_pop);
+    }
+
+    /// Parsování 'dokud'
     fn whileStmt(self: *Self) void {
         const start = self.currentBlock().code.items.len;
 
@@ -716,6 +759,7 @@ pub const Parser = struct {
         self.emitOpCode(.op_pop);
     }
 
+    /// Parsování 'vyber'
     fn switchStmt(self: *Self) void {
         self.expression();
         self.eat(.colon, "Očekávaná ':' za hodnotou pro přepínání");
@@ -778,6 +822,7 @@ pub const Parser = struct {
         self.emitOpCode(.op_pop);
     }
 
+    /// Parsování 'vrat'
     fn returnStmt(self: *Self) void {
         if (self.emitter.function.type == .script) {
             self.report(&self.current, "Nelze vrátit hodnotu z hlavního scriptu");
@@ -792,12 +837,14 @@ pub const Parser = struct {
         }
     }
 
+    /// Výraz v statementu
     fn exprStmt(self: *Self) void {
         self.expression();
         self.eat(.semicolon, "Chybí ';' za příkazem");
         self.emitOpCode(.op_pop);
     }
 
+    /// Dokud nenarazí na jedno z klíčových slov nehlaš víc chyb
     fn synchronize(self: *Self) void {
         self.reporter.panic_mode = false;
 
@@ -811,6 +858,7 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování 'zaroven'
     fn zaroven(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -822,6 +870,7 @@ pub const Parser = struct {
         self.patchJmp(jmp);
     }
 
+    /// Parsování 'nebo'
     fn nebo(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -833,6 +882,7 @@ pub const Parser = struct {
         self.patchJmp(jmp);
     }
 
+    /// Parsování uskupení ()
     fn group(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -840,6 +890,7 @@ pub const Parser = struct {
         self.eat(.right_paren, "Očekávaná ')' nebyla nalezena");
     }
 
+    /// Parsování '-', '!'
     fn unary(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -857,6 +908,7 @@ pub const Parser = struct {
         }
     }
 
+    /// Matematické operace, logické operace a bitové operace
     fn binary(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -920,10 +972,11 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování čísla
     fn number(self: *Self, assignable: bool) !void {
         _ = assignable;
 
-        var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
+        const buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
@@ -935,6 +988,7 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování číselných soustav mimo desítkovou
     fn base(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -944,16 +998,7 @@ pub const Parser = struct {
         self.emitVal(Val{ .number = @floatFromInt(val) });
     }
 
-    fn crement(self: *Self, assignable: bool) !void {
-        _ = assignable;
-
-        switch (self.previous.type) {
-            .increment => self.emitOpCode(.op_increment),
-            .decrement => self.emitOpCode(.op_decrement),
-            else => unreachable,
-        }
-    }
-
+    /// Parsování textové řetězce
     fn string(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -961,6 +1006,7 @@ pub const Parser = struct {
         self.emitVal(Object.String.copy(self.vm, source).val());
     }
 
+    /// Parsování ano, ne, nic
     fn literal(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -972,6 +1018,7 @@ pub const Parser = struct {
         }
     }
 
+    /// Parsování přednosti - implementace Pratt Parseru
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
         const prefix = getRule(self.previous.type).prefix orelse {
@@ -992,15 +1039,15 @@ pub const Parser = struct {
         }
     }
 
+    /// Jestli je token operátor přířazení
     fn isAdditionalOperator(self: *Self) bool {
         return self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator);
     }
 
+    /// Pravidla parsování
     fn getRule(t_type: _token.Type) ParseRule {
         return switch (t_type) {
             .left_paren => .{ .prefix = Parser.group, .infix = Parser.call, .precedence = .call },
-
-            .increment, .decrement => .{ .infix = Parser.crement },
 
             .number => .{ .prefix = Parser.number },
             .binary, .octal, .hexadecimal => .{ .prefix = Parser.base },
@@ -1033,8 +1080,9 @@ pub const Parser = struct {
     }
 };
 
+/// Funkce na testování
 fn testParser(source: []const u8, expected: f64) !void {
-    var allocator = std.testing.allocator;
+    const allocator = std.testing.allocator;
     var reporter = Reporter.init(allocator);
     var vm = VM.init(allocator, &reporter);
     try vm.interpret(source);

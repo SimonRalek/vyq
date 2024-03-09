@@ -132,7 +132,7 @@ pub const VirtualMachine = struct {
 
             try switch (instruction) {
                 .op_value => {
-                    var value = self.readValue();
+                    const value = self.readValue();
                     self.push(value);
                 },
                 .op_ano => self.push(Val{ .boolean = true }),
@@ -144,40 +144,40 @@ pub const VirtualMachine = struct {
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
 
-                .op_increment => {
-                    var a = self.pop();
-
-                    if (a != .number) {
-                        self.runtimeErr(
-                            "Nelze inkrementovat nečíselné hodnoty",
-                            .{},
-                            &.{},
-                        );
-                        return ResultError.runtime;
-                    }
-
-                    self.push(Val{ .number = a.number + 1 });
-                },
-                .op_decrement => {
-                    var a = self.pop();
-
-                    if (a != .number) {
-                        self.runtimeErr(
-                            "Nelze dekrementovat nečíselné hodnoty",
-                            .{},
-                            &.{},
-                        );
-                        return ResultError.runtime;
-                    }
-
-                    self.push(Val{ .number = a.number - 1 });
-                },
+                // .op_increment => {
+                //     const a = self.pop();
+                //
+                //     if (a != .number) {
+                //         self.runtimeErr(
+                //             "Nelze inkrementovat nečíselné hodnoty",
+                //             .{},
+                //             &.{},
+                //         );
+                //         return ResultError.runtime;
+                //     }
+                //
+                //     self.push(Val{ .number = a.number + 1 });
+                // },
+                // .op_decrement => {
+                //     const a = self.pop();
+                //
+                //     if (a != .number) {
+                //         self.runtimeErr(
+                //             "Nelze dekrementovat nečíselné hodnoty",
+                //             .{},
+                //             &.{},
+                //         );
+                //         return ResultError.runtime;
+                //     }
+                //
+                //     self.push(Val{ .number = a.number - 1 });
+                // },
 
                 .op_greater => self.binary(.greater),
                 .op_less => self.binary(.less),
                 .op_equal => {
-                    var a = self.pop();
-                    var b = self.pop();
+                    const a = self.pop();
+                    const b = self.pop();
 
                     self.push(Val{ .boolean = Val.isEqual(a, b) });
                 },
@@ -219,7 +219,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_pop => _ = self.pop(),
                 .op_popn => {
-                    var n = self.readByte();
+                    const n = self.readByte();
                     var i: usize = 0;
 
                     while (i < n) : (i += 1) {
@@ -292,12 +292,12 @@ pub const VirtualMachine = struct {
                 },
 
                 .op_get_loc => {
-                    var slot = self.readByte();
+                    const slot = self.readByte();
                     self.push(self.stack[frame.start + slot]);
                 },
 
                 .op_set_loc => {
-                    var slot = self.readByte();
+                    const slot = self.readByte();
                     self.stack[frame.start + slot] = self.peek(0);
                 },
 
@@ -342,7 +342,6 @@ pub const VirtualMachine = struct {
 
                     self.push(closure.obj.val());
                 },
-
                 .op_get_elv => {
                     const slot = self.readByte();
                     self.push(frame.closure.elvs[slot].?.location.*);
@@ -369,24 +368,17 @@ pub const VirtualMachine = struct {
                     self.stack_count = @intCast(frame.start);
                     self.push(result);
                     frame = &self.frames[self.frame_count - 1];
-
-                    // for (0..self.stack_count) |i| {
-                    //     std.debug.print("{any}\n", .{self.stack[i]});
-                    // }
-                    // const latest = self.stack[self.stack_count - 1].obj.closure();
-                    // for (0..latest.elv_count) |i| {
-                    //     std.debug.print("{any}\n", .{latest.elvs[i].?.location});
-                    // }
-                    // std.debug.print("\n", .{ });
                 },
             };
         }
     }
 
+    /// Aktuální Call Frame
     inline fn currentFrame(self: *Self) *CallFrame {
         return &self.frames[self.frame_count - 1];
     }
 
+    /// Zkusit zavolat hodnotu
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
         if (callee == .obj) {
             switch (callee.obj.type) {
@@ -422,6 +414,7 @@ pub const VirtualMachine = struct {
         return false;
     }
 
+    /// Zavolat funkci
     fn call(self: *Self, closure: *Closure, arg_count: u8) bool {
         if (arg_count != closure.function.arity) {
             self.runtimeErr(
@@ -445,16 +438,18 @@ pub const VirtualMachine = struct {
         return true;
     }
 
+    /// Definice nativní funkce
     fn defineNative(self: *Self, name: []const u8, function: Native.NativeFn) void {
         const str = Object.String.copy(self, name);
         self.push(str.val());
-        const functionVal = (Object.Native.init(self, function)).obj.val();
+        const functionVal = (Object.Native.init(self, function, name)).obj.val();
         self.push(functionVal);
         self.globals.put(str.string(), Global{ .is_const = true, .val = functionVal }) catch @panic("");
         _ = self.pop();
         _ = self.pop();
     }
 
+    /// Zachytit Externí Lokální Proměnnou
     fn captureELV(self: *Self, local: *Val) *Object.ELV {
         var prev: ?*Object.ELV = null;
         var elv = self.openELV;
@@ -480,10 +475,10 @@ pub const VirtualMachine = struct {
         return created;
     }
 
+    /// 'Uzavřít' Externí Lokální Proměnnou
     inline fn closeELV(self: *Self, last: *Val) void {
         while (self.openELV) |elv| {
             if (@intFromPtr(self.openELV.?.location) < @intFromPtr(last)) break;
-            std.debug.print("asd", .{ });
             elv.closed = elv.location.*;
             elv.location = &elv.closed;
             self.openELV = elv.next;
@@ -523,7 +518,7 @@ pub const VirtualMachine = struct {
     }
 
     /// Spojení dvou stringů
-    inline fn concatObj(self: *Self) void {
+    inline fn concatStrings(self: *Self) void {
         const b = self.peek(0).obj.string();
         const a = self.peek(1).obj.string();
 
@@ -588,8 +583,8 @@ pub const VirtualMachine = struct {
             const a = self.pop().number;
 
             self.push(Val{ .number = a + b });
-        } else if (first == .obj and second == .obj) { // TODO
-            self.concatObj();
+        } else if (first.isString() and second.isString()) {
+            self.concatStrings();
         } else if (first == .obj or second == .obj) {
             self.concatWithString();
         } else {
@@ -706,9 +701,10 @@ pub const VirtualMachine = struct {
         return func.block.values.items[self.readByte()];
     }
 
+    /// Spojit dva další byty do 2 bytové hodnoty
     inline fn read16Bit(self: *Self) u16 {
         var frame = self.currentFrame();
-        var items = frame.closure.function.block.code.items;
+        const items = frame.closure.function.block.code.items;
         frame.ip += 2;
         return (@as(u16, items[frame.ip - 2]) << 8 | items[frame.ip - 1]);
     }
@@ -727,7 +723,7 @@ pub const VirtualMachine = struct {
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
 
-        var stdout = std.io.getStdOut();
+        const stdout = std.io.getStdOut();
         const config = std.io.tty.detectConfig(stdout);
         config.setColor(stdout, .dim) catch {};
         var i = self.frame_count;

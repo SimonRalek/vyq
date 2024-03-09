@@ -12,6 +12,7 @@ const locList = ArrayList(Location);
 pub const Block = struct {
     const Self = @This();
 
+    // op code na bytecode
     pub const OpCode = enum(u8) {
         op_value,
         op_ano,
@@ -32,8 +33,8 @@ pub const Block = struct {
         op_sub,
         op_mult,
         op_div,
-        op_increment,
-        op_decrement,
+        // op_increment,
+        // op_decrement,
         op_return,
         op_print,
         op_println,
@@ -86,5 +87,12 @@ pub const Block = struct {
     pub fn writeOpByte(self: *Block, byte: u8, loc: Location) void {
         self.code.append(byte) catch @panic("Alokace selhala");
         self.locations.append(loc) catch @panic("Alokace selhala");
+    }
+
+    /// Přidat hodnotu do bloku
+    pub fn addVal(self: *Self, value: Val) u9 {
+        const idx: u9 = @intCast(self.values.items.len);
+        self.values.append(value) catch @panic("Alokace selhala");
+        return idx;
     }
 };

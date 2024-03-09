@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const clap = @import("lib/zig-clap/clap.zig");
+const clap = @import("clap");
 
 const debug = @import("debug.zig");
 const shared = @import("shared.zig");
@@ -74,7 +74,7 @@ pub fn main() !void {
 /// Parsování argumentů při spuštení programu
 fn arguments(allocator: Allocator, vm: *VM) !void {
     const params = comptime clap.parseParamsComptime(
-        \\-h, --pomoc            Zobraz pomoc a použití 
+        \\-h, --pomoc            Zobraz pomoc a použití
         \\-v, --verze            Zobraz verzi
         \\-b, --bezbarev         Vypisování bez barev
         \\<FILE>...
@@ -131,7 +131,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
 /// Read-Eval-Print loop mod
 fn repl(allocator: Allocator, vm: *VM) !void {
-_ = allocator;
+    _ = allocator;
     defer vm.deinit();
 
     if (builtin.os.tag == .windows) {
@@ -171,29 +171,28 @@ _ = allocator;
             //     _ = c.remove_history(c.history_length - 1);
             // }
             var buf: [256]u8 = undefined;
-                        var buf_stream = std.io.fixedBufferStream(&buf);
+            var buf_stream = std.io.fixedBufferStream(&buf);
 
-                        try shared.stdout.print(">>> ", .{});
+            try shared.stdout.print(">>> ", .{});
 
-                        var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
-                        const stdin = buffered_stdin.reader();
-                        stdin.streamUntilDelimiter(
-                            buf_stream.writer(),
-                            '\n',
-                            buf.len,
-                        ) catch {
-                            std.process.exit(60);
-                        };
-                        const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+            var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
+            const stdin = buffered_stdin.reader();
+            stdin.streamUntilDelimiter(
+                buf_stream.writer(),
+                '\n',
+                buf.len,
+            ) catch {
+                std.process.exit(60);
+            };
+            const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
-                        if (input.len == buf.len) {
-                            Reporter.printErr("Vstup je příliš dlouhý", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
-                            try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
-                            continue;
-                        }
-                        const source = buf[0..input.len];
-                        vm.interpret(source) catch {};
-
+            if (input.len == buf.len) {
+                Reporter.printErr("Vstup je příliš dlouhý", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+                try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
+                continue;
+            }
+            const source = buf[0..input.len];
+            vm.interpret(source) catch {};
         }
     }
 }

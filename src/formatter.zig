@@ -1,10 +1,13 @@
 const std = @import("std");
+
 pub inline fn escapeFmt(string: []const u8) EscapeFmt {
     return .{ .string = string };
 }
+
 const EscapeFmt = struct {
     string: []const u8,
 
+    // Formátovaní escape povolených sekvencí
     pub fn format(
         self: EscapeFmt,
         writer: anytype,
@@ -13,8 +16,10 @@ const EscapeFmt = struct {
         while (true) {
             const end = std.mem.indexOfScalarPos(u8, self.string, start, '\\') orelse self.string.len;
             try writer.writeAll(self.string[start..end]);
+
             if (end == self.string.len) break;
             if (end + 1 == self.string.len) @panic("Bad ending escape");
+
             start = end + 2;
             switch (self.string[end + 1]) {
                 'n' => try writer.writeByte('\n'),
@@ -32,10 +37,10 @@ const EscapeFmt = struct {
 fn testFormatter(expected: []const u8, source: []const u8) !void {
     var arrlist = std.ArrayList(u8).init(std.testing.allocator);
     defer arrlist.deinit();
-    var writer = arrlist.writer();
+    const writer = arrlist.writer();
     try escapeFmt(source).format(writer);
 
-    var res = try arrlist.toOwnedSlice();
+    const res = try arrlist.toOwnedSlice();
 
     try std.testing.expectEqualSlices(u8, expected, res);
     std.testing.allocator.free(res);

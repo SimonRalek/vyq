@@ -166,7 +166,7 @@ pub const GC = struct {
             self.collectGarbage();
         }
 
-        var out = self.parent_allocator.rawAlloc(len, ptr_align, ret_addr);
+        const out = self.parent_allocator.rawAlloc(len, ptr_align, ret_addr);
 
         self.bytesAllocated += len;
 

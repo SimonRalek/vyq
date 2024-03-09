@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 pub const ResultError = error{ parser, compile, runtime };
 
+/// Pro získání prostředku na výpis
 pub const stdout = switch (builtin.os.tag) {
     .windows => struct {
         pub fn print(comptime message: []const u8, args: anytype) !void {

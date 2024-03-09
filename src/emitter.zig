@@ -44,6 +44,7 @@ pub const Emitter = struct {
     pub fn init(vm: *VM, func_type: FunctionType, wrapped: ?*Emitter) Self {
         var locals = localArray.init(vm.allocator);
 
+        // aktuální funkce
         locals.append(.{
             .depth = 0,
             .name = "",
@@ -68,8 +69,7 @@ pub const Emitter = struct {
 
     /// Kompilace
     pub fn compile(self: *Self, source: []const u8) ResultError!*Function {
-        self.reporter.had_error = false;
-        self.reporter.panic_mode = false;
+        self.reporter.reset();
 
         self.parser = Parser.init(self.allocator, self, self.vm, self.reporter);
         self.vm.parser = &(self.parser.?);
@@ -87,18 +87,19 @@ pub const Emitter = struct {
         return &self.function.block;
     }
 
-    /// Zapsat instrukci do bloku
+    /// Zapsat instrukci do bloku přes opcode
     pub fn emitOpCode(self: *Self, op_code: Block.OpCode, loc: Location) void {
         self.currentBlock().writeOp(op_code, loc);
     }
 
+    /// Zapsat byte do bloku
     pub fn emitByte(self: *Self, byte: u8, loc: Location) void {
         self.currentBlock().writeOpByte(byte, loc);
     }
 
     /// Zapis hodnotu do bloku
     pub fn emitValue(self: *Self, val: Val, loc: Location) void {
-        self.emitOpCodes(.op_value, self.makeValue(val), loc);
+        self.emitOpCodes(.op_value, self.createVal(val), loc);
     }
 
     /// Zapsat instrukce do bloku
@@ -108,19 +109,16 @@ pub const Emitter = struct {
     }
 
     /// Přidání hodnoty do aktuálního bloku
-    pub fn makeValue(self: *Self, val: Val) u8 {
-        const value = self.addValue(val);
-        if (value > 255) @panic("Stack overflow");
-
-        return value;
-    }
-
-    /// Přidat hodnotu do bloku
-    pub fn addValue(self: *Self, value: Val) u8 {
-        self.vm.push(value);
-        const index = self.currentBlock().values.items.len;
-        self.currentBlock().values.append(value) catch @panic("Alokace selhala");
+    pub fn createVal(self: *Self, val: Val) u8 {
+        self.vm.push(val);
+        const index = self.currentBlock().addVal(val);
         _ = self.vm.pop();
+
+        if (index > std.math.maxInt(u8)) {
+            self.reporter.reportCompile("Přidali jste příliš mnoho hodnot do jedné funkce");
+            return 0;
+        }
+
         return @intCast(index);
     }
 };

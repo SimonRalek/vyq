@@ -1,14 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
 pub fn build(b: *std.Build) !void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
 
     const optimize = b.standardOptimizeOption(.{});
@@ -22,18 +15,16 @@ pub fn build(b: *std.Build) !void {
 
     exe.linkLibC();
 
-    // const clap = b.dependency("clap", .{
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-    // exe.addModule("clap", clap.module("clap"));
-    // exe.linkLibrary(clap.artifact("clap"));
-    //
+    const clap = b.dependency("clap", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.addModule("clap", clap.module("clap"));
+
     exe.linkSystemLibrary("readline");
 
     b.installArtifact(exe);
     b.exe_dir = "./";
-    // b.exe_dir = b.pathJoin(&.{ "out", @tagName(builtin.os.tag) });
     const run_cmd = b.addRunArtifact(exe);
 
     run_cmd.step.dependOn(b.getInstallStep());
@@ -57,6 +48,7 @@ pub fn build(b: *std.Build) !void {
     test_step.dependOn(&run_unit_tests.step);
 
     // const release_step = b.step("release", "Build and install release builds for all targets");
+    // release_step.dependOn(&run_cmd.step);
     //
     // const release_targets: []const std.zig.CrossTarget = &.{
     //     .{ .cpu_arch = .x86_64, .os_tag = .linux },

@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// Ze stringu získá nejdelší délku dalšího povoleného znaku, jestli není povolený vrátí null
 pub fn longestApprovedAlphabeticGrapheme(slice: []const u8) ?[]const u8 {
     const State = enum { start, e };
 
@@ -11,7 +12,7 @@ pub fn longestApprovedAlphabeticGrapheme(slice: []const u8) ?[]const u8 {
         byte_len += cur_codepoint_byte_len;
         switch (state) {
             .start => {
-                var piece = slice[0..byte_len];
+                const piece = slice[0..byte_len];
 
                 switch (codepoint) {
                     'a'...'z', 'A'...'Z', '_' => state = .e,
@@ -48,11 +49,12 @@ pub fn longestApprovedAlphabeticGrapheme(slice: []const u8) ?[]const u8 {
     return null;
 }
 
+// Získá délku nejdelšího nepovoleného znaku
 pub fn nonAllowedLenght(buff: []const u8) usize {
     var utf8_it = std.unicode.Utf8View.initUnchecked(buff).iterator();
     if (utf8_it.nextCodepoint()) |codepoint| {
-        var len: usize = std.unicode.utf8CodepointSequenceLength(codepoint) catch {
-            @panic("");
+        const len: usize = std.unicode.utf8CodepointSequenceLength(codepoint) catch {
+            @panic("Codepoint byl příliš velký");
         };
         return len - 1;
     }
