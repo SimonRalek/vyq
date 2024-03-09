@@ -1,5 +1,6 @@
 const std = @import("std");
 const shared = @import("shared.zig");
+const builtin = @import("builtin");
 
 const Allocator = std.mem.Allocator;
 
@@ -24,6 +25,7 @@ const BinaryOp = enum {
     sub,
     mult,
     div,
+    mod,
     greater,
     less,
     bit_and,
@@ -81,12 +83,12 @@ pub const VirtualMachine = struct {
         self.defineNative("delka", natives.str_lenNative);
         self.defineNative("nactiVstup", natives.inputNative);
         self.defineNative("ziskejTyp", natives.getTypeNative);
-        self.defineNative("nahoda", natives.randNative);
+        self.defineNative("nahoda", natives.randFunction);
         self.defineNative("mocnina", natives.sqrtNative);
         self.defineNative("odmocnit", natives.rootNative);
         self.defineNative("jeCislo", natives.isDigitNative);
         self.defineNative("jeRetezec", natives.isStringNative);
-        self.defineNative("casovaZnacka", natives.getTimeStampNative);
+        self.defineNative("cas", natives.timeFunction);
     }
 
     /// "Free"nout objekty a listy
@@ -143,6 +145,7 @@ pub const VirtualMachine = struct {
                 .op_sub => self.binary(.sub),
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
+                .op_mod => self.binary(.mod),
 
                 .op_increment => {
                     var a = self.pop();
@@ -369,15 +372,6 @@ pub const VirtualMachine = struct {
                     self.stack_count = @intCast(frame.start);
                     self.push(result);
                     frame = &self.frames[self.frame_count - 1];
-
-                    // for (0..self.stack_count) |i| {
-                    //     std.debug.print("{any}\n", .{self.stack[i]});
-                    // }
-                    // const latest = self.stack[self.stack_count - 1].obj.closure();
-                    // for (0..latest.elv_count) |i| {
-                    //     std.debug.print("{any}\n", .{latest.elvs[i].?.location});
-                    // }
-                    // std.debug.print("\n", .{ });
                 },
             };
         }
@@ -499,7 +493,6 @@ pub const VirtualMachine = struct {
     inline fn closeELV(self: *Self, last: *Val) void {
         while (self.openELV) |elv| {
             if (@intFromPtr(self.openELV.?.location) < @intFromPtr(last)) break;
-            std.debug.print("asd", .{});
             elv.closed = elv.location.*;
             elv.location = &elv.closed;
             self.openELV = elv.next;
@@ -644,6 +637,7 @@ pub const VirtualMachine = struct {
                 }
                 break :blk a / b;
             },
+            .mod => @mod(a, b),
 
             .greater => a > b,
             .less => a < b,
@@ -743,13 +737,19 @@ pub const VirtualMachine = struct {
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
 
-        var stdout = std.io.getStdOut();
-        const config = std.io.tty.detectConfig(stdout);
-        config.setColor(stdout, .dim) catch {};
+        comptime var stdout = if (shared.isFreestanding()) shared.stdout else std.io.getStdOut();
+        if (builtin.os.tag != .freestanding) {
+            var config = std.io.tty.detectConfig(stdout);
+            config.setColor(stdout, .dim) catch {};
+            defer config.setColor(stdout, .reset) catch {};
+        }
+
         var i = self.frame_count;
         while (i > 0) : (i -= 1) {
-            const branch = if (i == self.frame_count)
+            const branch = if (i == self.frame_count and self.frame_count != 1)
                 "╰─┬─"
+            else if (i == self.frame_count and self.frame_count == 1)
+                "╰───"
             else if (i != 1)
                 "  ├─"
             else
@@ -765,9 +765,8 @@ pub const VirtualMachine = struct {
                 if (std.mem.eql(u8, name, "skript")) "" else "()",
                 location.line,
                 location.start_column,
-            }) catch @panic("");
+            }) catch {};
         }
-        config.setColor(stdout, .reset) catch {};
 
         self.resetStack();
     }

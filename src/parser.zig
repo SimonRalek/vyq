@@ -74,7 +74,7 @@ pub const Parser = struct {
         self.emitReturn();
 
         const function = self.emitter.function;
-        if (!self.reporter.had_error and debug.debugging) {
+        if (!self.reporter.had_error and debug.debugging and !shared.isFreestanding()) {
             debug.disBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
         }
 
@@ -422,6 +422,7 @@ pub const Parser = struct {
                     .min_operator => .op_sub,
                     .div_operator => .op_div,
                     .mul_operator => .op_mult,
+                    .mod_operator => .op_mod,
                     else => unreachable,
                 });
 
@@ -878,6 +879,9 @@ pub const Parser = struct {
             .slash => {
                 self.emitOpCode(.op_div);
             },
+            .modulo => {
+                self.emitOpCode(.op_mod);
+            },
             .equal => {
                 self.emitOpCode(.op_equal);
             },
@@ -923,7 +927,7 @@ pub const Parser = struct {
     fn number(self: *Self, assignable: bool) !void {
         _ = assignable;
 
-        var buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
+        const buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
@@ -975,7 +979,7 @@ pub const Parser = struct {
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
         const prefix = getRule(self.previous.type).prefix orelse {
-            self.report(&self.current, "Očekávaný výraz");
+            self.report(&self.previous, "Neznámý výraz");
             return;
         };
 
@@ -993,7 +997,7 @@ pub const Parser = struct {
     }
 
     fn isAdditionalOperator(self: *Self) bool {
-        return self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator);
+        return self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator) or self.match(.mod_operator);
     }
 
     fn getRule(t_type: _token.Type) ParseRule {
@@ -1011,7 +1015,7 @@ pub const Parser = struct {
 
             .plus => .{ .infix = Parser.binary, .precedence = .term },
             .minus => .{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .term },
-            .star, .slash => .{ .infix = Parser.binary, .precedence = .factor },
+            .star, .slash, .modulo => .{ .infix = Parser.binary, .precedence = .factor },
 
             .bang => .{ .prefix = Parser.unary },
 

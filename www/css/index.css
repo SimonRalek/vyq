@@ -1,0 +1,153 @@
+.down-arrow {
+    animation: jumpInfinite 1.5s infinite;
+    position: absolute;
+    top: calc(80vh);
+    left: calc(50% - 14px);
+    width: 0;
+    height: 30px;
+    color: #5f4da8;
+}
+
+@keyframes jumpInfinite {
+    0% {
+        margin-top: 0;
+    }
+
+    50% {
+        margin-top: 15px;
+    }
+
+    100% {
+        margin-top: 0;
+    }
+}
+
+#btn-back-to-top {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    display: none;
+    border-radius: 30%;
+    padding: 15px;
+    font-size: 15px;
+    background-color: rgb(104, 104, 104, 0.4);
+    color: white;
+}
+
+#top-icon {
+    opacity: 0;
+    transition: opacity .6s;
+}
+
+#top-icon.vis {
+    opacity: 1;
+}
+
+@keyframes fade {
+    0% {
+        opacity: 0;
+        transform: translateY(70px);
+    }
+
+    10% {
+        opacity: 0.0;
+    }
+
+    90% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0px);
+    }
+}
+
+@keyframes fadeDescription {
+    0% {
+        opacity: 0;
+        transform: translateY(100px);
+    }
+
+    10% {
+        opacity: 0.0;
+    }
+
+    50% {
+        opacity: 0.0;
+    }
+
+    90% {
+        opacity: 0.9;
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0px);
+    }
+}
+
+#navbarResponsive {
+    background-color: #fff;
+}
+
+@media (max-width: 768px) {
+
+
+    .navbar {
+        text-align: center;
+    }
+
+    .navbar-brand {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+    }
+
+    .navbar-toggler {
+        position: absolute;
+        right: 0;
+        margin-right: 20px;
+        z-index: 3;
+    }
+
+    #navbarResponsive {
+        position: absolute;
+        width: 100%;
+        top: 5.5rem;
+        left: 0;
+        z-index: 1;
+        background: white;
+    }
+}
+
+@media (min-width: 769px) {
+    .navbar {
+        display: flex;
+        justify-content: start;
+    }
+
+    .navbar-brand {
+        margin-right: auto;
+    }
+
+    .navbar-toggler {
+        display: none;
+    }
+
+    #top-icon {
+        margin-left: 3rem;
+    }
+
+    #navbarResponsive {
+        height: 5.5rem;
+        flex-grow: 1;
+        display: flex;
+        justify-content: end;
+    }
+
+    .navbar-nav {
+        flex-direction: row;
+    }
+}

@@ -68,6 +68,10 @@ pub const Scanner = struct {
                 .div_operator
             else
                 .slash),
+            '%' => self.createToken(if (self.match('='))
+                .mod_operator
+            else
+                .modulo),
             ';' => self.createToken(.semicolon),
             ':' => self.createToken(.colon),
             ',' => self.createToken(.comma),
@@ -490,7 +494,7 @@ test "string" {
         \\ 'This is a test of a single line string'
     , &.{.string});
     try testScanner(
-        \\ "This is a multiline 
+        \\ "This is a multiline
         \\ string"
     , &.{.string});
     try testScanner(

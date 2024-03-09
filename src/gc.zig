@@ -28,16 +28,12 @@ pub const GC = struct {
     }
 
     pub fn collectGarbage(self: *Self) void {
-        std.debug.print("-- gc begin\n", .{});
-
         self.markRoots();
         self.traceReferences();
         self.removeWeakRefs();
         self.sweep();
 
         self.nextGC = self.bytesAllocated * 2;
-
-        std.debug.print("-- gc end\n", .{});
     }
 
     fn markRoots(self: *Self) void {
@@ -65,9 +61,6 @@ pub const GC = struct {
 
     fn markObject(self: *Self, obj: *_val.Object) void {
         if (obj.is_marked) return;
-
-        std.debug.print("{} mark {}", .{ @intFromPtr(obj), obj.val() });
-        std.debug.print("\n", .{});
 
         obj.is_marked = true;
 
@@ -105,8 +98,6 @@ pub const GC = struct {
     }
 
     fn blackenObject(self: *Self, object: *_val.Object) void {
-        std.debug.print("{} blacken {}\n", .{ @intFromPtr(object), object.val() });
-
         switch (object.type) {
             .elv => self.markVal(object.elv().closed),
             .function => {

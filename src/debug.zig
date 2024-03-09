@@ -35,6 +35,7 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_sub => simple("op_minus", idx),
         .op_mult => simple("op_mult", idx),
         .op_div => simple("op_div", idx),
+        .op_mod => simple("op_mod", idx),
         .op_increment => simple("op_increment", idx),
         .op_decrement => simple("op_decrement", idx),
         .op_not => simple("op_not", idx),

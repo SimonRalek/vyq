@@ -32,6 +32,7 @@ pub const Block = struct {
         op_sub,
         op_mult,
         op_div,
+        op_mod,
         op_increment,
         op_decrement,
         op_return,
