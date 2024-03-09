@@ -18,6 +18,7 @@ pub const GC = struct {
 
     const vtable: Allocator.VTable = .{ .alloc = alloc, .resize = resize, .free = free };
 
+    /// Nový GC (Garbage Collector)
     pub fn init(vm: *VM) Self {
         return .{
             .vm = vm,
@@ -27,6 +28,7 @@ pub const GC = struct {
         };
     }
 
+    /// Hlavní metoda GC
     pub fn collectGarbage(self: *Self) void {
         self.markRoots();
         self.traceReferences();
@@ -36,6 +38,7 @@ pub const GC = struct {
         self.nextGC = self.bytesAllocated * 2;
     }
 
+    /// Markování hlavních nodu - stack, closures, elvs, globalní proměnné
     fn markRoots(self: *Self) void {
         for (0..self.vm.stack_count) |i| {
             self.markVal(self.vm.stack[i]);
@@ -52,13 +55,15 @@ pub const GC = struct {
         }
 
         self.markMap(Global, &self.vm.globals);
-        self.markCompilerRoots();
+        self.markEmitterRoots();
     }
 
+    /// Označ hodnotu
     fn markVal(self: *Self, val: Val) void {
         if (val == .obj) self.markObject(val.obj);
     }
 
+    /// Označit objekt
     fn markObject(self: *Self, obj: *_val.Object) void {
         if (obj.is_marked) return;
 
@@ -67,6 +72,7 @@ pub const GC = struct {
         self.vm.grays.append(obj) catch @panic("Nepovedlo se alokovat");
     }
 
+    /// Označení objektů v mapách
     fn markMap(self: *Self, comptime T: type, map: *std.AutoHashMap(*_val.Object.String, T)) void {
         var iterator = map.iterator();
         while (iterator.next()) |kv| {
@@ -75,7 +81,8 @@ pub const GC = struct {
         }
     }
 
-    fn markCompilerRoots(self: *Self) void {
+    /// Označení funkcí emitterů
+    fn markEmitterRoots(self: *Self) void {
         if (self.vm.parser) |parser| {
             var emitter: ?*Emitter = parser.emitter;
 
@@ -86,10 +93,12 @@ pub const GC = struct {
         }
     }
 
+    /// Označení objektů v poli Vals
     fn markArray(self: *Self, vals: []Val) void {
         for (vals) |val| self.markVal(val);
     }
 
+    /// Po fázi označení projede "šedivé objekty"
     fn traceReferences(self: *Self) void {
         while (self.vm.grays.items.len > 0) {
             const object = self.vm.grays.pop();
@@ -97,6 +106,7 @@ pub const GC = struct {
         }
     }
 
+    /// Označení objektu že jeho reference jsou označené
     fn blackenObject(self: *Self, object: *_val.Object) void {
         switch (object.type) {
             .elv => self.markVal(object.elv().closed),
@@ -113,10 +123,16 @@ pub const GC = struct {
                     if (maybeELV) |elv| self.markObject(&elv.obj);
                 }
             },
+            .list => {
+                const list = object.list();
+
+                self.markArray(list.items.items);
+            },
             else => {},
         }
     }
 
+    /// Odstranit reference k odstraněným řetězcům
     fn removeWeakRefs(self: *Self) void {
         var iterator = self.vm.strings.iterator();
         while (iterator.next()) |kv| {
@@ -126,6 +142,7 @@ pub const GC = struct {
         }
     }
 
+    /// Nemarkovaný objekty dealokovat
     fn sweep(self: *Self) void {
         var previous: ?*_val.Object = null;
         var maybeObject = self.vm.objects;
@@ -147,10 +164,12 @@ pub const GC = struct {
         }
     }
 
+    /// Získat allocator
     pub fn allocator(self: *Self) Allocator {
         return Allocator{ .ptr = self, .vtable = &vtable };
     }
 
+    /// Vlastní funkce na alokaci paměti
     fn alloc(ctx: *anyopaque, len: usize, ptr_align: u8, ret_addr: usize) ?[*]u8 {
         const self: *Self = @ptrCast(@alignCast(ctx));
         if (self.bytesAllocated + len > self.nextGC) {
@@ -164,6 +183,7 @@ pub const GC = struct {
         return out;
     }
 
+    /// Vlastní funkce pro změnu velikosti alokované paměti
     fn resize(ctx: *anyopaque, buf: []u8, buf_align: u8, new_len: usize, ret_addr: usize) bool {
         const self: *Self = @ptrCast(@alignCast(ctx));
         if (new_len > buf.len) {
@@ -184,6 +204,7 @@ pub const GC = struct {
         }
     }
 
+    /// Vlastní funkce na dealokaci paměti
     fn free(
         ctx: *anyopaque,
         buf: []u8,

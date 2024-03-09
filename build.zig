@@ -15,18 +15,16 @@ pub fn build(b: *std.Build) !void {
 
     exe.linkLibC();
 
-    // const clap = b.dependency("clap", .{
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-    // exe.addModule("clap", clap.module("clap"));
-    // exe.linkLibrary(clap.artifact("clap"));
-    //
+    const clap = b.dependency("clap", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.addModule("clap", clap.module("clap"));
+
     exe.linkSystemLibrary("readline");
 
     b.installArtifact(exe);
     b.exe_dir = "./";
-    // b.exe_dir = b.pathJoin(&.{ "out", @tagName(builtin.os.tag) });
     const run_cmd = b.addRunArtifact(exe);
 
     run_cmd.step.dependOn(b.getInstallStep());
@@ -49,38 +47,38 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
 
-    // const release_step = b.step("release", "Build and install release builds for all targets");
-    // release_step.dependOn(&run_cmd.step);
-    //
-    // const release_targets: []const std.zig.CrossTarget = &.{
-    //     .{ .cpu_arch = .x86_64, .os_tag = .linux },
-    //     .{ .cpu_arch = .x86_64, .os_tag = .windows },
-    //     .{ .cpu_arch = .x86_64, .os_tag = .macos },
-    //     .{ .cpu_arch = .aarch64, .os_tag = .macos },
-    // };
-    //
-    // for (release_targets) |release_target| {
-    //     const release_exe = b.addExecutable(.{
-    //         .name = "vyq",
-    //         .root_source_file = .{ .path = "src/main.zig" },
-    //         .target = release_target,
-    //         .optimize = .ReleaseFast,
-    //     });
-    //
-    //     release_exe.linkLibC();
-    //
-    //     if (release_target.os_tag == .linux) {
-    //         release_exe.linkSystemLibrary("readline");
-    //     }
-    //
-    //     const installed_release_exe = b.addInstallArtifact(release_exe, .{
-    //         .dest_dir = .{
-    //             .override = .{
-    //                 .custom = try release_target.zigTriple(b.allocator),
-    //             },
-    //         },
-    //     });
-    //
-    //     release_step.dependOn(&installed_release_exe.step);
-    // }
+    const release_step = b.step("release", "Build and install release builds for all targets");
+    release_step.dependOn(&run_cmd.step);
+
+    const release_targets: []const std.zig.CrossTarget = &.{
+        .{ .cpu_arch = .x86_64, .os_tag = .linux },
+        .{ .cpu_arch = .x86_64, .os_tag = .windows },
+        .{ .cpu_arch = .x86_64, .os_tag = .macos },
+        .{ .cpu_arch = .aarch64, .os_tag = .macos },
+    };
+
+    for (release_targets) |release_target| {
+        const release_exe = b.addExecutable(.{
+            .name = "vyq",
+            .root_source_file = .{ .path = "src/main.zig" },
+            .target = release_target,
+            // .optimize = .ReleaseFast,
+        });
+
+        release_exe.linkLibC();
+
+        if (release_target.os_tag == .linux) {
+            release_exe.linkSystemLibrary("readline");
+        }
+
+        const installed_release_exe = b.addInstallArtifact(release_exe, .{
+            .dest_dir = .{
+                .override = .{
+                    .custom = try release_target.zigTriple(b.allocator),
+                },
+            },
+        });
+
+        release_step.dependOn(&installed_release_exe.step);
+    }
 }

@@ -171,6 +171,7 @@ pub const Parser = struct {
         self.emitOpCode(op);
         self.emitByte(0xff);
         self.emitByte(0xff);
+
         return self.currentBlock().code.items.len - 2;
     }
 
@@ -378,6 +379,7 @@ pub const Parser = struct {
         self.addLocal(name.lexeme, is_const);
     }
 
+    /// Parsování proměnné
     fn parseVar(self: *Self, message: []const u8) ResultError!u8 {
         const is_const = self.previous.type == .konst;
 
@@ -440,6 +442,7 @@ pub const Parser = struct {
                     return ResultError.compile;
                 }
                 self.expression();
+
                 self.emitter.emitOpCodes(
                     set_op,
                     @intCast(index),
@@ -495,6 +498,7 @@ pub const Parser = struct {
                     &self.previous,
                     "Proměnná nelze přiřadit sama sobě",
                 );
+
                 const result: usize = locals.items.len - 1 - i;
                 return .{ result, local.is_const };
             }
@@ -565,6 +569,7 @@ pub const Parser = struct {
         const glob = self.parseVar(
             "Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.",
         ) catch return;
+
         self.markInit();
         self.parseFunction(.function);
         self.defineVar(glob, false);
@@ -885,14 +890,6 @@ pub const Parser = struct {
 
         self.eat(.semicolon, "Očekávaný ';' po 'zastav'");
 
-        // var count: u8 = 0;
-        // var i = self.emitter.locals.items.len - 1;
-        // while (i >= 0 and self.emitter.locals.items[i].depth > self.state.innermostScopeDepth) : (i -= 1) {
-        //     count += 1;
-        // }
-        //
-        // self.emitter.emitOpCodes(.op_popn, count, self.current.location);
-
         self.breakList[self.break_count] = self.emitJmp(.op_jmp);
         self.break_count += 1;
     }
@@ -915,6 +912,7 @@ pub const Parser = struct {
 
         self.emitLoop(self.state.innermostLoopStart.?);
     }
+
     /// Parsování 'vrat'
     fn returnStmt(self: *Self) void {
         if (self.emitter.function.type == .script) {
@@ -1102,6 +1100,7 @@ pub const Parser = struct {
         self.emitVal(Object.String.copy(self.vm, source).val());
     }
 
+    /// Parsování deklarace listu
     fn list(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -1112,9 +1111,8 @@ pub const Parser = struct {
 
                 self.parsePrecedence(.nebo);
 
-                if (item_count == 255) {
-
-                    // TODO
+                if (item_count == std.math.maxInt(u8)) {
+                    self.report(&self.current, "List má příliš mnoho prvků");
                 }
 
                 item_count += 1;
@@ -1123,15 +1121,16 @@ pub const Parser = struct {
             }
         }
 
-        self.eat(.right_square, "");
+        self.eat(.right_square, "Očekává se uzavírací hranatá závorka ']' na konci deklarace listu");
 
         self.emitOpCode(.op_build_list);
         self.emitByte(item_count);
     }
 
+    /// Parsování indexace listu
     fn subscript(self: *Self, assignable: bool) !void {
         self.parsePrecedence(.nebo);
-        self.eat(.right_square, "");
+        self.eat(.right_square, "Očekává se uzavírací hranatá závorka ']' pro indexaci seznam ");
 
         if (assignable and self.match(.assign)) {
             self.expression();
@@ -1141,6 +1140,7 @@ pub const Parser = struct {
         }
     }
 
+    /// Hodnoty ano, ne, nic
     fn literal(self: *Self, assignable: bool) !void {
         _ = assignable;
 
