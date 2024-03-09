@@ -31,7 +31,7 @@ Naším jazykem jsou poskytovány různé vestavěné funkce, které vám umožn
 
 #### Čas a Datum
 
-- `.casovaZnacka()`: Vrátí aktuální časovou známku (timestamp).
+- `.cas()`: Vrátí aktuální časovou známku (timestamp).
 
 ##### Příklady Použití
 
