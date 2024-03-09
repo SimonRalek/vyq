@@ -26,7 +26,7 @@ pub const BenchMark = struct {
 
     /// Nový timer
     pub fn createMark(self: *Self, name: []const u8) *Timer {
-        var gop = self.timers.getOrPut(name) catch @panic("Nepodařilo se alokovat");
+        const gop = self.timers.getOrPut(name) catch @panic("Nepodařilo se alokovat");
         if (!gop.found_existing) gop.value_ptr.* = Timer.start();
         return gop.value_ptr;
     }
@@ -39,7 +39,7 @@ pub const BenchMark = struct {
 
         var it = self.timers.iterator();
         while (it.next()) |entry| {
-            try shared.stdout.print("\n--- NAME ----- ELAPSED ----\n", .{});
+            try shared.stdout.print("\n--- JMÉNO ----- ČAS ----\n", .{});
             try entry.value_ptr.*.print(entry.key_ptr.*);
         }
     }

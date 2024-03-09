@@ -6,6 +6,7 @@ const Util = @import("utils/unicode.zig");
 const _token = @import("token.zig");
 const Token = _token.Token;
 
+// Lokace tokenu - řádka, kde začíná a končí
 pub const Location = struct {
     line: u32,
     start_column: usize,
@@ -68,6 +69,10 @@ pub const Scanner = struct {
                 .div_operator
             else
                 .slash),
+            '%' => self.createToken(if (self.match('='))
+                .mod_operator
+            else
+                .modulo),
             ';' => self.createToken(.semicolon),
             ':' => self.createToken(.colon),
             ',' => self.createToken(.comma),
@@ -226,6 +231,7 @@ pub const Scanner = struct {
         return self.createToken(.string);
     }
 
+    /// Aby se neukončil řetězec při escapování sekvence začátku řetězce
     fn delimeter(self: *Self, deli: u8) bool {
         if (self.buf[self.current - 1] == '\\' and self.buf[self.current] == deli) {
             return true;
@@ -275,7 +281,7 @@ pub const Scanner = struct {
     /// Přeskočit prázdné místo
     fn skipWhiteSpace(self: *Self) void {
         while (true) {
-            var char = self.peek();
+            const char = self.peek();
 
             switch (char) {
                 '\n' => {
@@ -353,8 +359,8 @@ pub const Scanner = struct {
     /// Je znak písmeno či '_'
     fn isAlpha(self: *Self, buff: []const u8) bool {
         if (!std.unicode.utf8ValidateSlice(buff)) return false;
-        var str = Util.longestApprovedAlphabeticGrapheme(buff) orelse {
-            var len = Util.nonAllowedLenght(buff);
+        const str = Util.longestApprovedAlphabeticGrapheme(buff) orelse {
+            const len = Util.nonAllowedLenght(buff);
             self.current += len;
             return false;
         };
@@ -377,24 +383,6 @@ fn isHexa(c: u8) bool {
 fn isOctal(c: u8) bool {
     return switch (c) {
         '0'...'7' => true,
-        else => false,
-    };
-}
-
-fn isCzechChar(c: u8) bool {
-    return switch (c) {
-        '\xC4', '\x9B', '\x9A' => true, // ě Ě
-        '\xC5', '\xA1', '\xA0' => true, // š Š
-        '\x8D', '\x8C' => true, // č Č
-        '\x99', '\x98' => true, // ř Ř
-        '\xBE', '\xBD' => true, // ž Ž
-        '\xC3', '\x9D' => true, // ý Ý
-        '\x81' => true, // á Á
-        '\xAD' => true, // í Í
-        '\xA9', '\x89' => true, // é É
-        '\xBA' => true, // ú Ú
-        '\xAF', '\xAE' => true, // ů Ů
-        '\x88', '\x87' => true, // ň Ň
         else => false,
     };
 }

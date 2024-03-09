@@ -1,8 +1,10 @@
 const std = @import("std");
 const shared = @import("shared.zig");
+const builtin = @import("builtin");
 
 const Allocator = std.mem.Allocator;
 
+const Parser = @import("parser.zig").Parser;
 const _val = @import("value.zig");
 const Val = _val.Val;
 const Block = @import("block.zig").Block;
@@ -18,11 +20,13 @@ const Native = Object.Native;
 const Reporter = @import("reporter.zig");
 const unicode = @import("utils/unicode.zig");
 const natives = @import("natives.zig");
+const GC = @import("gc.zig").GC;
 
 const BinaryOp = enum {
     sub,
     mult,
     div,
+    mod,
     greater,
     less,
     bit_and,
@@ -44,38 +48,48 @@ pub const VirtualMachine = struct {
     frame_count: u8 = 0,
 
     allocator: Allocator,
-    stack: [256]Val,
+    stack: [256]Val = undefined,
     stack_count: u9 = 0,
-    globals: std.StringHashMap(Global),
+    globals: std.AutoHashMap(*Object.String, Global),
 
     strings: std.StringHashMap(*Object.String),
     objects: ?*Object = null,
     openELV: ?*Object.ELV = null,
 
-    reporter: *Reporter,
+    reporter: *Reporter = undefined,
+    parser: ?*Parser = null,
+
+    gc: GC,
+    grays: std.ArrayList(*Object),
+
+    pub fn create(allocator: Allocator) Self {
+        return .{
+            .allocator = allocator,
+            .gc = undefined,
+            .grays = undefined,
+            .strings = undefined,
+            .globals = undefined,
+        };
+    }
 
     /// Inicializace virtuální mašiny
-    pub fn init(allocator: Allocator, reporter: *Reporter) Self {
-        var vm: Self = .{
-            .allocator = allocator,
-            .globals = std.StringHashMap(Global).init(allocator),
-            .strings = std.StringHashMap(*Object.String).init(allocator),
-            .stack = undefined,
-            .objects = null,
-            .reporter = reporter,
-        };
+    pub fn init(self: *Self, reporter: *Reporter) void {
+        self.gc = GC.init(self);
 
-        vm.defineNative("delka", natives.str_lenNative);
-        vm.defineNative("nactiVstup", natives.inputNative);
-        vm.defineNative("ziskejTyp", natives.getTypeNative);
-        vm.defineNative("nahoda", natives.randNative);
-        vm.defineNative("mocnina", natives.sqrtNative);
-        vm.defineNative("odmocnit", natives.rootNative);
-        vm.defineNative("jeCislo", natives.isDigitNative);
-        vm.defineNative("jeRetezec", natives.isStringNative);
-        vm.defineNative("casovaZnacka", natives.getTimeStampNative);
+        self.reporter = reporter;
+        self.globals = std.AutoHashMap(*Object.String, Global).init(self.gc.allocator());
+        self.strings = std.StringHashMap(*Object.String).init(self.gc.allocator());
+        self.grays = std.ArrayList(*Object).init(self.allocator);
 
-        return vm;
+        self.defineNative("delka", natives.str_lenNative);
+        self.defineNative("nactiVstup", natives.inputNative);
+        self.defineNative("ziskejTyp", natives.getTypeNative);
+        self.defineNative("nahoda", natives.randFunction);
+        self.defineNative("mocnina", natives.sqrtNative);
+        self.defineNative("odmocnit", natives.rootNative);
+        self.defineNative("jeCislo", natives.isDigitNative);
+        self.defineNative("jeRetezec", natives.isStringNative);
+        self.defineNative("cas", natives.timeFunction);
     }
 
     /// "Free"nout objekty a listy
@@ -83,6 +97,7 @@ pub const VirtualMachine = struct {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
+        self.grays.deinit();
         self.stack_count = 0;
     }
 
@@ -120,7 +135,7 @@ pub const VirtualMachine = struct {
 
             try switch (instruction) {
                 .op_value => {
-                    var value = self.readValue();
+                    const value = self.readValue();
                     self.push(value);
                 },
                 .op_ano => self.push(Val{ .boolean = true }),
@@ -131,41 +146,42 @@ pub const VirtualMachine = struct {
                 .op_sub => self.binary(.sub),
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
+                .op_mod => self.binary(.mod),
 
-                .op_increment => {
-                    var a = self.pop();
-
-                    if (a != .number) {
-                        self.runtimeErr(
-                            "Nelze inkrementovat nečíselné hodnoty",
-                            .{},
-                            &.{},
-                        );
-                        return ResultError.runtime;
-                    }
-
-                    self.push(Val{ .number = a.number + 1 });
-                },
-                .op_decrement => {
-                    var a = self.pop();
-
-                    if (a != .number) {
-                        self.runtimeErr(
-                            "Nelze dekrementovat nečíselné hodnoty",
-                            .{},
-                            &.{},
-                        );
-                        return ResultError.runtime;
-                    }
-
-                    self.push(Val{ .number = a.number - 1 });
-                },
+                // .op_increment => {
+                //     const a = self.pop();
+                //
+                //     if (a != .number) {
+                //         self.runtimeErr(
+                //             "Nelze inkrementovat nečíselné hodnoty",
+                //             .{},
+                //             &.{},
+                //         );
+                //         return ResultError.runtime;
+                //     }
+                //
+                //     self.push(Val{ .number = a.number + 1 });
+                // },
+                // .op_decrement => {
+                //     const a = self.pop();
+                //
+                //     if (a != .number) {
+                //         self.runtimeErr(
+                //             "Nelze dekrementovat nečíselné hodnoty",
+                //             .{},
+                //             &.{},
+                //         );
+                //         return ResultError.runtime;
+                //     }
+                //
+                //     self.push(Val{ .number = a.number - 1 });
+                // },
 
                 .op_greater => self.binary(.greater),
                 .op_less => self.binary(.less),
                 .op_equal => {
-                    var a = self.pop();
-                    var b = self.pop();
+                    const a = self.pop();
+                    const b = self.pop();
 
                     self.push(Val{ .boolean = Val.isEqual(a, b) });
                 },
@@ -207,7 +223,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_pop => _ = self.pop(),
                 .op_popn => {
-                    var n = self.readByte();
+                    const n = self.readByte();
                     var i: usize = 0;
 
                     while (i < n) : (i += 1) {
@@ -216,7 +232,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_get_glob => {
                     const name = self.readValue().obj.string();
-                    if (!self.globals.contains(name.repre)) {
+                    if (!self.globals.contains(name)) {
                         self.runtimeErr(
                             "Neexistující prvek '{s}'",
                             .{name.repre},
@@ -226,12 +242,12 @@ pub const VirtualMachine = struct {
                         );
                         return ResultError.runtime;
                     }
-                    self.push(self.globals.get(name.repre).?.val);
+                    self.push(self.globals.get(name).?.val);
                 },
                 .op_def_glob_var => {
                     const name = self.readValue().obj.string();
                     self.globals.put(
-                        name.repre,
+                        name,
                         Global.initPrm(self.peek(0)),
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
@@ -240,7 +256,7 @@ pub const VirtualMachine = struct {
                 },
                 .op_set_glob => {
                     const name = self.readValue().obj.string();
-                    if (!self.globals.contains(name.repre)) {
+                    if (!self.globals.contains(name)) {
                         self.runtimeErr(
                             "Neexistující prvek '{s}'",
                             .{name.repre},
@@ -251,7 +267,7 @@ pub const VirtualMachine = struct {
                         return ResultError.runtime;
                     }
 
-                    if (self.globals.get(name.repre).?.is_const) {
+                    if (self.globals.get(name).?.is_const) {
                         self.runtimeErr(
                             "Nelze změnit hodnotu konstanty '{s}'",
                             .{name.repre},
@@ -261,7 +277,7 @@ pub const VirtualMachine = struct {
                     }
 
                     self.globals.put(
-                        name.repre,
+                        name,
                         Global.initPrm(self.peek(0)),
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
@@ -271,7 +287,7 @@ pub const VirtualMachine = struct {
                 .op_def_glob_const => {
                     const name = self.readValue().obj.string();
                     self.globals.put(
-                        name.repre,
+                        name,
                         Global.initKonst(self.peek(0)),
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
@@ -280,13 +296,13 @@ pub const VirtualMachine = struct {
                 },
 
                 .op_get_loc => {
-                    var slot = self.readByte();
-                    self.push(self.stack[frame.start + slot - 1]);
+                    const slot = self.readByte();
+                    self.push(self.stack[frame.start + slot]);
                 },
 
                 .op_set_loc => {
-                    var slot = self.readByte();
-                    self.stack[frame.start + slot - 1] = self.peek(0);
+                    const slot = self.readByte();
+                    self.stack[frame.start + slot] = self.peek(0);
                 },
 
                 .op_jmp => {
@@ -325,7 +341,7 @@ pub const VirtualMachine = struct {
                         const is_local = self.readByte() != 0;
                         const idx = self.readByte();
 
-                        closure.elvs[i] = if (is_local) self.captureELV(&self.stack[frame.start + idx - 1]) else frame.closure.elvs[idx];
+                        closure.elvs[i] = if (is_local) self.captureELV(&self.stack[frame.start + idx]) else frame.closure.elvs[idx];
                     }
 
                     self.push(closure.obj.val());
@@ -333,7 +349,7 @@ pub const VirtualMachine = struct {
 
                 .op_get_elv => {
                     const slot = self.readByte();
-                    self.push(self.currentFrame().closure.elvs[slot].?.location.*);
+                    self.push(frame.closure.elvs[slot].?.location.*);
                 },
                 .op_set_elv => {
                     const slot = self.readByte();
@@ -398,7 +414,7 @@ pub const VirtualMachine = struct {
 
                 .op_return => {
                     const result = self.pop();
-                    self.closeELV(&self.stack[frame.start - 1]);
+                    self.closeELV(&self.stack[frame.start]);
                     self.frame_count -= 1;
 
                     if (self.frame_count == 0) {
@@ -406,7 +422,7 @@ pub const VirtualMachine = struct {
                         return;
                     }
 
-                    self.stack_count = @intCast(frame.start - 1);
+                    self.stack_count = @intCast(frame.start);
                     self.push(result);
                     frame = &self.frames[self.frame_count - 1];
                 },
@@ -414,10 +430,12 @@ pub const VirtualMachine = struct {
         }
     }
 
+    /// Aktuální Call Frame
     inline fn currentFrame(self: *Self) *CallFrame {
         return &self.frames[self.frame_count - 1];
     }
 
+    /// Zkusit zavolat hodnotu
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
         if (callee == .obj) {
             switch (callee.obj.type) {
@@ -453,11 +471,16 @@ pub const VirtualMachine = struct {
         return false;
     }
 
+    /// Zavolat funkci
     fn call(self: *Self, closure: *Closure, arg_count: u8) bool {
         if (arg_count != closure.function.arity) {
             self.runtimeErr(
                 "Funkce '{s}' očekává počet argumentů {d}, dostala {d}",
-                .{ closure.function.name.?, closure.function.arity, arg_count },
+                .{
+                    closure.function.name.?.repre,
+                    closure.function.arity,
+                    arg_count,
+                },
                 &.{},
             );
             return false;
@@ -472,20 +495,29 @@ pub const VirtualMachine = struct {
         self.frame_count += 1;
         frame.closure = closure;
         frame.ip = 0;
-        frame.start = self.stack_count - arg_count; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
+        frame.start = self.stack_count - arg_count - 1;
         return true;
     }
 
-    fn defineNative(self: *Self, name: []const u8, function: Native.NativeFn) void {
+    /// Definice nativní funkce
+    fn defineNative(
+        self: *Self,
+        name: []const u8,
+        function: Native.NativeFn,
+    ) void {
         const str = Object.String.copy(self, name);
         self.push(str.val());
-        const functionVal = (Object.Native.init(self, function)).obj.val();
+        const functionVal = (Object.Native.init(self, function, name)).obj.val();
         self.push(functionVal);
-        self.globals.put(str.string().repre, Global{ .is_const = true, .val = functionVal }) catch @panic("");
+        self.globals.put(
+            str.string(),
+            Global{ .is_const = true, .val = functionVal },
+        ) catch @panic("");
         _ = self.pop();
         _ = self.pop();
     }
 
+    /// Zachytit Externí Lokální Proměnnou
     fn captureELV(self: *Self, local: *Val) *Object.ELV {
         var prev: ?*Object.ELV = null;
         var elv = self.openELV;
@@ -511,6 +543,7 @@ pub const VirtualMachine = struct {
         return created;
     }
 
+    /// 'Uzavřít' Externí Lokální Proměnnou
     inline fn closeELV(self: *Self, last: *Val) void {
         while (self.openELV) |elv| {
             if (@intFromPtr(self.openELV.?.location) < @intFromPtr(last)) break;
@@ -571,13 +604,13 @@ pub const VirtualMachine = struct {
     }
 
     /// Přidání hodnoty do stacku
-    fn push(self: *Self, val: Val) void {
+    pub fn push(self: *Self, val: Val) void {
         self.stack[self.stack_count] = val;
         self.stack_count += 1;
     }
 
     /// Odstranění hodnoty ze stacku
-    fn pop(self: *Self) Val {
+    pub fn pop(self: *Self) Val {
         self.stack_count -= 1;
         return self.stack[self.stack_count];
     }
@@ -603,13 +636,17 @@ pub const VirtualMachine = struct {
     }
 
     /// Spojení dvou stringů
-    inline fn concatObj(self: *Self) void {
-        const b = self.pop();
-        const a = self.pop();
+    inline fn concatStrings(self: *Self) void {
+        const b = self.peek(0).obj.string();
+        const a = self.peek(1).obj.string();
 
-        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.obj.string().repre, b.obj.string().repre }) catch @panic("");
+        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.repre, b.repre }) catch @panic("");
 
         const val = Val{ .obj = Object.String.take(self, buff) };
+
+        _ = self.pop();
+        _ = self.pop();
+
         self.push(val);
     }
 
@@ -664,8 +701,8 @@ pub const VirtualMachine = struct {
             const a = self.pop().number;
 
             self.push(Val{ .number = a + b });
-        } else if (first == .obj and second == .obj) { // TODO
-            self.concatObj();
+        } else if (first.isString() and second.isString()) {
+            self.concatStrings();
         } else if (first == .obj or second == .obj) {
             self.concatWithString();
         } else {
@@ -704,6 +741,7 @@ pub const VirtualMachine = struct {
                 }
                 break :blk a / b;
             },
+            .mod => @mod(a, b),
 
             .greater => a > b,
             .less => a < b,
@@ -782,9 +820,10 @@ pub const VirtualMachine = struct {
         return func.block.values.items[self.readByte()];
     }
 
+    /// Spojit dva další byty do 2 bytové hodnoty
     inline fn read16Bit(self: *Self) u16 {
         var frame = self.currentFrame();
-        var items = frame.closure.function.block.code.items;
+        const items = frame.closure.function.block.code.items;
         frame.ip += 2;
         return (@as(u16, items[frame.ip - 2]) << 8 | items[frame.ip - 1]);
     }
@@ -803,13 +842,18 @@ pub const VirtualMachine = struct {
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
 
-        var stdout = std.io.getStdOut();
-        const config = std.io.tty.detectConfig(stdout);
-        config.setColor(stdout, .dim) catch {};
+        if (builtin.os.tag != .freestanding) {
+            // var config = std.io.tty.detectConfig(stdout);
+            // config.setColor(stdout, .dim) catch {};
+            // defer config.setColor(stdout, .reset) catch {};
+        }
+
         var i = self.frame_count;
         while (i > 0) : (i -= 1) {
-            const branch = if (i == self.frame_count)
+            const branch = if (i == self.frame_count and self.frame_count != 1)
                 "╰─┬─"
+            else if (i == self.frame_count and self.frame_count == 1)
+                "╰───"
             else if (i != 1)
                 "  ├─"
             else
@@ -817,7 +861,7 @@ pub const VirtualMachine = struct {
 
             const frame = self.frames[i - 1];
             const location = frame.closure.function.block.locations.items[frame.ip -| 1];
-            const name = if (frame.closure.function.name) |name| name else "skript";
+            const name = if (frame.closure.function.name) |name| name.repre else "skript";
 
             shared.stdout.print("{s} {s}{s}: na řádce {}:{}\n", .{
                 branch,
@@ -825,9 +869,9 @@ pub const VirtualMachine = struct {
                 if (std.mem.eql(u8, name, "skript")) "" else "()",
                 location.line,
                 location.start_column,
-            }) catch @panic("");
+            }) catch {};
         }
-        config.setColor(stdout, .reset) catch {};
+        //config.setColor(stdout, .reset) catch {};
 
         self.resetStack();
     }

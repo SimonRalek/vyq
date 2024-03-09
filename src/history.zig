@@ -2,13 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Keywords = @import("token.zig").Keywords;
 
-fn isBoundary(char: u8) bool {
-    switch (char) {
-        ' ', '\t', '\r', '\n', '.', ',', ';', ':', '!', '?', '=' => return true,
-        else => return false,
-    }
-}
-
+// Doplnění v REPL (jen v linuxu)
 pub fn completion(text: ?[*:0]const u8, start: c_int, end: c_int) callconv(.C) ?[*:null]?[*:0]u8 {
     _ = end;
     _ = start;
@@ -17,7 +11,7 @@ pub fn completion(text: ?[*:0]const u8, start: c_int, end: c_int) callconv(.C) ?
     const arr = Keywords.kvs;
     var result = std.ArrayList(?[*:0]u8).init(alloc);
 
-    var buf = std.mem.span(text) orelse @panic("");
+    const buf = std.mem.span(text) orelse @panic("");
 
     for (arr) |kv| {
         if (std.mem.startsWith(u8, kv.key, buf)) {

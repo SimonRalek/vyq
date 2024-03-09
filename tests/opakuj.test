@@ -1,5 +1,6 @@
-opakuj jako i 0..4: tiskni .i;
-0
-1
-2
-3
+opakuj prm i = 10; .i < 15; .i += 1: { tiskni .i; }
+10
+11
+12
+13
+14

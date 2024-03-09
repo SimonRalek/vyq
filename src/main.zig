@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const clap = @import("clap");
+const clap = @import("lib/zig-clap/clap.zig");
 
 const debug = @import("debug.zig");
 const shared = @import("shared.zig");
@@ -28,12 +28,6 @@ extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.
 
 const MAX_HISTORY = 250;
 
-const c = @cImport({
-    @cInclude("stdio.h");
-    @cInclude("readline/readline.h");
-    @cInclude("readline/history.h");
-});
-
 /// Inicializace individuálních částí a spuštení dle modu
 pub fn main() !void {
     if (builtin.os.tag == .windows) {
@@ -46,7 +40,8 @@ pub fn main() !void {
     const allocator = heap.allocator();
 
     var reporter = Reporter{ .allocator = allocator };
-    var vm = VM.init(allocator, &reporter);
+    var vm = VM.create(allocator);
+    vm.init(&reporter);
 
     var bench: BenchMark = undefined;
     var timer: *Timer = undefined;
@@ -98,7 +93,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
             unreachable;
         }).stdout;
         try shared.stdout.print("{s}", .{version});
-        std.process.exit(74);
+        return;
     }
 
     if (res.args.pomoc == 1) {
@@ -112,7 +107,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
             \\  --bezbarev       Vypisování bez barev
             \\
         , .{});
-        std.process.exit(74);
+        return;
     }
 
     if (res.args.bezbarev == 1) {
@@ -143,11 +138,40 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
             var utf8: [1024]u8 = undefined;
             const utf8_len = try std.unicode.utf16leToUtf8(&utf8, data[0..read]);
-            const source = utf8[0 .. utf8_len - 1]; // - \n
+            const source = utf8[0 .. utf8_len - 1];
 
             vm.interpret(source) catch {};
         }
+    } else if (builtin.os.tag == .macos) {
+        while (true) {
+            var buf: [256]u8 = undefined;
+            var buf_stream = std.io.fixedBufferStream(&buf);
+
+            try shared.stdout.print(">>> ", .{});
+
+            std.io.getStdIn().reader().streamUntilDelimiter(
+                buf_stream.writer(),
+                '\n',
+                buf.len,
+            ) catch {
+                @panic("");
+            };
+            const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+
+            if (input.len == buf.len) {
+                try Reporter.printErr("Vstup je příliš dlouhý", .{});
+                try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
+                continue;
+            }
+            const source = buf[0..input.len];
+            vm.interpret(source) catch {};
+        }
     } else {
+        const c = @cImport({
+            @cInclude("stdio.h");
+            @cInclude("readline/readline.h");
+            @cInclude("readline/history.h");
+        });
         c.using_history();
         var path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
         defer allocator.free(path);
@@ -168,8 +192,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             } else {
                 _ = c.remove_history(c.history_length - 1);
             }
-
-            try vm.interpret(std.mem.span(line));
+            vm.interpret(std.mem.span(line)) catch {};
         }
     }
 }
@@ -184,7 +207,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
         Reporter.printErr("Soubor nebyl nalezen", .{}) catch {
             @panic("Hodnotu se nepodařilo vypsat");
         };
-        std.process.exit(70);
+        return;
     };
     defer allocator.free(source);
 

@@ -7,21 +7,21 @@ pub const benchmark = false;
 pub const test_alloc = true;
 
 /// Výpis instrukcí s hodnoty v bloku
-pub fn disBlock(block: *Block, name: []const u8) void {
-    std.debug.print("--- {s} ---\n", .{name});
-    var allocator = std.heap.page_allocator;
+pub fn disassembleBlock(block: *Block, name: []const u8) void {
+    std.debug.print("____ {s} ____\n", .{name});
+    const allocator = std.heap.page_allocator;
 
     var i: usize = 0;
     while (i < block.code.items.len) {
-        i = disInstruction(block, i, allocator);
+        i = disassembleInstruction(block, i, allocator);
     }
 }
 
 /// Rozebrat instrukci
-pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) usize {
+pub fn disassembleInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) usize {
     std.debug.print("{:0>3} ", .{idx});
 
-    if (idx > 0 and block.*.locations.items[idx].line == block.*.locations.items[idx - 1].line) {
+    if (idx > 0 and isSameAsPreviousLine(idx, block)) {
         std.debug.print("|    ", .{});
     } else {
         std.debug.print("{:0>4} ", .{block.*.locations.items[idx].line});
@@ -35,6 +35,7 @@ pub fn disInstruction(block: *Block, idx: usize, allocator: std.mem.Allocator) u
         .op_sub => simple("op_minus", idx),
         .op_mult => simple("op_mult", idx),
         .op_div => simple("op_div", idx),
+        .op_mod => simple("op_mod", idx),
         .op_increment => simple("op_increment", idx),
         .op_decrement => simple("op_decrement", idx),
         .op_not => simple("op_not", idx),
@@ -109,7 +110,7 @@ inline fn value(
     idx: usize,
     allocator: std.mem.Allocator,
 ) usize {
-    var val = block.*.code.items[idx + 1];
+    const val = block.*.code.items[idx + 1];
     std.debug.print("{s} {} ", .{ name, val });
 
     block.*.values.items[val].print(allocator);
@@ -117,12 +118,14 @@ inline fn value(
     return idx + 2;
 }
 
+// Výpis instrukce dvou bytové instrukce
 inline fn byte(name: []const u8, block: *Block, idx: usize) usize {
-    var k = block.code.items[idx + 1];
+    const k = block.code.items[idx + 1];
     std.debug.print("{s} {}\n", .{ name, k });
     return idx + 2;
 }
 
+// Výpis instrukce přeskočení
 inline fn jmp(name: []const u8, sign: i8, block: *Block, idx: usize) usize {
     const b1 = @as(u16, block.code.items[idx + 1]);
     const b2 = block.code.items[idx + 2];
@@ -134,4 +137,9 @@ inline fn jmp(name: []const u8, sign: i8, block: *Block, idx: usize) usize {
     };
     std.debug.print("{s} {d:4} -> {d}\n", .{ name, jump, addr });
     return idx + 3;
+}
+
+// Pomocná funkce jestli je instrukce na stejné řádce jako předchozí
+inline fn isSameAsPreviousLine(idx: usize, block: *Block) bool {
+    return block.locations.items[idx].line == block.locations.items[idx - 1].line;
 }
