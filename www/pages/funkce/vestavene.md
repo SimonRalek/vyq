@@ -28,6 +28,7 @@ Naším jazykem jsou poskytovány různé vestavěné funkce, které vám umožn
 
 - `.jeCislo(hodnota)`: Vrátí `ano`, pokud je daná hodnota číslem, jinak `ne`.
 - `.jeRetezec(hodnota)`: Vrátí `ano`, pokud je daná hodnota řetězcem, jinak `ne`.
+- `.jeList(hodnota)`: Vrátí `ano`, pokud je daná hodnota listem, jinak `ne`.
 
 #### Čas a Datum
 
