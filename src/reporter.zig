@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const shared = @import("shared.zig");
 const Allocator = std.mem.Allocator;
 const Color = std.io.tty.Color;
@@ -15,6 +16,7 @@ panic_mode: bool = false,
 file: []const u8 = undefined,
 source: []const u8 = undefined,
 nocolor: bool = false,
+is_wasm: bool = false,
 
 /// Init reporteru
 pub fn init(allocator: Allocator) Reporter {
@@ -123,11 +125,15 @@ pub const Report = struct {
                 }
 
                 for (loc.start_column..loc.end_column + 1) |_| {
-                    const stdout = std.io.getStdOut();
-                    var config = std.io.tty.detectConfig(stdout);
-                    try config.setColor(stdout, .green);
-                    try stdout.writer().print("^", .{});
-                    try config.setColor(stdout, .reset);
+                    if (!shared.isFreestanding()) {
+                        const stdout = std.io.getStdOut();
+                        var config = std.io.tty.detectConfig(stdout);
+                        try config.setColor(stdout, .green);
+                        try stdout.writer().print("^", .{});
+                        try config.setColor(stdout, .reset);
+                    } else {
+                        try shared.stdout.print("^", .{});
+                    }
                 }
 
                 try shared.stdout.print("\n\n", .{});
@@ -140,16 +146,20 @@ pub const Report = struct {
     /// Vytisknout poznámky
     fn printNotes(self: *Self) !void {
         for (self.notes) |note| {
-            var stdout = std.io.getStdOut();
-            const config = std.io.tty.detectConfig(stdout);
-            if (!self.reporter.nocolor)
-                try config.setColor(stdout, note.kind.getColor());
-            try stdout.writer().print(
-                "poznámka",
-                .{},
-            );
-            if (!self.reporter.nocolor)
-                try config.setColor(stdout, .reset);
+            if (!shared.isFreestanding()) {
+                var stdout = std.io.getStdOut();
+                const config = std.io.tty.detectConfig(stdout);
+                if (!self.reporter.nocolor)
+                    try config.setColor(stdout, note.kind.getColor());
+                try stdout.writer().print(
+                    "poznámka",
+                    .{},
+                );
+                if (!self.reporter.nocolor)
+                    try config.setColor(stdout, .reset);
+            } else {
+                try shared.stdout.print("poznámka", .{});
+            }
             try shared.stdout.print(": {s}\n", .{note.message});
         }
     }
@@ -161,15 +171,20 @@ pub const Report = struct {
             loc.line,
             loc.end_column,
         });
-        var stdout = std.io.getStdOut();
-        var config = std.io.tty.detectConfig(stdout);
-        if (!self.reporter.nocolor)
-            try config.setColor(stdout, self.item.kind.getColor());
-        try stdout.writer().print("{s}: ", .{
-            self.item.kind.name(),
-        });
-        if (!self.reporter.nocolor)
-            try config.setColor(stdout, .reset);
+
+        if (!shared.isFreestanding()) {
+            var stdout = std.io.getStdOut();
+            var config = std.io.tty.detectConfig(stdout);
+            if (!self.reporter.nocolor)
+                try config.setColor(stdout, self.item.kind.getColor());
+            try stdout.writer().print("{s}: ", .{
+                self.item.kind.name(),
+            });
+            if (!self.reporter.nocolor)
+                try config.setColor(stdout, .reset);
+        } else {
+            try shared.stdout.print("{s}: ", .{self.item.kind.name()});
+        }
 
         switch (self.type.?) {
             ResultError.runtime => {
@@ -187,15 +202,20 @@ pub const Report = struct {
         try shared.stdout.print("{s} ", .{
             self.reporter.file,
         });
-        var stdout = std.io.getStdOut();
-        var config = std.io.tty.detectConfig(stdout);
-        if (!self.reporter.nocolor)
-            try config.setColor(stdout, self.item.kind.getColor());
-        try stdout.writer().print("{s}: ", .{
-            self.item.kind.name(),
-        });
-        if (!self.reporter.nocolor)
-            try config.setColor(stdout, .reset);
+
+        if (!shared.isFreestanding()) {
+            var stdout = std.io.getStdOut();
+            var config = std.io.tty.detectConfig(stdout);
+            if (!self.reporter.nocolor)
+                try config.setColor(stdout, self.item.kind.getColor());
+            try stdout.writer().print("{s}: ", .{
+                self.item.kind.name(),
+            });
+            if (!self.reporter.nocolor)
+                try config.setColor(stdout, .reset);
+        } else {
+            try shared.stdout.print("{s}: ", .{self.item.kind.name()});
+        }
 
         try shared.stdout.print("{s}\n", .{self.item.message});
     }

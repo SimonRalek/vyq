@@ -258,7 +258,7 @@ pub const Object = struct {
             }
 
             const buff = vm.allocator.alloc(u8, chars.len) catch {
-                std.process.exit(71);
+                @panic("sd");
             };
 
             @memcpy(buff, chars);

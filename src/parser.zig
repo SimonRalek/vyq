@@ -77,8 +77,8 @@ pub const Parser = struct {
         self.emitReturn();
 
         const function = self.emitter.function;
-        if (!self.reporter.had_error and debug.debugging) {
-            debug.disassembleBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
+        if (!self.reporter.had_error and debug.debugging and !shared.isFreestanding()) {
+            debug.disBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
         }
 
         if (self.emitter.wrapped) |emitter| {
@@ -448,6 +448,7 @@ pub const Parser = struct {
                     .min_operator => .op_sub,
                     .div_operator => .op_div,
                     .mul_operator => .op_mult,
+                    .mod_operator => .op_mod,
                     else => unreachable,
                 });
 
@@ -930,6 +931,9 @@ pub const Parser = struct {
             .slash => {
                 self.emitOpCode(.op_div);
             },
+            .modulo => {
+                self.emitOpCode(.op_mod);
+            },
             .equal => {
                 self.emitOpCode(.op_equal);
             },
@@ -1022,7 +1026,7 @@ pub const Parser = struct {
     fn parsePrecedence(self: *Self, precedence: Precedence) void {
         self.advance();
         const prefix = getRule(self.previous.type).prefix orelse {
-            self.report(&self.current, "Očekávaný výraz");
+            self.report(&self.previous, "Neznámý výraz");
             return;
         };
 
@@ -1041,7 +1045,7 @@ pub const Parser = struct {
 
     /// Jestli je token operátor přířazení
     fn isAdditionalOperator(self: *Self) bool {
-        return self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator);
+        return self.match(.add_operator) or self.match(.min_operator) or self.match(.div_operator) or self.match(.mul_operator) or self.match(.mod_operator);
     }
 
     /// Pravidla parsování

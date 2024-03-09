@@ -1,0 +1,47 @@
+{
+  "Pokud": {
+    "prefix": "pokud",
+    "body": ["pokud ${1:podminka}: {","\t$0", "}"],
+    "description": "Větvení"
+  },
+  "Pokud - Jinak": {
+    "prefix": "pokudjinak",
+    "body": ["pokud ${1:podminka}: {","\t${2}","} jinak {", "\t$0", "}"],
+    "description": "Větvení"
+  },
+  "Opakuj": {
+    "prefix": "opakuj",
+    "body": ["opakuj prm ${1:promenna} = ${2:hodnota}; ${3:podminka}; ${4}: {", "\t$0", "}"],
+    "description": "Smyčka Opakuj"
+  },
+  "Dokud": {
+    "prefix": "dokud",
+    "body": ["dokud ${1:podminka}: {", "\t$0", "}"],
+    "description": "Smyčka Dokud"
+  },
+  "Vyber": {
+    "prefix": "vyber",
+    "body": "vyber ${1:podminka}: {\npripad ${2:hodnota} -> ${3:reakce}\n}",
+    "description": "Víceúrovňové větvení"
+  },
+  "Prm": {
+    "prefix": "prm",
+    "body": "prm ${1:nazev} = ${2:hodnota};",
+    "description": "Deklarace proměnné"
+  },
+  "Konst": {
+    "prefix": "konst",
+    "body": "konst ${1:nazev} = ${2:hodnota};",
+    "description": "Deklarace konstanty"
+  },
+  "Funkce": {
+    "prefix": "funkce",
+    "body": ["funkce ${1:nazev}(${2:parametry}) {", "\t$0", "}" ],
+    "description": "Deklarace funkce"
+  },
+  "Tiskni": {
+    "prefix": "tiskni",
+    "body": "tiskni ${1:hodnota};",
+    "description": "Vytiskni na standart output"
+  }
+}

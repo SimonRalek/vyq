@@ -1,0 +1,71 @@
+{
+  "name": "vyq-language-support",
+  "displayName": "Vyq - Podpora Jazyka",
+  "description": "Poskytuje zvýraznění syntaxe, snippety a další funkce pro soubory jazyka Vyq",
+  "version": "1.0.3",
+  "engines": {
+    "vscode": "^1.58.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "vyq",
+        "configuration": "./language-configuration.json",
+        "aliases": [
+          "vyq",
+          "Vyq"
+        ],
+        "extensions": [
+          ".vyq"
+        ],
+        "icon": {
+          "light": "./images/vyq-logo.png",
+          "dark": "./images/vyq-logo.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "vyq",
+        "scopeName": "source.vyq",
+        "path": "./syntaxes/vyq.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "vyq.helloWorld",
+        "title": "Hello World"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "vyq",
+        "path": "./snippets/snippets.json"
+      }
+    ]
+  },
+  "activationEvents": [
+      "onLanguage:vyq"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/node": "^14.18.63",
+    "@types/vscode": "^1.58.0",
+    "typescript": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/simonralek/vyq.git"
+  },  
+  "publisher": "vyq",
+  "icon": "images/vyq-logo.png"
+}

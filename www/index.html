@@ -2,45 +2,274 @@
 <html lang="en">
 
 <head>
-  <title></title>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="css/style.css" rel="stylesheet">
-
-  <link rel="icon" type="image/x-icon" href="../images/vyq-icon.png">
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat&display=swap" rel="stylesheet">
-
-  <script defer src="script.js">
-  </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="Nový ryze český interpretovaný programovací jazyk s důrazem na jednoduchost a intuitivní
+    použití. Navržený pro děti a mladé začínající programátory, nabízí zábavné a interaktivní
+    prostředí pro učení základních programovacích principů." />
+    <meta name="author" content="Šimon Rálek" />
+    <title>vyq</title>
+    <link rel="icon" type="image/x-icon" href="images/vyq-icon.png" />
+    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css?family=Varela+Round" rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
+        rel="stylesheet" />
+    <link href="css/styles.css" rel="stylesheet" />
+    <link href="css/index.css" rel="stylesheet" />
 </head>
 
-<body>
-  <!-- <div id="main_el">
-      <img class="main_img" src="../images/vyq.png" height="250px">
-    </div> -->
-  <div class="wrapper">
+<body id="page-top">
+    <button type="button" class="btn btn-floating btn-lg" id="btn-back-to-top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top bg-white" id="mainNav">
+        <div class="container">
+            <a class="navbar-brand mx-auto mx-lg-0" href="/">
+                <img src="images/vyq-icon.png" id="top-icon" height="50px" alt="vyq icon">
+            </a>
 
-    <div class="nav">
-      <ul>
-        <li>Dokumentace</li>
-        <li>Příklady</li>
-        <li>Hřiště</li>
-      </ul>
+            <button class="navbar-toggler" id="navbarToggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive"
+                aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+                <img src="images/menu.png" height="32px">
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarResponsive">
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item"><a class="nav-link active" href="/">Hlavní stránka</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/dokumentace">Dokumentace</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/hriste">Hřiště</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <header class="masthead" id="main-page">
+        <div class="container px-4 px-lg-5 d-flex h-100 align-items-center justify-content-center">
+            <div class="d-flex justify-content-center">
+                <div class="text-center">
+                    <img draggable="false" class="mx-auto my-0" id="main_image" src="images/vyq.png" width="700px">
+                    <h2 id="description" style="font-size: 1.6em" class="text-black-400 mx-auto mt-2 mb-5">První ryze český programovací jazyk</h2>
+                    <div class="down-arrow"><a id="arrow-appear" style="color: black;" href="#navigace"><i
+                                class="fa fa-arrow-down fa-3x"></i></a></div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <div id="navigace">
+        <section class="about-section text-center">
+            <div class="container px-4 px-lg-5">
+                <div class="row gx-4 gx-lg-5 justify-content-center">
+                    <div class="col-lg-4 pb-3 animate-fadein-bottom">
+                        <a href="/dokumentace" draggable="false">
+                            <div class="card service-card card-inverse pb-3">
+                                <div class="card-block">
+                                    <img src="images/docs.png" draggable="false" class="my-2 pt-1" height="96px">
+                                    <h4 class="card-title py-2"><strong>Dokumentace</strong></h4>
+                                    <div style="padding: 0 20px 20px 20px">
+                                        <span style="color: black;">
+                                            Dokumentace je zdroj informací o programovacím jazyku, který pomáhá
+                                            programátorům porozumět jeho syntaxi, vlastnostem, funkcím a možnostem.
+                                            Dokumentace obsahuje kompletní popis jazyka, včetně příkladů kódu, funkcí a
+                                            dalších klíčových prvků. Je to důležitý nástroj pro programátory všech
+                                            úrovní,
+                                            který jim umožňuje efektivně využívat vlastnosti jazyka.
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-lg-4 pb-3 animate-fadein-bottom">
+                        <a href="/hriste" draggable="false">
+                            <div class="card service-card card-inverse pb-3">
+                                <div class="card-block">
+                                    <img src="images/playground.png" draggable="false" class="my-3 pt-1" height="96px">
+                                    <h4 class="card-title py-2"><strong>Hřiště</strong></h4>
+                                    <div style="padding: 0 20px 20px 20px">
+                                        <span style="color: black;">
+                                            Hřiště je interaktivní prostředí, které
+                                            umožňuje programátorům psát, testovat a spouštět kód přímo v prohlížeči, bez
+                                            nutnosti instalace nebo konfigurace žádného vývojového prostředí. Hřiště
+                                            poskytuje uživatelům rychlý a snadný způsob, jak experimentovat s kódem,
+                                            ověřit
+                                            jeho funkčnost a zjistit, jaké výstupy generuje. </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    </div>
+    <section id="introduction" class="bg-light">
+        <div class="container col-lg-7" style="padding: 4rem 0;">
+            <div class="d-flex justify-content-center animate-fadein-bottom">
+                <h1 class="display-2 pb-3" style="color: #5f4da8;">
+                    vyq
+                </h1>
+            </div>
+            <div class="animate-fadein-bottom" style="padding: 15px;">
+                <span style="font-size: 20px;">
+                <strong>Vyq</strong> je imperativní, dynamicky typovaný, univerzální, stack-based
+                <strong>interpretovaný
+                    programovací jazyk</strong>. Je
+                určen jako <strong>mezistupeň</strong> mezi blokovým programováním a programováním používaným v
+                reálných
+                aplikacích.
+                Cílem je začlenit tento jazyk do výuky programování pro děti a <strong>ulehčit</strong> tak přechod
+                mezi
+                blokovým a
+                imperativním programováním. Jazyk je taktéž <strong>"open-source"</strong> aby mohl sloužit i jako
+                inspirace či podklad
+                pro zájemce chtějící vytvořit svůj programovací jazyk.
+                </span>
+            </div>
+        </div>
+    </section>
+    <section class="projects-section bg-light" id="projects">
+        <div class="container px-4 px-lg-5">
+            <div class="row py-4">
+                <div class="col-lg-8">
+                    <div class="card-horizontal-left animate-fadein-left">
+                        <h2>
+                            Celé v češtině
+                        </h2>
+                        <span>
+                            Navržený tak, aby byl kompletně v češtině, což znamená, že všechny příkazy,
+                            názvy funkcí, proměnné, atd., jsou psány v češtině. To usnadňuje pochopení kódu a zvyšuje
+                            jazykovou přístupnost pro české uživatele.
+                        </span>
+                    </div>
+                </div>
+                <div class="col-lg-4"></div>
+            </div>
+            <div class="row py-4">
+                <div class="col-lg-4"></div>
+                <div class="col-lg-8">
+                    <div class="card-horizontal-right animate-fadein-right">
+                        <h2>
+                            Jednoduchý
+                        </h2>
+                        <span>
+                            Navržen tak, aby byl jednoduchý a intuitivní, což znamená, že je snadno použitelný pro
+                            začátečníky. Syntaxe je zjednodušená a logická, což umožňuje snadnou implementaci a učení.
+                        </span>
+                    </div>
+                </div>
+
+            </div>
+            <div class="row py-4">
+                <div class="col-lg-8">
+                    <div class="card-horizontal-left animate-fadein-left">
+                        <h2>
+                            Pro začátečníky
+                        </h2>
+                        <span>
+                            Zaměřený na začátečníky, což znamená, že je navržen tak, aby byl přístupný a zábavný pro
+                            děti a mladé začínající programátory. Obsahuje uživatelské prostředí, které zjednodušuje
+                            proces učení a tvorby kódu.
+                        </span>
+                    </div>
+                </div>
+                <div class="col-lg-4"></div>
+            </div>
+            <div class="row py-4">
+                <div class="col-lg-4"></div>
+                <div class="col-lg-8">
+                    <div class="card-horizontal-right animate-fadein-right">
+                        <h2>
+                            Dokumentace a podpora
+                        </h2>
+                        <span>
+                            Doprovázen podrobnou dokumentací, která poskytuje užitečné informace a návody pro
+                            uživatele. Dokumentace obsahuje podrobný popis syntaxe jazyka, včetně příkladů kódu, které
+                            pomáhají uživatelům pochopit, jak kód funguje a jak ho použít. Kromě toho zde naleznete
+                            informace o různých funkcích a vlastnostech jazyka.
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="row py-4">
+                <div class="col-lg-8">
+                    <div class="card-horizontal-left animate-fadein-left">
+                        <h2>
+                            Open-source
+                        </h2>
+                        <span>
+                            Znamená, že je volně dostupný pro všechny uživatele a vývojáře. To umožňuje komunitě
+                            přispívat k jeho vývoji, nalézat chyby a navrhovat vylepšení. Je to také skvělý způsob, jak
+                            se učit programování, protože můžete vidět, jak funguje kód jiných programátorů.
+                        </span>
+                    </div>
+                </div>
+                <div class="col-lg-4"></div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="text-center text-lg-start text-black">
+        <div class="p-4 mb-2">
+            <section class="">
+                <div class="row">
+                    <div class="col-md-4 col-lg-3 col-xl-3 mx-auto mt-3">
+                        <h6 class="text-uppercase mb-4 font-weight-bold">
+                            <strong>vyq</strong>
+                        </h6>
+                        <p>
+                            Nový ryze český interpretovaný programovací jazyk s důrazem na jednoduchost a intuitivní
+                            použití. Navržený pro děti a mladé začínající programátory, nabízí zábavné a interaktivní
+                            prostředí pro učení základních programovacích principů.
+                        </p>
+                    </div>
+ 
+                    <div id="footer-nav" class="col-md-4 col-lg-2 col-xl-2 mx-auto mt-3">
+                        <h6 class="text-uppercase mb-4 font-weight-bold"><strong>Navigace</strong></h6>
+                        <p>
+                            <a class="" href="/">Hlavní stránka</a>
+                        </p>
+                        <p>
+                            <a class="" href="/dokumentace">Dokumentace</a>
+                        </p>
+                        <p>
+                            <a class="" href="/hriste">Hřiště</a>
+                        </p>
+
+                    </div>
+                    <div class="col-md-4 col-lg-3 col-xl-3 mx-auto mt-3">
+                        <h6 class="text-uppercase mb-4 font-weight-bold"><strong>Autor</strong></h6>
+                        <p><i class="fas fa-address-book mr-3"></i> Šimon Rálek</p>
+                        <p><i class="fas fa-envelope mr-3"></i> <a id="mail"
+                                href="mailto:simon.ralek@gmail.com">simon.ralek@vyq.cz</a></p>
+                        <div id="socials" class="d-flex">
+                            <a href="https://github.com/SimonRalek" target="_blank"><i class="fab fa-github"></i></a>
+                            <a href="https://cz.linkedin.com/in/%C5%A1imon-r%C3%A1lek-379095260" target="_blank"><i
+                                    class="fab fa-linkedin"></i></a>
+                            <a href="https://www.instagram.com/simon.ralek/" target="_blank"><i
+                                    class="fab fa-instagram"></i></a>
+                            <a href="https://www.facebook.com/profile.php?id=100011158516459" target="_blank"><i
+                                    class="fab fa-facebook-square"></i></a>
+                        </div>
+                    </div>
+            </section>
+        </div>
+
+        <div class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.1)">
+            © 2024 Copyright:
+            Rálek Šimon
+
+        </div>
+
+    </footer>
+    </div>
 
     </div>
-    <a href="https://github.com/simonralek/vyq" target="_blank">
-      <img id="github" src="images/github.png" height="56px">
-    </a>
 
-    <div class="content">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
 
-      <img id="main_img" src="../images/vyq.png" height="300px">
-      <p class="description">První český interpretovaný programovací jazyk</p>
-    </div>
-  </div>
+    <script src="js/script.js"></script>
 </body>
-<a href="javascript:" id="return-to-top"><i class="icon-chevron-up"></i></a>
+
 </html>

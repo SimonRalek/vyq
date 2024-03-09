@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="cz">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description"
+        content="Nový ryze český interpretovaný programovací jazyk s důrazem na jednoduchost a intuitivní použití. Navržený pro děti a mladé začínající programátory!" />
+    <meta name="author" content="Šimon Rálek" />
+    <title>vyq - Hřiště</title>
+    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+    <link rel="icon" type="image/x-icon" href="images/vyq-icon.png" />
+    <link href="https://fonts.googleapis.com/css?family=Varela+Round" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.61.1/codemirror.min.css" />
+    <link
+        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
+        rel="stylesheet" />
+    <link href="css/styles.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/hriste.css">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top" id="mainNav">
+        <div class="container px-4 px-lg-5">
+            <a class="navbar-brand mx-auto mx-lg-0" href="/">
+                <img src="images/vyq-icon.png" id="top-icon" height="50px" alt="vyq icon">
+            </a>
+
+            <button class="navbar-toggler" id="navbarToggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive"
+                aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+                <img src="images/menu.png" height="32px" alt="menu">
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarResponsive">
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Hlavní stránka</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/dokumentace">Dokumentace</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="/hriste">Hřiště</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="playground-container">
+        <div class="row input-output-row">
+            <div class="col-12 col-lg-6 input-container">
+                <div id="codeInput"></div>
+            </div>
+            <div class="row d-lg-none" style="padding: 0;">
+                <div class="col-12 d-flex justify-content-center run-button-container-mobile" style="padding: 0;">
+                    <button class="btn runCodeBtn" id="runCodeBtnMobile">Spustit kód</button>
+                </div>
+            </div>    
+            <div class="col-12 col-lg-6 output-container">
+                <div class="output" id="codeOutput"></div>
+            </div>
+        </div>
+        <div class="row d-none d-lg-flex">
+            <div class="col-12 d-flex justify-content-center run-button-container-desktop">
+                <button class="btn runCodeBtn" id="runCodeBtn">Spustit kód</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.61.1/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.61.1/mode/javascript/javascript.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/wasm.js"></script>
+</body>
+
+</html>

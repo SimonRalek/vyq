@@ -1,5 +1,6 @@
 const std = @import("std");
 const shared = @import("shared.zig");
+const builtin = @import("builtin");
 
 const Allocator = std.mem.Allocator;
 
@@ -24,6 +25,7 @@ const BinaryOp = enum {
     sub,
     mult,
     div,
+    mod,
     greater,
     less,
     bit_and,
@@ -81,12 +83,12 @@ pub const VirtualMachine = struct {
         self.defineNative("delka", natives.str_lenNative);
         self.defineNative("nactiVstup", natives.inputNative);
         self.defineNative("ziskejTyp", natives.getTypeNative);
-        self.defineNative("nahoda", natives.randNative);
+        self.defineNative("nahoda", natives.randFunction);
         self.defineNative("mocnina", natives.sqrtNative);
         self.defineNative("odmocnit", natives.rootNative);
         self.defineNative("jeCislo", natives.isDigitNative);
         self.defineNative("jeRetezec", natives.isStringNative);
-        self.defineNative("casovaZnacka", natives.getTimeStampNative);
+        self.defineNative("cas", natives.timeFunction);
     }
 
     /// "Free"nout objekty a listy
@@ -143,6 +145,7 @@ pub const VirtualMachine = struct {
                 .op_sub => self.binary(.sub),
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
+                .op_mod => self.binary(.mod),
 
                 // .op_increment => {
                 //     const a = self.pop();
@@ -342,6 +345,7 @@ pub const VirtualMachine = struct {
 
                     self.push(closure.obj.val());
                 },
+
                 .op_get_elv => {
                     const slot = self.readByte();
                     self.push(frame.closure.elvs[slot].?.location.*);
@@ -419,7 +423,11 @@ pub const VirtualMachine = struct {
         if (arg_count != closure.function.arity) {
             self.runtimeErr(
                 "Funkce '{s}' očekává počet argumentů {d}, dostala {d}",
-                .{ closure.function.name.?.repre, closure.function.arity, arg_count },
+                .{
+                    closure.function.name.?.repre,
+                    closure.function.arity,
+                    arg_count,
+                },
                 &.{},
             );
             return false;
@@ -434,17 +442,24 @@ pub const VirtualMachine = struct {
         self.frame_count += 1;
         frame.closure = closure;
         frame.ip = 0;
-        frame.start = self.stack_count - arg_count - 1; // -1 ABY ZUSTALA HLAVNI FUNKCE NA STACKU
+        frame.start = self.stack_count - arg_count - 1;
         return true;
     }
 
     /// Definice nativní funkce
-    fn defineNative(self: *Self, name: []const u8, function: Native.NativeFn) void {
+    fn defineNative(
+        self: *Self,
+        name: []const u8,
+        function: Native.NativeFn,
+    ) void {
         const str = Object.String.copy(self, name);
         self.push(str.val());
         const functionVal = (Object.Native.init(self, function, name)).obj.val();
         self.push(functionVal);
-        self.globals.put(str.string(), Global{ .is_const = true, .val = functionVal }) catch @panic("");
+        self.globals.put(
+            str.string(),
+            Global{ .is_const = true, .val = functionVal },
+        ) catch @panic("");
         _ = self.pop();
         _ = self.pop();
     }
@@ -623,6 +638,7 @@ pub const VirtualMachine = struct {
                 }
                 break :blk a / b;
             },
+            .mod => @mod(a, b),
 
             .greater => a > b,
             .less => a < b,
@@ -723,13 +739,18 @@ pub const VirtualMachine = struct {
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
 
-        const stdout = std.io.getStdOut();
-        const config = std.io.tty.detectConfig(stdout);
-        config.setColor(stdout, .dim) catch {};
+        if (builtin.os.tag != .freestanding) {
+            // var config = std.io.tty.detectConfig(stdout);
+            // config.setColor(stdout, .dim) catch {};
+            // defer config.setColor(stdout, .reset) catch {};
+        }
+
         var i = self.frame_count;
         while (i > 0) : (i -= 1) {
-            const branch = if (i == self.frame_count)
+            const branch = if (i == self.frame_count and self.frame_count != 1)
                 "╰─┬─"
+            else if (i == self.frame_count and self.frame_count == 1)
+                "╰───"
             else if (i != 1)
                 "  ├─"
             else
@@ -745,9 +766,9 @@ pub const VirtualMachine = struct {
                 if (std.mem.eql(u8, name, "skript")) "" else "()",
                 location.line,
                 location.start_column,
-            }) catch @panic("");
+            }) catch {};
         }
-        config.setColor(stdout, .reset) catch {};
+        //config.setColor(stdout, .reset) catch {};
 
         self.resetStack();
     }

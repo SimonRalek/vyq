@@ -1,5 +1,10 @@
-opakuj jako i 0..4: tiskni .i;
-0
-1
-2
-3
+.delka(retezec)
+.nactiVstup() - z standartniho vstupu input
+.ziskejTyp(hodnota) - retezec, cislo..
+.nahoda() - nahodne cislo
+.nahoda(max) - nahodne cislo do maxima
+.mocnina(hodnota, na kterou mocninu)
+.odmocnina(hodnota) - druha odmocnina
+.jeCislo(hodnota)
+.jeRetezec(hodnota)
+.casovaZnacka() - timestamp

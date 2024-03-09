@@ -1,0 +1,97 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "vyq",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#brackets"
+		},
+		{
+			"name": "keyword.operator.vyq",
+			"match": "(\\+=|-=|\\*=|/=|%=|\\+|-|\\*|/|%|!|>|<|\\||&|~|>>|<<)"
+		},
+		{
+			"name": "keyword.operator.range.vyq",
+			"match": "\\.{2}"
+		},
+		{
+			"name": "support.function.builtin.vyq",
+			"match": "\\.(delka|nactiVstup|ziskejTyp|nahoda|mocnina|odmocnina|jeCislo|jeRetezec|casovaZnacka)\\b"
+		},
+		{
+			"name": "variable.other.dot-prefix.vyq",
+			"match": "\\.[a-zA-Z_][a-zA-Z0-9_]*"
+		},
+		{
+			"name": "constant.numeric.vyq",
+			"match": "\\b\\d+([,]\\d+)?\\b"
+		},
+		{
+			"name": "comment.line.double-slash.vyq",
+			"match": "//.*$"
+		},
+		{
+			"name": "comment.block.vyq",
+			"begin": "/\\*",
+			"end": "\\*/"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.vyq",
+					"match": "\\b(ano|ne|pokud|jinak|prm|konst|opakuj|dokud|nic|nebo|zaroven|pokracuj|tiskni|tiskniN|zastav|jako|dolu|vyber|pripad|po|funkce|vrat)\\b"
+				}
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "string.quoted.double.vyq",
+					"begin": "\"",
+					"end": "\"",
+					"patterns": [
+						{
+							"name": "constant.character.escape.vyq",
+							"match": "\\\\\\."
+						}
+					]
+				},
+				{
+					"name": "string.quoted.single.vyq",
+					"begin": "'",
+					"end": "'",
+					"patterns": [
+						{
+							"name": "constant.character.escape.vyq",
+							"match": "\\\\\\."
+						}
+					]
+				}
+			]
+		},
+		"brackets": {
+			"patterns": [
+				{
+					"name": "punctuation.definition.brackets.round.vyq",
+					"match": "[()]"
+				},
+				{
+					"name": "punctuation.definition.brackets.square.vyq",
+					"match": "[\\[\\]]"
+				},
+				{
+					"name": "punctuation.definition.brackets.curly.vyq",
+					"match": "[{}]"
+				}
+			]
+		}
+	},
+	"scopeName": "source.vyq"
+}
