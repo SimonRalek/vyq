@@ -33,6 +33,7 @@ const Precedence = enum(u8) {
     factor,
     unary,
     call,
+    subscript,
     primary,
 };
 
@@ -42,6 +43,12 @@ const ParseRule = struct {
     infix: ?ParseFn = null,
     prefix: ?ParseFn = null,
     precedence: Precedence = .none,
+};
+
+const State = struct {
+    innermostLoopStart: ?usize = null,
+    innermostLoopEnd: ?usize = null,
+    innermostScopeDepth: u16 = 0,
 };
 
 pub const Parser = struct {
@@ -54,6 +61,9 @@ pub const Parser = struct {
     emitter: *Emitter,
     vm: *VM = undefined,
     reporter: *Reporter,
+    state: State,
+    breakList: [64]usize,
+    break_count: u6 = 0,
 
     /// Init parseru
     pub fn init(
@@ -69,6 +79,8 @@ pub const Parser = struct {
             .reporter = reporter,
             .current = undefined,
             .previous = undefined,
+            .state = State{},
+            .breakList = undefined,
         };
     }
 
@@ -261,8 +273,12 @@ pub const Parser = struct {
             self.whileStmt();
         } else if (self.match(.vrat)) {
             self.returnStmt();
+        } else if (self.match(.zastav)) {
+            self.breakStmt();
         } else if (self.match(.vyber)) {
             self.switchStmt();
+        } else if (self.match(.pokracuj)) {
+            self.continueStmt();
         } else {
             self.exprStmt();
         }
@@ -546,7 +562,9 @@ pub const Parser = struct {
 
     /// Parsování deklarace funkce
     fn functionDeclaration(self: *Self) void {
-        const glob = self.parseVar("Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.") catch return;
+        const glob = self.parseVar(
+            "Chybí jméno funkce. Při deklaraci funkce musíte specifikovat jméno, které bude používáno k jejímu volání.",
+        ) catch return;
         self.markInit();
         self.parseFunction(.function);
         self.defineVar(glob, false);
@@ -653,7 +671,13 @@ pub const Parser = struct {
                 self.variableDeclaration() catch {};
             } else self.exprStmt();
 
-            var start = self.currentBlock().code.items.len;
+            const previousBreaks = self.break_count;
+            const surroundingLoopStart = self.state.innermostLoopStart;
+            const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
+
+            self.state.innermostLoopStart = self.currentBlock().code.items.len;
+            self.state.innermostScopeDepth = self.emitter.scope_depth;
+
             var exit: ?usize = null;
 
             if (!self.match(.semicolon)) {
@@ -672,18 +696,24 @@ pub const Parser = struct {
                 self.emitOpCode(.op_pop);
                 self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
 
-                self.emitLoop(start);
-                start = varStart;
+                self.emitLoop(self.state.innermostLoopStart.?);
+                self.state.innermostLoopStart = varStart;
                 self.patchJmp(jmp);
             }
 
             self.statement();
-            self.emitLoop(start);
+            self.emitLoop(self.state.innermostLoopStart.?);
 
             if (exit) |jmp| {
                 self.patchJmp(jmp);
                 self.emitOpCode(.op_pop);
             }
+
+            self.patchBreaks();
+            self.break_count = previousBreaks;
+
+            self.state.innermostLoopStart = surroundingLoopStart;
+            self.state.innermostScopeDepth = surroundingLoopScopeDepth;
         }
 
         self.endScope();
@@ -691,7 +721,7 @@ pub const Parser = struct {
 
     /// Parsování vylepšeného 'opakuj'
     fn parseEnhancedFor(self: *Self) void {
-        const prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
+        var prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
             return;
         };
 
@@ -699,13 +729,19 @@ pub const Parser = struct {
         self.expression();
         self.defineVar(prm, false);
 
+        const previousBreaks = self.break_count;
+        const surroundingLoopStart = self.state.innermostLoopStart;
+        const surroundingLoopScopeDepth = self.state.innermostScopeDepth;
+
+        self.state.innermostLoopStart = self.currentBlock().code.items.len;
+        self.state.innermostScopeDepth = self.emitter.scope_depth;
+
         var directionUp = true;
         if (!self.match(.until)) {
             directionUp = false;
             self.eat(.dolu, "Očekává se specifikace směru iterace, '..' nebo 'dolu'");
         }
 
-        var start = self.currentBlock().code.items.len;
         self.namedVar(&token, false) catch {
             return;
         };
@@ -729,24 +765,33 @@ pub const Parser = struct {
             self.emitVal(Val{ .number = 1 });
         }
         self.emitOpCode(if (directionUp) .op_add else .op_sub);
-        const resolve = self.resolveLocal(self.emitter, &token);
+        var resolve = self.resolveLocal(self.emitter, &token);
         self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0].?), self.previous.location);
         self.emitOpCode(.op_pop);
 
-        self.emitLoop(start);
-        start = varStart;
+        self.emitLoop(self.state.innermostLoopStart.?);
+        self.state.innermostLoopStart = varStart;
         self.patchJmp(jmp);
         self.eat(.colon, "Očekávaná ':' pro ukončení 'opakuj'");
 
         self.statement();
-        self.emitLoop(start);
+        self.emitLoop(self.state.innermostLoopStart.?);
+
         self.patchJmp(exitJmp);
         self.emitOpCode(.op_pop);
+        self.patchBreaks();
+        self.break_count = previousBreaks;
+
+        self.state.innermostLoopStart = surroundingLoopStart;
+        self.state.innermostScopeDepth = surroundingLoopScopeDepth;
     }
 
     /// Parsování 'dokud'
     fn whileStmt(self: *Self) void {
         const start = self.currentBlock().code.items.len;
+        const previousBreaks = self.break_count;
+        self.state.innermostLoopStart = start;
+        self.state.innermostScopeDepth = self.emitter.scope_depth;
 
         self.expression();
         self.eat(.colon, "Očekávaná ':' za podmínkou");
@@ -758,6 +803,15 @@ pub const Parser = struct {
 
         self.patchJmp(jmp);
         self.emitOpCode(.op_pop);
+
+        self.patchBreaks();
+        self.break_count = previousBreaks;
+    }
+
+    fn patchBreaks(self: *Self) void {
+        for (0..self.break_count) |i| {
+            self.patchJmp(self.breakList[i]);
+        }
     }
 
     /// Parsování 'vyber'
@@ -823,6 +877,44 @@ pub const Parser = struct {
         self.emitOpCode(.op_pop);
     }
 
+    fn breakStmt(self: *Self) void {
+        if (self.state.innermostLoopStart == null) {
+            self.report(&self.previous, "Nelze použít 'zastav' mimo smyčku");
+            return;
+        }
+
+        self.eat(.semicolon, "Očekávaný ';' po 'zastav'");
+
+        // var count: u8 = 0;
+        // var i = self.emitter.locals.items.len - 1;
+        // while (i >= 0 and self.emitter.locals.items[i].depth > self.state.innermostScopeDepth) : (i -= 1) {
+        //     count += 1;
+        // }
+        //
+        // self.emitter.emitOpCodes(.op_popn, count, self.current.location);
+
+        self.breakList[self.break_count] = self.emitJmp(.op_jmp);
+        self.break_count += 1;
+    }
+
+    fn continueStmt(self: *Self) void {
+        if (self.state.innermostLoopStart == null) {
+            self.report(&self.previous, "Nelze použít 'pokracuj' mimo smyčku");
+            return;
+        }
+
+        self.eat(.semicolon, "Očekávaný ';' po 'pokracuj'");
+
+        var count: u8 = 0;
+        var i = self.emitter.locals.items.len - 1;
+        while (i >= 0 and self.emitter.locals.items[i].depth > self.state.innermostScopeDepth) : (i -= 1) {
+            count += 1;
+        }
+
+        self.emitter.emitOpCodes(.op_popn, count, self.current.location);
+
+        self.emitLoop(self.state.innermostLoopStart.?);
+    }
     /// Parsování 'vrat'
     fn returnStmt(self: *Self) void {
         if (self.emitter.function.type == .script) {
@@ -1010,7 +1102,45 @@ pub const Parser = struct {
         self.emitVal(Object.String.copy(self.vm, source).val());
     }
 
-    /// Parsování ano, ne, nic
+    fn list(self: *Self, assignable: bool) !void {
+        _ = assignable;
+
+        var item_count: u8 = 0;
+        if (!self.check(.right_square)) {
+            while (true) {
+                if (self.check(.right_square)) break;
+
+                self.parsePrecedence(.nebo);
+
+                if (item_count == 255) {
+
+                    // TODO
+                }
+
+                item_count += 1;
+
+                if (!self.match(.semicolon)) break;
+            }
+        }
+
+        self.eat(.right_square, "");
+
+        self.emitOpCode(.op_build_list);
+        self.emitByte(item_count);
+    }
+
+    fn subscript(self: *Self, assignable: bool) !void {
+        self.parsePrecedence(.nebo);
+        self.eat(.right_square, "");
+
+        if (assignable and self.match(.assign)) {
+            self.expression();
+            self.emitOpCode(.op_store_subr);
+        } else {
+            self.emitOpCode(.op_index_subr);
+        }
+    }
+
     fn literal(self: *Self, assignable: bool) !void {
         _ = assignable;
 
@@ -1052,6 +1182,7 @@ pub const Parser = struct {
     fn getRule(t_type: _token.Type) ParseRule {
         return switch (t_type) {
             .left_paren => .{ .prefix = Parser.group, .infix = Parser.call, .precedence = .call },
+            .left_square => .{ .prefix = Parser.list, .infix = Parser.subscript, .precedence = .subscript },
 
             .number => .{ .prefix = Parser.number },
             .binary, .octal, .hexadecimal => .{ .prefix = Parser.base },

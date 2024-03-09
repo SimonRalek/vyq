@@ -1,10 +1,6 @@
-.delka(retezec)
-.nactiVstup() - z standartniho vstupu input
-.ziskejTyp(hodnota) - retezec, cislo..
-.nahoda() - nahodne cislo
-.nahoda(max) - nahodne cislo do maxima
-.mocnina(hodnota, na kterou mocninu)
-.odmocnina(hodnota) - druha odmocnina
-.jeCislo(hodnota)
-.jeRetezec(hodnota)
-.casovaZnacka() - timestamp
+opakuj prm i = 10; .i < 15; .i += 1: { tiskni .i; }
+10
+11
+12
+13
+14

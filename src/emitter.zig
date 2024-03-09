@@ -35,7 +35,7 @@ pub const Emitter = struct {
     wrapped: ?*Emitter,
 
     locals: localArray,
-    scope_depth: i16,
+    scope_depth: u16,
 
     elvs: [255]ELV = undefined,
     elv_count: usize = 0,

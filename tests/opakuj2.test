@@ -1,0 +1,11 @@
+opakuj jako i 0..5: { tiskniB .i; pokud .i == 2: pokracuj; pokud .i == 4: zastav; opakuj jako j 0..3: { tiskni .j; pokud .j == 2: zastav; }}
+00
+1
+2
+10
+1
+2
+230
+1
+2
+4

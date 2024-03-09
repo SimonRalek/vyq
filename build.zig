@@ -15,16 +15,18 @@ pub fn build(b: *std.Build) !void {
 
     exe.linkLibC();
 
-    const clap = b.dependency("clap", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    exe.addModule("clap", clap.module("clap"));
-
+    // const clap = b.dependency("clap", .{
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    // exe.addModule("clap", clap.module("clap"));
+    // exe.linkLibrary(clap.artifact("clap"));
+    //
     exe.linkSystemLibrary("readline");
 
     b.installArtifact(exe);
     b.exe_dir = "./";
+    // b.exe_dir = b.pathJoin(&.{ "out", @tagName(builtin.os.tag) });
     const run_cmd = b.addRunArtifact(exe);
 
     run_cmd.step.dependOn(b.getInstallStep());

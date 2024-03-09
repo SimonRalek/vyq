@@ -88,6 +88,11 @@ pub fn disassembleInstruction(block: *Block, idx: usize, allocator: std.mem.Allo
         .op_set_elv => byte("op_set_elv", block, idx),
         .op_get_elv => byte("op_get_elv", block, idx),
         .op_close_elv => simple("op_close_elv", idx),
+
+        .op_build_list => byte("op_build_list", block, idx),
+        .op_index_subr => simple("op_index_subr", idx),
+        .op_store_subr => simple("op_store_subr", idx),
+
         .op_return => simple("op_return", idx),
     };
 }

@@ -14,6 +14,8 @@ pub const Token = struct {
 pub const Type = enum(u8) {
     left_paren,
     right_paren,
+    left_square,
+    right_square,
     left_brace,
     right_brace,
     comma,
