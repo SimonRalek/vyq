@@ -77,3 +77,12 @@ function addObserver(animElement, animation) {
     observer.observe(item);
   });
 }
+
+const navbarToggler = document.getElementById('navbarToggler');
+const navbarCollapse = document.getElementById('navbarResponsive');
+
+document.addEventListener('click', (e) => {
+    if (!navbarCollapse.contains(e.target) && !navbarToggler.contains(e.target)) {
+        navbarCollapse.classList.remove('show');
+    }
+});

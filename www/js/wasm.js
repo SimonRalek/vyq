@@ -63,6 +63,15 @@ function main(wasm) {
   });
 }
 
+const navbarToggler = document.getElementById('navbarToggler');
+const navbarCollapse = document.getElementById('navbarResponsive');
+
+document.addEventListener('click', (e) => {
+    if (!navbarCollapse.contains(e.target) && !navbarToggler.contains(e.target)) {
+        navbarCollapse.classList.remove('show');
+    }
+});
+
 function allocateString(wasm, str) {
   const sourceArray = encoder.encode(str);
 

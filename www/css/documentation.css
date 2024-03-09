@@ -177,9 +177,6 @@ a {
     text-decoration: underline;
 }
 
-#navbarResponsive {
-    height: 4.7rem;
-}
 
 @media (min-width: 769px) {
     .navbar {
@@ -215,10 +212,6 @@ a {
     .nav-item {
         width: 100%;
         text-align: center;
-    }
-
-    #navbarResponsive {
-        height: auto;
     }
 
     #mainNav .navbar-brand {
