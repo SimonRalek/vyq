@@ -2,6 +2,9 @@ const std = @import("std");
 const shared = @import("shared.zig");
 const builtin = @import("builtin");
 
+const ExternalWriter = @import("writer.zig").ExternalWriter;
+pub const wasm = @import("wasm.zig");
+
 const Allocator = std.mem.Allocator;
 
 const Parser = @import("parser.zig").Parser;
@@ -33,6 +36,7 @@ const BinaryOp = enum {
     bit_or,
     bit_xor,
 };
+
 const ShiftOp = enum { left, right };
 
 const CallFrame = struct {
@@ -62,6 +66,7 @@ pub const VirtualMachine = struct {
     gc: GC,
     grays: std.ArrayList(*Object),
 
+    /// Vytvořit prázdný objekt virtuální mašiny
     pub fn create(allocator: Allocator) Self {
         return .{
             .allocator = allocator,
@@ -89,6 +94,7 @@ pub const VirtualMachine = struct {
         self.defineNative("odmocnit", natives.rootNative);
         self.defineNative("jeCislo", natives.isDigitNative);
         self.defineNative("jeRetezec", natives.isStringNative);
+        self.defineNative("jeList", natives.isListNative);
         self.defineNative("cas", natives.timeFunction);
     }
 
@@ -117,8 +123,10 @@ pub const VirtualMachine = struct {
 
         var emitter = Emitter.init(self, .script, null);
         defer emitter.deinit();
+
         const func = emitter.compile(source) catch return ResultError.compile;
         self.push(func.obj.val());
+
         const closure = Closure.init(self, func);
         _ = self.pop();
         self.push(closure.obj.val());
@@ -147,35 +155,6 @@ pub const VirtualMachine = struct {
                 .op_mult => self.binary(.mult),
                 .op_div => self.binary(.div),
                 .op_mod => self.binary(.mod),
-
-                // .op_increment => {
-                //     const a = self.pop();
-                //
-                //     if (a != .number) {
-                //         self.runtimeErr(
-                //             "Nelze inkrementovat nečíselné hodnoty",
-                //             .{},
-                //             &.{},
-                //         );
-                //         return ResultError.runtime;
-                //     }
-                //
-                //     self.push(Val{ .number = a.number + 1 });
-                // },
-                // .op_decrement => {
-                //     const a = self.pop();
-                //
-                //     if (a != .number) {
-                //         self.runtimeErr(
-                //             "Nelze dekrementovat nečíselné hodnoty",
-                //             .{},
-                //             &.{},
-                //         );
-                //         return ResultError.runtime;
-                //     }
-                //
-                //     self.push(Val{ .number = a.number - 1 });
-                // },
 
                 .op_greater => self.binary(.greater),
                 .op_less => self.binary(.less),
@@ -553,6 +532,7 @@ pub const VirtualMachine = struct {
         }
     }
 
+    /// Validování indexu v listu
     fn indexValidate(self: *Self, val: Val, idx: Val) ResultError!void {
         if (val != .obj or (val.obj.type != .string and val.obj.type != .list)) {
             self.runtimeErr("Pouze pole můžete indexovat", .{}, &.{});
@@ -631,6 +611,7 @@ pub const VirtualMachine = struct {
         return falsey(val) == 1;
     }
 
+    /// Je hodnota nepravdivá
     inline fn falsey(val: Val) u8 {
         return if (val == .nic or (val == .boolean and !val.boolean) or (val == .number and val.number == 0)) 1 else 0;
     }
@@ -658,7 +639,7 @@ pub const VirtualMachine = struct {
         var new: []u8 = undefined;
         var string: []const u8 = undefined;
 
-        if (a == .obj and a.obj.type == .string) {
+        if (a.isString()) {
             string = b.stringVal(self.allocator) catch {
                 @panic("Chyba při alokaci");
             };
@@ -670,7 +651,7 @@ pub const VirtualMachine = struct {
             ) catch {
                 @panic("Chyba při alokaci");
             };
-        } else if (b.obj.type == .string) {
+        } else if (b.isString()) {
             string = a.stringVal(self.allocator) catch {
                 @panic("Chyba při alokaci");
             };
@@ -842,12 +823,22 @@ pub const VirtualMachine = struct {
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, loc);
 
-        if (builtin.os.tag != .freestanding) {
-            // var config = std.io.tty.detectConfig(stdout);
-            // config.setColor(stdout, .dim) catch {};
-            // defer config.setColor(stdout, .reset) catch {};
+        const stdout = if (!shared.isFreestanding()) std.io.getStdOut() else ExternalWriter.init(wasm.writeOutSlice);
+
+        if (!shared.isFreestanding()) {
+            const config = std.io.tty.detectConfig(stdout);
+            config.setColor(stdout, .dim) catch {};
+            self.printTrace(stdout.writer());
+            config.setColor(stdout, .reset) catch {};
+        } else {
+            self.printTrace(stdout.writer());
         }
 
+        self.resetStack();
+    }
+
+    /// Vytisknout stack trace
+    fn printTrace(self: *Self, stdout: anytype) void {
         var i = self.frame_count;
         while (i > 0) : (i -= 1) {
             const branch = if (i == self.frame_count and self.frame_count != 1)
@@ -863,7 +854,7 @@ pub const VirtualMachine = struct {
             const location = frame.closure.function.block.locations.items[frame.ip -| 1];
             const name = if (frame.closure.function.name) |name| name.repre else "skript";
 
-            shared.stdout.print("{s} {s}{s}: na řádce {}:{}\n", .{
+            stdout.print("{s} {s}{s}: na řádce {}:{}\n", .{
                 branch,
                 name,
                 if (std.mem.eql(u8, name, "skript")) "" else "()",
@@ -871,8 +862,5 @@ pub const VirtualMachine = struct {
                 location.start_column,
             }) catch {};
         }
-        //config.setColor(stdout, .reset) catch {};
-
-        self.resetStack();
     }
 };

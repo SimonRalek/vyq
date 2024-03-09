@@ -151,7 +151,16 @@ pub fn isStringNative(vm: *VM, args: []const Val) ?Val {
         return null;
     }
 
-    return Val{ .boolean = args[0] == .obj and args[0].obj.type == .string };
+    return Val{ .boolean = args[0].isString() };
+}
+
+pub fn isListNative(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 1) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
+        return null;
+    }
+
+    return Val{ .boolean = args[0].isList() };
 }
 
 /// Získat časový údaj

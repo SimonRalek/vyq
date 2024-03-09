@@ -8,6 +8,7 @@ const Block = @import("block.zig").Block;
 const Formatter = @import("formatter.zig");
 const IndexError = shared.IndexError;
 
+/// Vrácení chyby jestli index není validní
 fn indexValidation(index: f64, length: f64) IndexError!void {
     if (index < 0) {
         return IndexError.negative_index;
@@ -37,7 +38,7 @@ pub const Val = union(enum) {
             .boolean => |val| b == .boolean and b.boolean == val,
             .number => |val| b == .number and b.number == val,
             .obj => |val| blk: {
-                if (b == .obj and val.type == .string and b.obj.type == .string) {
+                if (b.isString() and val.type == .string) {
                     break :blk std.mem.eql(
                         u8,
                         val.string().repre,
@@ -133,6 +134,11 @@ pub const Val = union(enum) {
     pub fn isNative(self: Self) bool {
         return self == .obj and self.obj.type == .native;
     }
+
+    /// Je hodnota list
+    pub fn isList(self: Self) bool {
+        return self == .obj and self.obj.type == .list;
+    }
 };
 
 pub const FunctionType = enum { function, script };
@@ -220,7 +226,6 @@ pub const Object = struct {
                 }
                 try shared.stdout.print(" ]", .{});
             },
-            // není možné aby se stalo
             .elv => {
                 try shared.stdout.print("elv", .{});
             },
@@ -260,6 +265,7 @@ pub const Object = struct {
         return @fieldParentPtr(Native, "obj", self);
     }
 
+    /// Převedení objektu na list s tím spojený
     pub fn list(self: *Object) *List {
         return @fieldParentPtr(List, "obj", self);
     }
@@ -283,7 +289,7 @@ pub const Object = struct {
             return &alloc_string.obj;
         }
 
-        /// Kopírovat string
+        /// Kopírovat řetězec
         pub fn copy(vm: *VM, chars: []const u8) *Object {
             const interned_string = vm.strings.get(chars);
             if (interned_string) |interned| {
@@ -299,22 +305,23 @@ pub const Object = struct {
             return Self.alloc(vm, buff);
         }
 
-        /// Alokace stringu
+        /// Alokace řetězce
         pub fn take(vm: *VM, chars: []u8) *Object {
             return Self.alloc(vm, chars);
         }
 
-        /// String se rovná jinému stringu
+        /// Řetězec se rovná jinému
         pub fn isEqual(self: *Self, expected: Self) bool {
             return std.mem.eql(u8, self.repre, expected.repre);
         }
 
+        /// Je index validní v řetězci
         pub fn isValidIndex(self: *String, index: f64) IndexError!void {
             const length: f64 = @floatFromInt(self.repre.len - 1);
             try indexValidation(index, length);
         }
 
-        /// Free string
+        /// Free řetězce
         pub fn deinit(object: *Object, vm: *VM) void {
             const self = @fieldParentPtr(Self, "obj", object);
             vm.allocator.free(self.repre);
@@ -326,34 +333,41 @@ pub const Object = struct {
         obj: Object,
         items: std.ArrayList(Val),
 
+        /// Alokace listu
         pub fn init(vm: *VM) *List {
             const array = Object.alloc(vm, List, .list);
             array.items = std.ArrayList(Val).init(vm.allocator);
             return array;
         }
 
+        /// Dealokace listu
         pub fn deinit(obj: *Object, vm: *VM) void {
             const self = @fieldParentPtr(List, "obj", obj);
             self.items.deinit();
             vm.allocator.destroy(self);
         }
 
+        /// Přidat prvek do listu
         pub fn append(array: *List, value: Val) void {
             array.items.append(value) catch {};
         }
 
+        /// Přidat prvek do listu na pozici
         pub fn insert(self: *List, idx: f64, value: Val) void {
             self.items.insert(@intFromFloat(idx), value) catch {};
         }
 
+        /// Získat prvek na indexu
         pub fn getItem(self: *List, idx: f64) Val {
             return self.items.items[@intFromFloat(idx)];
         }
 
+        /// Odstranit prvek na indexu
         pub fn delete(self: *List, idx: u32) void {
             _ = self.items.orderedRemove(idx);
         }
 
+        /// Je index validní
         pub fn isValidIndex(self: *List, index: f64) IndexError!void {
             const length: f64 = @floatFromInt(self.items.items.len - 1);
             try indexValidation(index, length);

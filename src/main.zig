@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const clap = @import("lib/zig-clap/clap.zig");
+const clap = @import("clap");
 
 const debug = @import("debug.zig");
 const shared = @import("shared.zig");
