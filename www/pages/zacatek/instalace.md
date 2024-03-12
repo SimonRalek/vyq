@@ -7,6 +7,10 @@ Program lze nainstalovat stažením binárního souboru ze sekce "Releases" na G
 
 ### Kroky pro instalaci:
 
+1. Klikněte na tento [link](#downloadLink) pro instalaci přímo pro váš systém.
+
+nebo 
+
 1. Přejděte na [GitHub](https://github.com/simonralek/vyq) a otevřete stránku projektu.
 2. Klikněte na záložku "Releases" nalezenou na stránce projektu.
 3. Vyberte nejnovější verzi vhodnou pro váš operační systém a stáhněte příslušný binární soubor.

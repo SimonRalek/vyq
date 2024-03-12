@@ -10,8 +10,13 @@ function changeContent(page) {
 
             document.querySelector('.navigation').classList.remove('open');
             hljs.highlightAll();
+
+            if (page == "zacatek/instalace.md") {
+                detectOSAndSetDownloadLink();
+            }
         });
 }
+
 function updateSelectedLink(selectedPage) {
     document.querySelectorAll('.navigation a').forEach(link => {
         link.classList.remove('selected');
@@ -35,7 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    setTimeout(() => { openFolderAndHighlightPage('zacatek/instalace.md'); changeContent('zacatek/instalace.md') }, 0); // Replace 'page1.md' with your actual default page
+    setTimeout(() => {
+        openFolderAndHighlightPage('zacatek/instalace.md');
+        changeContent('zacatek/instalace.md')
+    }, 0);
 
     document.getElementById('theme-toggle-btn').addEventListener('click', function () {
         const bodyClassList = document.body.classList;
@@ -74,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function openFolderAndHighlightPage(defaultPage) {
-    const defaultLink = document.querySelector(`.navigation a[onclick*="${defaultPage}"]`);
+    const defaultLink = document.querySelector('.navigation a[onclick*="${defaultPage}"]');
     if (defaultLink) {
         const parentFolder = defaultLink.closest('.folder');
         if (parentFolder) {
@@ -171,6 +179,77 @@ const darkThemeStyles = `
 `;
 
 const styleSheet = document.createElement("style");
-styleSheet.type = "text/css";
 styleSheet.innerText = darkThemeStyles;
 document.head.appendChild(styleSheet); updateSelectedLink('page1.md');
+
+async function detectOSAndArchitecture() {
+    let os = 'Unknown OS';
+    let arch = 'Unknown Architecture';
+
+    if (navigator.userAgentData) {
+        try {
+            const uaData = await navigator.userAgentData.getHighEntropyValues(['platform', 'architecture']);
+            os = uaData.platform;
+            arch = uaData.architecture;
+        } catch (error) {
+            console.error('Error fetching high entropy values:', error);
+        }
+    } else {
+        const ua = navigator.userAgent.toLowerCase();
+
+        if (/windows/.test(ua)) {
+            os = 'Windows';
+        } else if (/macintosh|mac os x/.test(ua)) {
+            os = 'macOS';
+        } else if (/linux/.test(ua)) {
+            os = 'Linux';
+        }
+
+        if (/x86_64|win64|wow64|x64/.test(ua)) {
+            arch = 'x86-64';
+        } else if (/arm64|aarch64/.test(ua)) {
+            arch = 'aarch64';
+        } else if (/arm/.test(ua)) {
+            arch = 'arm';
+        }
+    }
+
+    return { os, arch };
+}
+
+async function getLatestReleaseDownloadUrl(owner, repo, os, arch) {
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+
+    try {
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        const asset = data.assets.find(asset => asset.name.includes(os) && asset.name.includes(arch));
+        return asset ? asset.browser_download_url : '';
+    } catch (error) {
+        console.error('Error fetching the latest release:', error);
+        return '';
+    }
+}
+
+async function detectOSAndSetDownloadLink() {
+    const os = detectOSAndArchitecture().then(async obj => {
+        const owner = 'SimonRalek';
+        const repo = 'vyq';
+
+        var downloadUrl = await getLatestReleaseDownloadUrl(owner, repo, obj.os, obj.arch);
+        if (downloadUrl) {
+            updateDownloadLink(downloadUrl);
+        } else {
+            console.log('No matching release asset found for the detected OS and architecture.');
+        }
+    });
+
+}
+
+function updateDownloadLink(downloadUrl) {
+    const downloadLinkElement = document.querySelector('a[href="#downloadLink"]');
+
+    if (downloadLinkElement) {
+        downloadLinkElement.href = downloadUrl;
+    }
+}
