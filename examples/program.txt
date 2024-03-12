@@ -1,4 +1,4 @@
-konst str = "ahoj";
+konst str = 'ahoj';
 
 opakuj prm i = 1; .i < .delka(.str); .i++: {
 	tiskni .i;
@@ -15,16 +15,15 @@ pokud .grade != 1: {
 	.uspech = ano;
 }
 
-prm vaha = 60;
+prm vaha = .nahoda(100);
 
 konst binary = 0b10120;
 konst hexa = 0xFF00zz;
 
-prm idk = '
-Ani nevim
-proc to takhle
-ke
-';
+prm idk = "
+Viceradkovy
+retezec
+";
 
 dokud .vaha > 65 : {
 	.vaha += 1;

@@ -4,7 +4,7 @@ Tato stránka vás provede vytvořením a spuštěním vašeho prvního programu
 
 #### Krok 1: Vytvoření souboru
 
-Nejprve vytvořte nový textový soubor ve vašem oblíbeném textovém editoru. Můžete ho pojmenovat například `ahoj_svete`.
+Nejprve vytvořte nový textový soubor ve vašem oblíbeném textovém editoru. Můžete ho pojmenovat například `ahoj_svete.vyq`.
 
 #### Krok 2: Napsání kódu
 
@@ -21,7 +21,7 @@ Tento řádek kódu využívá příkaz `tiskni` k vypsání textu `Ahoj, světe
 Uložte soubor a zavřete textový editor. Otevřete terminál nebo příkazový řádek a přejděte do složky, kde jste soubor uložili. Poté spusťte program pomocí vašeho programovacího jazyka takto:
 
 ```c
-./vyq cesta/k/souboru/ahoj_svete
+./vyq cesta/k/souboru/ahoj_svete.vyq
 ```
 
 Po spuštění programu byste měli vidět na obrazovce výpis:
