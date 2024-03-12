@@ -1,2 +1,10 @@
-// tiskni ano;
-tiskni ano;
+konst line_string = 'jenom jeden řádek řetězec';
+
+konst multiline_string = "
+  povolený více
+  řádků
+";
+
+konst error = '
+  nepovolené
+';

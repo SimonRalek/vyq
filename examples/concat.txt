@@ -1,1 +1,4 @@
-.l = 4;
+konst whole_numbers = 15 + 2; // 17
+konst numbers = 12,4 + 6,5; // 18,9
+
+konst number_and_string = 2 + " pocet";

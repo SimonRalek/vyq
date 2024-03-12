@@ -48,7 +48,6 @@ pub fn build(b: *std.Build) !void {
     test_step.dependOn(&run_unit_tests.step);
 
     const release_step = b.step("release", "Build and install release builds for all targets");
-    release_step.dependOn(&run_cmd.step);
 
     const release_targets: []const std.zig.CrossTarget = &.{
         .{ .cpu_arch = .x86_64, .os_tag = .linux },
@@ -57,17 +56,35 @@ pub fn build(b: *std.Build) !void {
         .{ .cpu_arch = .aarch64, .os_tag = .macos },
     };
 
+    const wasm_target = std.zig.CrossTarget{ .cpu_arch = .wasm32, .os_tag = .freestanding };
+    const wasm_exe = b.addSharedLibrary(.{
+        .name = "vyq",
+        .root_source_file = .{ .path = "src/wasm.zig" },
+        .target = wasm_target,
+        .optimize = .ReleaseFast,
+    });
+    wasm_exe.rdynamic = true;
+    const wasm_dir = b.addInstallArtifact(wasm_exe, .{
+        .dest_dir = .{
+            .override = .{ .custom = "../www/" },
+        },
+    });
+    release_step.dependOn(&wasm_dir.step);
+
     for (release_targets) |release_target| {
         const release_exe = b.addExecutable(.{
             .name = "vyq",
             .root_source_file = .{ .path = "src/main.zig" },
             .target = release_target,
-            // .optimize = .ReleaseFast,
+            .optimize = .ReleaseFast,
         });
 
         release_exe.linkLibC();
+        release_exe.addModule("clap", clap.module("clap"));
 
         if (release_target.os_tag == .linux) {
+            release_exe.addIncludePath(.{ .path = "/usr/include" });
+            release_exe.addLibraryPath(.{ .path = "/usr/lib/x86_64-linux-gnu" });
             release_exe.linkSystemLibrary("readline");
         }
 

@@ -1,4 +1,6 @@
-opakuj prm i = 1; .i < .str/delka; .i++: {
+konst str = "ahoj";
+
+opakuj prm i = 1; .i < .delka(.str); .i++: {
 	tiskni .i;
 }
 

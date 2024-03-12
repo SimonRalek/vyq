@@ -16,7 +16,7 @@ const importObject = {
   },
 };
 
-fetch('../lib.wasm')
+fetch('../vyq.wasm')
   .then((response) => response.arrayBuffer())
   .then((bytes) => WebAssembly.instantiate(bytes, importObject))
   .then((result) => {
