@@ -154,7 +154,6 @@ const darkThemeStyles = `
         background-color: #404040;
     }
 
-
     body.dark-theme .folder>.folder-text:hover {
         background-color: #404040;
     }
@@ -183,8 +182,8 @@ styleSheet.innerText = darkThemeStyles;
 document.head.appendChild(styleSheet); updateSelectedLink('page1.md');
 
 async function detectOSAndArchitecture() {
-    let os = 'Unknown OS';
-    let arch = 'Unknown Architecture';
+    let os = 'Neznámý';
+    let arch = 'Neznámý';
 
     if (navigator.userAgentData) {
         try {
@@ -192,7 +191,7 @@ async function detectOSAndArchitecture() {
             os = uaData.platform;
             arch = uaData.architecture;
         } catch (error) {
-            console.error('Error fetching high entropy values:', error);
+            console.error('Chyba: ', error);
         }
     } else {
         const ua = navigator.userAgent.toLowerCase();
@@ -206,13 +205,18 @@ async function detectOSAndArchitecture() {
         }
 
         if (/x86_64|win64|wow64|x64/.test(ua)) {
-            arch = 'x86-64';
+            arch = 'x86_64';
         } else if (/arm64|aarch64/.test(ua)) {
             arch = 'aarch64';
         } else if (/arm/.test(ua)) {
             arch = 'arm';
         }
     }
+
+    if (arch == 'x86-64') arch = 'x86_64';
+
+    os = os.toLowerCase();
+    arch = arch.toLowerCase();
 
     return { os, arch };
 }
@@ -226,13 +230,13 @@ async function getLatestReleaseDownloadUrl(owner, repo, os, arch) {
         const asset = data.assets.find(asset => asset.name.includes(os) && asset.name.includes(arch));
         return asset ? asset.browser_download_url : '';
     } catch (error) {
-        console.error('Error fetching the latest release:', error);
+        console.error('Chyba:', error);
         return '';
     }
 }
 
 async function detectOSAndSetDownloadLink() {
-    const os = detectOSAndArchitecture().then(async obj => {
+    detectOSAndArchitecture().then(async obj => {
         const owner = 'SimonRalek';
         const repo = 'vyq';
 
@@ -240,7 +244,7 @@ async function detectOSAndSetDownloadLink() {
         if (downloadUrl) {
             updateDownloadLink(downloadUrl);
         } else {
-            console.log('No matching release asset found for the detected OS and architecture.');
+            console.log('Nebyla nalezena verze která by seděla na váš systém');
         }
     });
 
