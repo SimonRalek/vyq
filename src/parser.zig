@@ -1193,7 +1193,7 @@ pub const Parser = struct {
 
             .plus => .{ .infix = Parser.binary, .precedence = .term },
             .minus => .{ .prefix = Parser.unary, .infix = Parser.binary, .precedence = .term },
-            .star, .slash => .{ .infix = Parser.binary, .precedence = .factor },
+            .star, .slash, .modulo => .{ .infix = Parser.binary, .precedence = .factor },
 
             .bang => .{ .prefix = Parser.unary },
 
