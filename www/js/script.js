@@ -46,20 +46,20 @@ window.addEventListener('DOMContentLoaded', event => {
   document.addEventListener('scroll', navbarShrink);
 
 
-addObserver('animate-fadein-bottom', 'fadeInUp');
-addObserver('animate-fadein-left', 'fadeInLeft');
-addObserver('animate-fadein-right', 'fadeInRight');
+  addObserver('animate-fadein-bottom', 'fadeInUp');
+  addObserver('animate-fadein-left', 'fadeInLeft');
+  addObserver('animate-fadein-right', 'fadeInRight');
 
 
-function resizeElementToScreenHeight() {
-  var element = document.getElementById('main-page');
-  var screenHeight = window.innerHeight;
-  element.style.height = screenHeight + 'px';
-}
+  function resizeElementToScreenHeight() {
+    var element = document.getElementById('main-page');
+    var screenHeight = window.innerHeight;
+    element.style.height = screenHeight + 'px';
+  }
 
-resizeElementToScreenHeight();
+  resizeElementToScreenHeight();
 
-window.addEventListener('resize', resizeElementToScreenHeight);
+  window.addEventListener('resize', resizeElementToScreenHeight);
 });
 
 function addObserver(animElement, animation) {
@@ -67,13 +67,15 @@ function addObserver(animElement, animation) {
     entries.forEach(entry => {
 
       if (entry.isIntersecting) {
+        entry.target.style.opacity = 1;
         entry.target.classList.add(animation);
       }
 
     });
-  });
+  }, {threshold: 0.1});
 
   document.querySelectorAll('.' + animElement).forEach((item) => {
+    item.style.opacity = 0;
     observer.observe(item);
   });
 }
@@ -82,7 +84,7 @@ const navbarToggler = document.getElementById('navbarToggler');
 const navbarCollapse = document.getElementById('navbarResponsive');
 
 document.addEventListener('click', (e) => {
-    if (!navbarCollapse.contains(e.target) && !navbarToggler.contains(e.target)) {
-        navbarCollapse.classList.remove('show');
-    }
+  if (!navbarCollapse.contains(e.target) && !navbarToggler.contains(e.target)) {
+    navbarCollapse.classList.remove('show');
+  }
 });

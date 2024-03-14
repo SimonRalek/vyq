@@ -13144,7 +13144,6 @@ background: #2980b9 url('../images/bg.png') repeat 0 0;
 	-ms-animation: 15s linear 0s normal none infinite animate;
 	-o-animation: 15s linear 0s normal none infinite animate;
 	animation: 15s linear 0s normal none infinite animate;
-
 }
 
 @-webkit-keyframes animate {

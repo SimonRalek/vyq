@@ -167,8 +167,29 @@ body {
         background-color: #f7f7f7;
     }
 
-    .output, #codeInput {
+    .output,
+    #codeInput {
         height: 400px;
     }
 
+}
+
+.output-container {
+    position: relative;
+}
+
+.clearOutputBtn {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    opacity: 0.5;
+    z-index: 10;
+    background-color: gray;
+    color: white;
+    border: none;
+    padding: 5px;
+}
+
+.clearOutputBtn:hover {
+    opacity: 0.8;
 }
