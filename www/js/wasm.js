@@ -87,3 +87,8 @@ function allocateString(wasm, str) {
 
   return { ptr, len };
 }
+
+document.getElementById('clearOutputBtn').addEventListener('click', function () {
+  outputElt.innerText = '';
+  outputElt.scrollTop = 0;
+});
