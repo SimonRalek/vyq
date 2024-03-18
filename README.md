@@ -78,14 +78,12 @@ Viceradkovy
 textovy retezec
 ";
 
-dokud .vaha > 65 : {
+dokud .vaha < 65 : {
 	.vaha += 1;
 
 	pokud .vaha == 60: {
 		zastav;
 	}
-
-	prm k = "Ahoj";
 }
 ```
 
