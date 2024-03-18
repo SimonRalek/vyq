@@ -98,7 +98,9 @@ pub const Report = struct {
             },
         }
 
-        try self.getSource(self.item.token.?.location);
+        if (!shared.isFreestanding()) {
+            try self.getSource(self.item.token.?.location);
+        }
     }
 
     /// Report pro runtime chyby
