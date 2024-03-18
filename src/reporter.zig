@@ -92,35 +92,39 @@ pub const Report = struct {
             },
             else => {
                 try shared.stdout.print(
-                    "v '{}'\n",
-                    .{std.zig.fmtEscapes(self.item.token.?.lexeme)},
+                    "v '{s}'\n",
+                    .{self.item.token.?.lexeme},
                 );
             },
         }
 
-        // try self.getSource(self.item.token.?.location);
+        try self.getSource(self.item.token.?.location);
     }
 
     /// Report pro runtime chyby
-    fn reportRuntime(self: *Self, loc: Location) !void {
-        _ = loc;
+    fn reportRuntime(self: *Self) !void {
         try shared.stdout.print("\"{s}\"\n", .{self.item.message});
-
         try self.printNotes();
-        // try self.getSource(loc);
     }
 
-    // TODO
+    /// Vytisknutí řádky s ukazovátkem kde nastala chyba
     fn getSource(self: *Self, loc: Location) !void {
         var it = std.mem.splitSequence(u8, self.reporter.source, "\n");
 
         var count: usize = 1;
         while (it.next()) |line| : (count += 1) {
             if (count == loc.line) {
-                // try shared.stdout.print("\n  {s}\n", .{if (line.len > 10) line[(if (loc.start_column > 4) loc.start_column - 4 else 0)..if (loc.end_column + 5 < line.len) loc.end_column + 5 else line.len] else line});
-                try shared.stdout.print("{s}", .{line});
+                if (!shared.isFreestanding()) {
+                    const stdout = std.io.getStdOut();
+                    var config = std.io.tty.detectConfig(stdout);
+                    try config.setColor(stdout, .dim);
+                    try stdout.writer().print("{}: {s}\n", .{ count, line });
+                    try config.setColor(stdout, .reset);
+                } else {
+                    try shared.stdout.print(" {s}\n", .{line});
+                }
 
-                for (0..loc.start_column - 1) |_| {
+                for (0..loc.start_column + 2) |_| {
                     try shared.stdout.print(" ", .{});
                 }
 
@@ -136,7 +140,7 @@ pub const Report = struct {
                     }
                 }
 
-                try shared.stdout.print("\n\n", .{});
+                try shared.stdout.print("\n", .{});
 
                 break;
             }
@@ -188,7 +192,7 @@ pub const Report = struct {
 
         switch (self.type.?) {
             ResultError.runtime => {
-                try self.reportRuntime(loc);
+                try self.reportRuntime();
             },
             ResultError.parser => {
                 try self.reportCompile();

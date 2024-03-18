@@ -8,21 +8,6 @@ const Block = @import("block.zig").Block;
 const Formatter = @import("formatter.zig");
 const IndexError = shared.IndexError;
 
-/// Vrácení chyby jestli index není validní
-fn indexValidation(index: f64, length: f64) IndexError!void {
-    if (index < 0) {
-        return IndexError.negative_index;
-    }
-
-    if (index > length) {
-        return IndexError.bigger_index;
-    }
-
-    if (std.math.floor(index) != index) {
-        return IndexError.float_index;
-    }
-}
-
 pub const Val = union(enum) {
     const Self = @This();
 
@@ -473,3 +458,18 @@ pub const Object = struct {
         }
     };
 };
+
+/// Vrácení chyby jestli index není validní
+fn indexValidation(index: f64, length: f64) IndexError!void {
+    if (index < 0) {
+        return IndexError.negative_index;
+    }
+
+    if (index > length) {
+        return IndexError.bigger_index;
+    }
+
+    if (std.math.floor(index) != index) {
+        return IndexError.float_index;
+    }
+}

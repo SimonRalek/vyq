@@ -31,6 +31,4 @@ dokud .vaha > 65 : {
 	pokud .vaha == 60: {
 		zastav;
 	}
-
-	prm k = "Ahoj";
 }

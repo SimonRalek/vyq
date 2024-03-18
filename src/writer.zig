@@ -1,26 +1,25 @@
 const std = @import("std");
 
-pub const ExternalWriter = struct {
-    pub const WriteFnType = *const fn (bytes: []const u8) void;
+const WriteErr = error{};
+const WriteFn = *const fn (bytes: []const u8) void;
+pub const VMWriter = WasmWriter.Writer;
 
-    writeFn: WriteFnType,
+pub const WasmWriter = struct {
+    pub const Self = @This();
+    pub const Writer = std.io.Writer(Self, WriteErr, write);
 
-    pub fn init(writeFn: WriteFnType) ExternalWriter {
-        return ExternalWriter{ .writeFn = writeFn };
+    writeFn: WriteFn,
+
+    pub fn init(writeFn: WriteFn) Self {
+        return .{ .writeFn = writeFn };
     }
 
-    pub const WriteError = error{};
-
-    pub fn write(self: ExternalWriter, bytes: []const u8) WriteError!usize {
+    pub fn write(self: Self, bytes: []const u8) WriteErr!usize {
         self.writeFn(bytes);
         return bytes.len;
     }
 
-    pub const Writer = std.io.Writer(ExternalWriter, WriteError, write);
-
-    pub fn writer(self: ExternalWriter) Writer {
+    pub fn writer(self: Self) Writer {
         return .{ .context = self };
     }
 };
-
-pub const VMWriter = ExternalWriter.Writer;

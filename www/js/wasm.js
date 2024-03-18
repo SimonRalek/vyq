@@ -5,62 +5,55 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 const importObject = {
-  env: {
-    writeOut: (ptr, len) => {
-      outputElt.innerText += decoder.decode(
-        new Uint8Array(wasm.memory.buffer.slice(ptr, ptr + len))
-      );
-      outputElt.scrollTop = outputElt.scrollHeight;
+    env: {
+        writeOut: (ptr, len) => {
+            outputElt.innerText += decoder.decode(
+                new Uint8Array(wasm.memory.buffer.slice(ptr, ptr + len))
+            );
+            outputElt.scrollTop = outputElt.scrollHeight;
+        },
+        now: () => Date.now(),
     },
-    now: () => Date.now(),
-  },
 };
 
-fetch('../vyq.wasm')
-  .then((response) => response.arrayBuffer())
-  .then((bytes) => WebAssembly.instantiate(bytes, importObject))
-  .then((result) => {
-    wasm = result.instance.exports;
-    main(wasm);
-  });
+fetch('vyq.wasm')
+    .then((response) => response.arrayBuffer())
+    .then((bytes) => WebAssembly.instantiate(bytes, importObject))
+    .then((result) => {
+        wasm = result.instance.exports;
+        main(wasm);
+    });
 
 function main(wasm) {
-  var input = document.getElementById('codeInput');
-  var vm = wasm.createVM();
+    var input = document.getElementById('codeInput');
+    var vm = wasm.createVM();
 
-  function interpretString(str) {
-    var slice = allocateString(wasm, str);
-    wasm.interpret(vm, slice.ptr, slice.len);
-    wasm.dealloc(slice.ptr, slice.len);
-  }
+    function interpretString(str) {
+        var slice = allocateString(wasm, str);
+        wasm.interpret(vm, slice.ptr, slice.len);
+        wasm.dealloc(slice.ptr, slice.len);
+    }
 
-  input.focus();
-  var editor = CodeMirror(input, {
-    lineNumbers: true,
-    mode: "javascript",
-    theme: "default",
-    viewportMargin: Infinity,
-  });
+    input.focus();
+    var editor = CodeMirror(input, {
+        lineNumbers: true,
+        mode: "javascript",
+        theme: "default",
+        viewportMargin: Infinity,
+    });
 
-  document.getElementById('runCodeBtn').addEventListener('click', function () {
-    var value = editor.getValue();
-    // outputElt.innerText += ['\n'].join();
-    outputElt.scrollTop = outputElt.scrollHeight;
+    document.getElementById('runCodeBtn').addEventListener('click', getValAndInterpret);
 
-    if (value === '') return;
+    document.getElementById('runCodeBtnMobile').addEventListener('click', getValAndInterpret);
 
-    interpretString(value);
-  });
+    function getValAndInterpret() {
+        var value = editor.getValue();
+        outputElt.scrollTop = outputElt.scrollHeight;
 
-  document.getElementById('runCodeBtnMobile').addEventListener('click', function () {
-    var value = editor.getValue();
-    // outputElt.innerText += ['\n'].join();
-    outputElt.scrollTop = outputElt.scrollHeight;
+        if (value === '') return;
 
-    if (value === '') return;
-
-    interpretString(value);
-  });
+        interpretString(value);
+    }
 }
 
 const navbarToggler = document.getElementById('navbarToggler');
@@ -73,22 +66,22 @@ document.addEventListener('click', (e) => {
 });
 
 function allocateString(wasm, str) {
-  const sourceArray = encoder.encode(str);
+    const sourceArray = encoder.encode(str);
 
-  const len = sourceArray.length;
+    const len = sourceArray.length;
 
-  const ptr = wasm.alloc(len);
-  if (ptr === 0) throw 'Cannot allocate memory';
+    const ptr = wasm.alloc(len);
+    if (ptr === 0) throw 'Nemožné alokovat paměť';
 
-  var memoryu8 = new Uint8Array(wasm.memory.buffer);
-  for (let i = 0; i < len; ++i) {
-    memoryu8[ptr + i] = sourceArray[i];
-  }
+    var memoryu8 = new Uint8Array(wasm.memory.buffer);
+    for (let i = 0; i < len; ++i) {
+        memoryu8[ptr + i] = sourceArray[i];
+    }
 
-  return { ptr, len };
+    return { ptr, len };
 }
 
 document.getElementById('clearOutputBtn').addEventListener('click', function () {
-  outputElt.innerText = '';
-  outputElt.scrollTop = 0;
+    outputElt.innerText = '';
+    outputElt.scrollTop = 0;
 });

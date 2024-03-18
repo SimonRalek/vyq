@@ -9,7 +9,10 @@ body {
 }
 
 #mainNav {
+    position: relative;
     height: 4.7rem;
+    animation: none;
+    align-content: center;
     background-color: #f7f7f7;
     border-bottom: 1px solid #cdcdcd;
 }
@@ -178,6 +181,9 @@ a {
     text-decoration: underline;
 }
 
+#nav-container {
+    height: 4.7rem
+}
 
 @media (min-width: 769px) {
     .navbar {

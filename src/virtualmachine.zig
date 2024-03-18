@@ -2,7 +2,6 @@ const std = @import("std");
 const shared = @import("shared.zig");
 const builtin = @import("builtin");
 
-const ExternalWriter = @import("writer.zig").ExternalWriter;
 pub const wasm = @import("wasm.zig");
 
 const Allocator = std.mem.Allocator;
@@ -817,13 +816,13 @@ pub const VirtualMachine = struct {
         notes: []const Reporter.Note,
     ) void {
         const closure = self.currentFrame().closure;
-        const loc = closure.function.block.locations.items[self.currentFrame().ip - 1];
+        const location = closure.function.block.locations.items[self.currentFrame().ip - 1];
 
         const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("Nepodařilo se alokovat");
         defer self.allocator.free(new);
-        self.reporter.reportRuntime(new, notes, loc);
+        self.reporter.reportRuntime(new, notes, location);
 
-        const stdout = if (!shared.isFreestanding()) std.io.getStdOut() else ExternalWriter.init(wasm.writeOutSlice);
+        const stdout = if (!shared.isFreestanding()) std.io.getStdOut() else wasm.getWriter();
 
         if (!shared.isFreestanding()) {
             const config = std.io.tty.detectConfig(stdout);

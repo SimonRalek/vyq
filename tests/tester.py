@@ -9,9 +9,9 @@ def build_project():
     try:
         build_command = "zig build"
         subprocess.run(build_command, shell=True, check=True)
-        print(f"Project built {Fore.GREEN}successfully.{Style.RESET_ALL}\n")
+        print(f"Projekt vybuildován {Fore.GREEN}úspěšně.{Style.RESET_ALL}\n")
     except Exception as e:
-        print(f"{Fore.RED}Error building project:{Style.RESET_ALL} {str(e)}")
+        print(f"{Fore.RED}Chyba při buildění projektu: {Style.RESET_ALL} {str(e)}")
         exit(1)
 
 def run_test(test_filepath):
@@ -30,16 +30,16 @@ def run_test(test_filepath):
             expected_output = ''.join(file.readlines())
 
             if actual_output.strip() == expected_output.strip():
-                print(f"{Fore.GREEN}Test Passed:{Style.RESET_ALL} {test_filepath}")
+                print(f"{Fore.GREEN}Test Uspěl:{Style.RESET_ALL} {test_filepath}")
             else:
-                print(f"{Fore.RED}Test Failed:{Style.RESET_ALL} {test_filepath}")
-                print(f"Expected Output:\n{expected_output}")
-                print(f"Actual Output:\n{actual_output}")
+                print(f"{Fore.RED}Test Selhal:{Style.RESET_ALL} {test_filepath}")
+                print(f"Očekávaný Výstup:\n{expected_output}")
+                print(f"Skutečný Výstup:\n{actual_output}")
                 return 1
 
     except Exception as e:
-        print(f"{Fore.RED}Error executing command:{Style.RESET_ALL} {command}")
-        print(f"{Fore.RED}Error message:{Style.RESET_ALL} {str(e)}")
+        print(f"{Fore.RED}Chyba spouštění příkazu:{Style.RESET_ALL} {command}")
+        print(f"{Fore.RED}Chybová hláška:{Style.RESET_ALL} {str(e)}")
         os.remove(temp_input_file.name)
         return 1
     finally:
@@ -53,7 +53,7 @@ def run_tests_in_directory(test_directory):
             test_filepath = os.path.join(test_directory, filename)
 
             exit_code = run_test(test_filepath)
-            
+
             if exit_code != 0:
                 exit(exit_code)
 

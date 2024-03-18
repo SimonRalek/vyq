@@ -6,10 +6,13 @@ const Allocator = std.mem.Allocator;
 const Reporter = @import("reporter.zig");
 const Chunk = @import("./block.zig").Block;
 const VM = @import("./virtualmachine.zig").VirtualMachine;
-const ExternalWriter = @import("./writer.zig").ExternalWriter;
+
+const WasmWriter = @import("./writer.zig").WasmWriter;
 
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const allocator = general_purpose_allocator.allocator();
+
+var reporter: Reporter = undefined;
 
 extern fn writeOut(ptr: usize, len: usize) void;
 extern fn now() f64;
@@ -17,8 +20,6 @@ extern fn now() f64;
 pub fn writeOutSlice(bytes: []const u8) void {
     writeOut(@intFromPtr(bytes.ptr), bytes.len);
 }
-
-var reporter: Reporter = undefined;
 
 pub const std_options = struct {
     pub const log_level = .info;
@@ -32,20 +33,8 @@ pub const std_options = struct {
         _ = format;
         _ = scope;
         _ = level;
-        // @compileError("");
-        // const prefix = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
-        // log(level.asText() ++ prefix ++ format, args);
     }
 };
-
-fn log(comptime format: []const u8, args: anytype) void {
-    const writer = std.io.Writer(void, error{}, console_log_write_zig){ .context = {} };
-    writer.print(format, args) catch @panic("console_log_write failed");
-}
-fn console_log_write_zig(context: void, bytes: []const u8) !usize {
-    _ = context;
-    return bytes.len;
-}
 
 fn createVMPtr() !*VM {
     var vm = try allocator.create(VM);
@@ -54,6 +43,10 @@ fn createVMPtr() !*VM {
     reporter.file = "wasm";
     vm.init(&reporter);
     return vm;
+}
+
+pub fn getWriter() WasmWriter {
+    return WasmWriter.init(writeOutSlice);
 }
 
 export fn createVM() usize {

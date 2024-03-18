@@ -1,0 +1,7 @@
+prm k = 3;
+.k += 3;
+tiskni .k; // tiskne 6
+
+konst l = 4;
+.k -= 2; // chyba - konstanta nelze upravit
+tiskni .l;

@@ -15,6 +15,7 @@
     <link
         href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
         rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link href="css/styles.css" rel="stylesheet" />
     <link href="css/index.css" rel="stylesheet" />
 </head>
@@ -49,8 +50,8 @@
             <div class="d-flex justify-content-center">
                 <div class="text-center">
                     <img draggable="false" class="mx-auto my-0" id="main_image" src="images/vyq.png" width="700px">
-                    <h2 id="description" style="font-size: 1.6em" class="text-black-400 mx-auto mt-2 mb-5">První ryze český programovací jazyk</h2>
-                    <div class="down-arrow"><a id="arrow-appear" style="color: black;" href="#navigace"><i
+                    <h2 id="description" class="text-black-400 mx-auto mt-2 mb-5">První ryze český programovací jazyk</h2>
+                    <div class="down-arrow"><a id="arrow-appear" class="text-black" href="#navigace"><i
                                 class="fa fa-arrow-down fa-3x"></i></a></div>
                 </div>
             </div>
@@ -66,8 +67,8 @@
                                 <div class="card-block">
                                     <img src="images/docs.png" draggable="false" class="my-2 pt-1" height="96px">
                                     <h4 class="card-title py-2"><strong>Dokumentace</strong></h4>
-                                    <div style="padding: 0 20px 20px 20px">
-                                        <span style="color: black;">
+                                    <div class="card-custom">
+                                        <span class="text-dark">
                                             Dokumentace je zdroj informací o programovacím jazyku, který pomáhá
                                             programátorům porozumět jeho syntaxi, vlastnostem, funkcím a možnostem.
                                             Dokumentace obsahuje kompletní popis jazyka, včetně příkladů kódu, funkcí a
@@ -86,8 +87,8 @@
                                 <div class="card-block">
                                     <img src="images/playground.png" draggable="false" class="my-3 pt-1" height="96px">
                                     <h4 class="card-title py-2"><strong>Hřiště</strong></h4>
-                                    <div style="padding: 0 20px 20px 20px">
-                                        <span style="color: black;">
+                                    <div class="card-custom">
+                                        <span class="text-dark">
                                             Hřiště je interaktivní prostředí, které
                                             umožňuje programátorům psát, testovat a spouštět kód přímo v prohlížeči, bez
                                             nutnosti instalace nebo konfigurace žádného vývojového prostředí. Hřiště
@@ -105,14 +106,14 @@
         </section>
     </div>
     <section id="introduction" class="bg-light">
-        <div class="container col-lg-7" style="padding: 4rem 0;">
+        <div id="body-container" class="container col-lg-7"">
             <div class="d-flex justify-content-center animate-fadein-bottom">
-                <h1 class="display-2 pb-3" style="color: #5f4da8;">
+                <h1 id="title-introduction" class="display-2 pb-3">
                     vyq
                 </h1>
             </div>
-            <div class="animate-fadein-bottom" style="padding: 15px;">
-                <span style="font-size: 20px;">
+            <div class="animate-fadein-bottom p-2">
+                <span class="fs-5">
                 <strong>Vyq</strong> je imperativní, dynamicky typovaný, univerzální, stack-based
                 <strong>interpretovaný
                     programovací jazyk</strong>. Je
@@ -256,7 +257,7 @@
             </section>
         </div>
 
-        <div class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.1)">
+        <div id="footer-text" class="text-center p-3">
             © 2024 Copyright:
             Rálek Šimon
 
@@ -267,7 +268,7 @@
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script src="js/script.js"></script>
 </body>

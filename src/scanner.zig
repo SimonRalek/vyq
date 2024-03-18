@@ -200,21 +200,24 @@ pub const Scanner = struct {
     /// Skenovat string do tokenu
     fn string(self: *Self, isMultiline: bool) Token {
         const deli: u8 = if (isMultiline) '"' else '\'';
-        var hadMultilineError = false;
+        var had_multiline_error = false;
+        const previous_end_column = self.location.end_column;
 
         switch (deli) {
             '\'' => {
                 while (!self.isEof() and self.delimeter(deli)) {
                     if (self.peek() == '\n') {
-                        hadMultilineError = true;
+                        had_multiline_error = true;
                     }
                     _ = self.advance();
+                    self.location.end_column += 1;
                 }
             },
             '"' => {
                 while (!self.isEof() and self.delimeter(deli)) {
                     if (self.peek() == '\n') self.location.line += 1;
                     _ = self.advance();
+                    self.location.end_column += 1;
                 }
             },
             else => unreachable,
@@ -222,9 +225,11 @@ pub const Scanner = struct {
 
         if (self.isEof()) return self.errorToken("Neukončený string");
 
+        self.location.end_column = previous_end_column;
+
         _ = self.advance();
 
-        if (hadMultilineError) return self.errorToken(
+        if (had_multiline_error) return self.errorToken(
             "String obalen v \" nemůže být víceřádkový, použijte \'",
         );
 

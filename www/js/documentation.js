@@ -11,7 +11,7 @@ function changeContent(page) {
             document.querySelector('.navigation').classList.remove('open');
             hljs.highlightAll();
 
-            if (page == "zacatek/instalace.md") {
+            if (page == 'zacatek/instalace.md') {
                 detectOSAndSetDownloadLink();
             }
         });

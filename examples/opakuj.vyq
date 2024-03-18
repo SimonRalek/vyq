@@ -1,0 +1,9 @@
+// Normální smyčka opakuj
+opakuj prm i = 0; .i < 3; .i += 1: {
+  tiskni 3 - .i;
+}
+
+// Vylepšená smyčka opakuj
+opakuj jako i 0..3: {
+  tiskni 3 - .i;
+}

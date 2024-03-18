@@ -50,7 +50,6 @@ pub fn build(b: *std.Build) !void {
     const release_step = b.step("release", "Build and install release builds for all targets");
 
     const release_targets: []const std.zig.CrossTarget = &.{
-        .{ .cpu_arch = .x86_64, .os_tag = .linux },
         .{ .cpu_arch = .x86_64, .os_tag = .windows },
         .{ .cpu_arch = .x86_64, .os_tag = .macos },
         .{ .cpu_arch = .aarch64, .os_tag = .macos },
@@ -71,9 +70,28 @@ pub fn build(b: *std.Build) !void {
     });
     release_step.dependOn(&wasm_dir.step);
 
+    const linux_name = try (std.zig.CrossTarget{ .os_tag = .linux, .cpu_arch = .x86_64 }).zigTriple(b.allocator);
+    const linux_exe = b.addExecutable(.{
+        .name = std.mem.concat(b.allocator, u8, &.{ "vyq-", linux_name }) catch "vyq",
+        .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    linux_exe.linkLibC();
+    linux_exe.linkSystemLibrary("readline");
+    linux_exe.addModule("clap", clap.module("clap"));
+    const linux_dir = b.addInstallArtifact(linux_exe, .{
+        .dest_dir = .{
+            .override = .{ .custom = linux_name },
+        },
+    });
+    release_step.dependOn(&linux_dir.step);
+
     for (release_targets) |release_target| {
+        const name = try release_target.zigTriple(b.allocator);
+
         const release_exe = b.addExecutable(.{
-            .name = "vyq",
+            .name = std.mem.concat(b.allocator, u8, &.{ "vyq-", name }) catch "vyq",
             .root_source_file = .{ .path = "src/main.zig" },
             .target = release_target,
             .optimize = .ReleaseFast,
@@ -91,7 +109,7 @@ pub fn build(b: *std.Build) !void {
         const installed_release_exe = b.addInstallArtifact(release_exe, .{
             .dest_dir = .{
                 .override = .{
-                    .custom = try release_target.zigTriple(b.allocator),
+                    .custom = name,
                 },
             },
         });

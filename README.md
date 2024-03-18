@@ -95,5 +95,8 @@ Jako open-source projekt vítáme příspěvky od komunity. Zde je, jak můžete
 - **Přispění Kódem:** Vytvořte pull request s vašimi zlepšeními nebo novými funkcemi.
 - **Dokumentace:** Pomozte nám vylepšit nebo rozšířit naši dokumentaci.
 
+## Upozornění
+V tento moment projekt nejde vybuildit na jiném zařízení než na linuxu s x86_64 architekturou
+
 ## Licence
 Vyq je distribuován pod MIT licencí, což umožňuje široké využití a distribuci.

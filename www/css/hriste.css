@@ -181,7 +181,7 @@ body {
 .clearOutputBtn {
     position: absolute;
     top: 30px;
-    right: 30px;
+    right: 45px;
     opacity: 0.5;
     z-index: 10;
     background-color: gray;
