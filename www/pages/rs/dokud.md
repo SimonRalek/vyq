@@ -36,7 +36,7 @@ Příklad použití `zastav`:
 
 ```c
 prm pocet = 0;
-dokud (pravda): {
+dokud (ano): {
     .pocet = .pocet + 1;
     tiskni 'Hodnota počtu je: ' + .pocet;
 

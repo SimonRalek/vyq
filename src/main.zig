@@ -41,6 +41,7 @@ pub fn main() !void {
 
     var reporter = Reporter{ .allocator = allocator };
     var vm = VM.create(allocator);
+    defer vm.deinit();
     vm.init(&reporter);
 
     var bench: BenchMark = undefined;
@@ -125,8 +126,6 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
 /// Read-Eval-Print loop mod
 fn repl(allocator: Allocator, vm: *VM) !void {
-    defer vm.deinit();
-
     if (builtin.os.tag == .windows) {
         while (true) {
             try shared.stdout.print(">>> ", .{});
@@ -202,7 +201,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     const source = std.fs.cwd().readFileAlloc(
         allocator,
         filename,
-        1_000_000,
+        1024 * 1024,
     ) catch {
         Reporter.printErr("Soubor nebyl nalezen", .{}) catch {
             @panic("Hodnotu se nepodařilo vypsat");
@@ -212,7 +211,6 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     defer allocator.free(source);
 
     vm.interpret(source) catch {};
-    defer vm.deinit();
 }
 
 /// Získat podle debug modu přiřazený allocator

@@ -4,20 +4,20 @@ Naším jazykem jsou poskytovány různé vestavěné funkce, které vám umožn
 
 #### Práce s Řetězci
 
-- `.delka(retezec)`: Vrátí délku daného řetězce.
+- `.délka(retezec)`: Vrátí délku daného řetězce.
 
 #### Vstup a Výstup
 
-- `.nactiVstup()`: Načte řetězec z standardního vstupu.
+- `.načtiVstup()`: Načte řetězec z standardního vstupu.
 
 #### Typy a Kontrola Typů
 
-- `.ziskejTyp(hodnota)`: Vrátí řetězec reprezentující typ dané hodnoty (např. "retezec", "cislo").
+- `.získejTyp(hodnota)`: Vrátí řetězec reprezentující typ dané hodnoty (např. "textový řetězec", "číslo").
 
 #### Generování Náhodných Čísel
 
-- `.nahoda()`: Vrátí náhodné číslo.
-- `.nahoda(max)`: Vrátí náhodné číslo mezi 0 a zadaným maximem.
+- `.náhoda()`: Vrátí náhodné číslo.
+- `.náhoda(max)`: Vrátí náhodné číslo mezi 0 a zadaným maximem.
 
 #### Matematické Funkce
 
@@ -26,13 +26,18 @@ Naším jazykem jsou poskytovány různé vestavěné funkce, které vám umožn
 
 #### Kontrola Typů
 
-- `.jeCislo(hodnota)`: Vrátí `ano`, pokud je daná hodnota číslem, jinak `ne`.
-- `.jeRetezec(hodnota)`: Vrátí `ano`, pokud je daná hodnota řetězcem, jinak `ne`.
+- `.jeČíslo(hodnota)`: Vrátí `ano`, pokud je daná hodnota číslem, jinak `ne`.
+- `.jeŘetězec(hodnota)`: Vrátí `ano`, pokud je daná hodnota řetězcem, jinak `ne`.
 - `.jeList(hodnota)`: Vrátí `ano`, pokud je daná hodnota listem, jinak `ne`.
+
+#### Převedení Typů
+
+- `.naČíslo(řetězec)`: Vrátí číselnou hodnotu řetězce. Jestliže řetězec není číslo vyhodí chybu.
+- `.naŘetězec(hodnota)`: Vrátí řetězec reprezentující danou hodnotu.
 
 #### Čas a Datum
 
-- `.cas()`: Vrátí aktuální časovou známku (timestamp).
+- `.čas()`: Vrátí aktuální časovou známku (timestamp).
 
 ##### Příklady Použití
 
@@ -40,22 +45,21 @@ Zde je několik příkladů, jak můžete vestavěné funkce používat ve vaše
 
 ```c
 // Získání délky řetězce
-prm delkaJmena = .delka('Petr');
-tiskni delkaJmena;  // Vytiskne délku řetězce 'Petr'
-
-// Čtení vstupu od uživatele
-prm uzivatelskyVstup = .nactiVstup();
-tiskni 'Zadali jste: ' + uzivatelskyVstup;
+prm delkaJmena = .délka('Petr');
+tiskni .delkaJmena;  // Vytiskne délku řetězce 'Petr'
 
 // Generování náhodného čísla
-prm nahodneCislo = .nahoda(100);
-tiskni 'Náhodné číslo do 100: ' + nahodneCislo;
+prm nahodneCislo = .náhoda(100);
+tiskni 'Náhodné číslo do 100: ' + .nahodneCislo;
+
+// Čtení vstupu od uživatele
+tiskniB 'Zadejte číslo: ';
+prm uzivatelskyVstup = .načtiVstup();
+tiskni 'Zadali jste: ' + .uzivatelskyVstup;
 
 // Kontrola, zda je hodnota číslem
-pokud (.jeCislo(uzivatelskyVstup)): {
+pokud (.naČíslo(.uzivatelskyVstup)): {
     tiskni 'Zadaná hodnota je číslo.';
-} jinak {
-    tiskni 'Zadaná hodnota není číslo.';
 }
 ```
 

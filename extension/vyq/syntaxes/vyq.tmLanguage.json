@@ -12,16 +12,8 @@
 			"include": "#brackets"
 		},
 		{
-			"name": "keyword.operator.vyq",
-			"match": "(\\+=|-=|\\*=|/=|%=|\\+|-|\\*|/|%|!|>|<|\\||&|~|>>|<<)"
-		},
-		{
-			"name": "keyword.operator.range.vyq",
-			"match": "\\.{2}"
-		},
-		{
 			"name": "support.function.builtin.vyq",
-			"match": "\\.(delka|nactiVstup|ziskejTyp|nahoda|mocnina|odmocnina|jeCislo|jeRetezec|casovaZnacka)\\b"
+			"match": "\\.(délka|načtiVstup|získejTyp|náhoda|mocnina|odmocnina|jeČíslo|jeŘetězec|čas|naČíslo|naŘetězec)\\b"
 		},
 		{
 			"name": "variable.other.dot-prefix.vyq",

@@ -6,6 +6,8 @@ const _value = @import("value.zig");
 const Val = _value.Val;
 const Object = _value.Object;
 
+extern fn now() f64;
+
 /// Délka textového řetězce
 pub fn str_lenNative(vm: *VM, args: []const Val) ?Val {
     if (args.len != 1) {
@@ -173,8 +175,6 @@ pub fn getTimeStampNative(vm: *VM, args: []const Val) ?Val {
     return Val{ .number = @floatFromInt(std.time.timestamp()) };
 }
 
-extern fn now() f64;
-
 pub fn getTimeStampWasm(vm: *VM, args: []const Val) ?Val {
     if (args.len != 0) {
         vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
@@ -208,6 +208,57 @@ pub fn randWasm(vm: *VM, args: []const Val) ?Val {
     );
 
     return Val{ .number = result };
+}
+
+/// Převést hodnotu na textový řetězec
+pub fn toString(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 1) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
+        return null;
+    }
+
+    const string = Object.String.copy(vm, args[0].stringVal(vm.allocator) catch {
+        vm.runtimeErr("Nepovedlo se hodnotu převést na řetězec", .{}, &.{});
+        return null;
+    });
+
+    return Val{ .obj = string };
+}
+
+/// Převést hodnotu na číslo, jinak chyba
+pub fn toNumber(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 1) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isString()) {
+        vm.runtimeErr("Argument musí být textový řetězec", .{}, &.{});
+        return null;
+    }
+
+    const repre = args[0].obj.string().repre;
+
+    if (std.mem.containsAtLeast(u8, repre, 1, ".")) {
+        vm.runtimeErr("Řetězec '{s}' nemohl být převeden na číslo", .{repre}, &.{});
+        return null;
+    }
+
+    var replaced: []u8 = vm.allocator.alloc(u8, repre.len) catch {
+        vm.runtimeErr("Alokace paměti neuspěla", .{}, &.{});
+        return null;
+    };
+    _ = std.mem.replace(u8, repre, ",", ".", replaced);
+
+    const number = std.fmt.parseFloat(f64, replaced) catch {
+        vm.runtimeErr("Řetězec '{s}' nemohl být převeden na číslo", .{repre}, &.{});
+        vm.allocator.free(replaced);
+        return null;
+    };
+
+    vm.allocator.free(replaced);
+
+    return Val{ .number = number };
 }
 
 pub const timeFunction = if (shared.isFreestanding()) getTimeStampWasm else getTimeStampNative;

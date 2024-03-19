@@ -16,8 +16,8 @@ prm příjmeníUživatele = 'Novák';
 Hodnotu proměnné můžete kdykoliv změnit přiřazením nové hodnoty:
 
 ```c
-početNávštěvníků = .početNávštěvníků + 1;
-příjmeníUživatele = 'Svoboda';
+.početNávštěvníků = .početNávštěvníků + 1;
+.příjmeníUživatele = 'Svoboda';
 ```
 
 #### Konstanty
@@ -34,7 +34,7 @@ konst základníPozdrav = 'Ahoj, světe!';
 Pokud se pokusíte změnit hodnotu konstanty po její inicializaci, dojde k chybě.
 
 ```c
-maximálníPočet = 200; // Toto vyvolá chybu
+.maximálníPočet = 200; // Toto vyvolá chybu
 ```
 
 #### Přístup

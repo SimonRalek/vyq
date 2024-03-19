@@ -13,8 +13,8 @@ pub const GC = struct {
 
     parent_allocator: Allocator,
     vm: *VM,
-    bytesAllocated: usize,
-    nextGC: usize,
+    bytes_allocated: usize,
+    next_GC: usize,
 
     const vtable: Allocator.VTable = .{ .alloc = alloc, .resize = resize, .free = free };
 
@@ -23,8 +23,8 @@ pub const GC = struct {
         return .{
             .vm = vm,
             .parent_allocator = vm.allocator,
-            .bytesAllocated = 0,
-            .nextGC = 1024 * 1024,
+            .bytes_allocated = 0,
+            .next_GC = 1_000_000,
         };
     }
 
@@ -35,7 +35,7 @@ pub const GC = struct {
         self.removeWeakRefs();
         self.sweep();
 
-        self.nextGC = self.bytesAllocated * 2;
+        self.next_GC = self.bytes_allocated * 2;
     }
 
     /// Markování hlavních nodu - stack, closures, elvs, globalní proměnné
@@ -48,10 +48,10 @@ pub const GC = struct {
             self.markObject(&self.vm.frames[i].closure.obj);
         }
 
-        var maybeELV = self.vm.openELV;
-        while (maybeELV) |elv| {
+        var maybe_ELV = self.vm.openELV;
+        while (maybe_ELV) |elv| {
             self.markObject(&elv.obj);
-            maybeELV = elv.next;
+            maybe_ELV = elv.next;
         }
 
         self.markMap(Global, &self.vm.globals);
@@ -172,13 +172,13 @@ pub const GC = struct {
     /// Vlastní funkce na alokaci paměti
     fn alloc(ctx: *anyopaque, len: usize, ptr_align: u8, ret_addr: usize) ?[*]u8 {
         const self: *Self = @ptrCast(@alignCast(ctx));
-        if (self.bytesAllocated + len > self.nextGC) {
+        if (self.bytes_allocated + len > self.next_GC) {
             self.collectGarbage();
         }
 
         const out = self.parent_allocator.rawAlloc(len, ptr_align, ret_addr);
 
-        self.bytesAllocated += len;
+        self.bytes_allocated += len;
 
         return out;
     }
@@ -187,16 +187,16 @@ pub const GC = struct {
     fn resize(ctx: *anyopaque, buf: []u8, buf_align: u8, new_len: usize, ret_addr: usize) bool {
         const self: *Self = @ptrCast(@alignCast(ctx));
         if (new_len > buf.len) {
-            if (self.bytesAllocated + (new_len - buf.len) > self.nextGC) {
+            if (self.bytes_allocated + (new_len - buf.len) > self.next_GC) {
                 self.collectGarbage();
             }
         }
 
         if (self.parent_allocator.rawResize(buf, buf_align, new_len, ret_addr)) {
             if (new_len > buf.len) {
-                self.bytesAllocated += new_len - buf.len;
+                self.bytes_allocated += new_len - buf.len;
             } else {
-                self.bytesAllocated -= buf.len - new_len;
+                self.bytes_allocated -= buf.len - new_len;
             }
             return true;
         } else {
@@ -213,6 +213,6 @@ pub const GC = struct {
     ) void {
         const self: *Self = @ptrCast(@alignCast(ctx));
         self.parent_allocator.rawFree(buf, buf_align, ret_addr);
-        self.bytesAllocated -= buf.len;
+        self.bytes_allocated -= buf.len;
     }
 };
