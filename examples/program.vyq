@@ -1,6 +1,6 @@
 konst str = 'ahoj';
 
-opakuj prm i = 1; .i < .delka(.str); .i++: {
+opakuj prm i = 1; .i < .délka(.str); .i += 1: {
 	tiskni .i;
 }
 
@@ -15,10 +15,10 @@ pokud .grade != 1: {
 	.uspech = ano;
 }
 
-prm vaha = .nahoda(100);
+prm vaha = .náhoda(100);
 
-konst binary = 0b10120;
-konst hexa = 0xFF00zz;
+konst binary = 0b10110;
+konst hexa = 0xFF000F;
 
 prm idk = "
 Viceradkovy

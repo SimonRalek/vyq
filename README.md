@@ -53,7 +53,7 @@ Pro detailní dokumentaci přejdětě na [naší stránku](https://www.vyq.cz/do
 ```c
 konst str = 'ahoj';
 
-opakuj prm i = 1; .i < .delka(.str); .i++: {
+opakuj prm i = 1; .i < .délka(.str); .i++: {
 	tiskni .i;
 }
 
@@ -68,10 +68,10 @@ pokud .grade != 1: {
 	.uspech = ano;
 }
 
-prm vaha = .nahoda(100);
+prm vaha = .náhoda(100);
 
-konst binary = 0b10120;
-konst hexa = 0xFF00zz;
+konst binary = 0b10100;
+konst hexa = 0xFF00F0;
 
 prm idk = "
 Viceradkovy
