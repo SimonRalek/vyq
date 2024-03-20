@@ -116,7 +116,7 @@ pub const Report = struct {
         var count: usize = 1;
         while (it.next()) |line| : (count += 1) {
             if (count == loc.line) {
-                if (!shared.isFreestanding()) {
+                if (!shared.isFreestanding() and !self.reporter.nocolor) {
                     const stdout = std.io.getStdOut();
                     var config = std.io.tty.detectConfig(stdout);
                     try config.setColor(stdout, .dim);
@@ -131,7 +131,7 @@ pub const Report = struct {
                 }
 
                 for (loc.start_column..loc.end_column + 1) |_| {
-                    if (!shared.isFreestanding()) {
+                    if (!shared.isFreestanding() and !self.reporter.nocolor) {
                         const stdout = std.io.getStdOut();
                         var config = std.io.tty.detectConfig(stdout);
                         try config.setColor(stdout, .green);

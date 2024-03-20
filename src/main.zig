@@ -94,6 +94,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
             unreachable;
         }).stdout;
         try shared.stdout.print("{s}", .{version});
+        allocator.free(version);
         return;
     }
 

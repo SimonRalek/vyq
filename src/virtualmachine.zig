@@ -826,7 +826,7 @@ pub const VirtualMachine = struct {
 
         const stdout = if (!shared.isFreestanding()) std.io.getStdOut() else wasm.getWriter();
 
-        if (!shared.isFreestanding()) {
+        if (!shared.isFreestanding() and !self.reporter.nocolor) {
             const config = std.io.tty.detectConfig(stdout);
             config.setColor(stdout, .dim) catch {};
             self.printTrace(stdout.writer());
