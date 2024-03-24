@@ -8,6 +8,33 @@ body {
     transition: 1s;
 }
 
+table {
+    font-family: Arial, Helvetica, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+table td,
+table th {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+table th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    text-align: left;
+    background-color: #5F4DA8;
+    color: white;
+}
+
+h2,
+h3,
+h4 {
+    margin-top: 20px;
+}
+
 .copy-code-button {
     position: absolute;
     top: 5px;
