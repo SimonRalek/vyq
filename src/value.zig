@@ -31,7 +31,7 @@ pub const Val = union(enum) {
                     );
                 }
 
-		        break :blk false;
+                break :blk false;
             },
         };
     }
@@ -304,6 +304,10 @@ pub const Object = struct {
 
         /// Je index validní v řetězci
         pub fn isValidIndex(self: *String, index: f64) IndexError!void {
+            if (self.repre.len == 0) {
+                return IndexError.bigger_index;
+            }
+
             const length: f64 = @floatFromInt(self.repre.len - 1);
             try indexValidation(index, length);
         }
@@ -354,8 +358,17 @@ pub const Object = struct {
             _ = self.items.orderedRemove(idx);
         }
 
+        /// Jestli je list bez prvků
+        pub fn isEmpty(self: *List) bool {
+            return self.items.items.len == 0;
+        }
+
         /// Je index validní
         pub fn isValidIndex(self: *List, index: f64) IndexError!void {
+            if (self.items.items.len == 0) {
+                return IndexError.bigger_index;
+            }
+
             const length: f64 = @floatFromInt(self.items.items.len - 1);
             try indexValidation(index, length);
         }

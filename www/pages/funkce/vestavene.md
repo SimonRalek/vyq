@@ -6,6 +6,11 @@ Naším jazykem jsou poskytovány různé vestavěné funkce, které vám umožn
 
 - `.délka(retezec)`: Vrátí délku daného řetězce.
 
+### Práce s Listy
+
+- `.přidat(list, hodnota)`: Přidá hodnotu na konec listu, vrátí počet prvků v listu
+- `.vyjmout(list)`: Vyjme poslední prvek z listu a vrátí ho
+
 #### Vstup a Výstup
 
 - `.načtiVstup()`: Načte řetězec z standardního vstupu.

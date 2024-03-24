@@ -85,18 +85,20 @@ pub const VirtualMachine = struct {
         self.strings = std.StringHashMap(*Object.String).init(self.gc.allocator());
         self.grays = std.ArrayList(*Object).init(self.allocator);
 
-        self.defineNative("délka", natives.str_lenNative);
+        self.defineNative("délka", natives.lenNative);
         self.defineNative("načtiVstup", natives.inputNative);
         self.defineNative("získejTyp", natives.getTypeNative);
-        self.defineNative("náhoda", natives.randFunction);
+        self.defineNative("náhoda", natives.randNative);
         self.defineNative("mocnina", natives.sqrtNative);
         self.defineNative("odmocnit", natives.rootNative);
         self.defineNative("jeČíslo", natives.isDigitNative);
         self.defineNative("jeŘetězec", natives.isStringNative);
         self.defineNative("jeList", natives.isListNative);
-        self.defineNative("čas", natives.timeFunction);
+        self.defineNative("čas", natives.getTimeStampNative);
         self.defineNative("naŘetězec", natives.toString);
         self.defineNative("naČíslo", natives.toNumber);
+        self.defineNative("přidat", natives.appendToList);
+        self.defineNative("vyjmout", natives.popFromList);
     }
 
     /// "Free"nout objekty a listy

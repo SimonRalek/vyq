@@ -28,7 +28,7 @@ Funkce mohou také přijímat parametry, což jsou hodnoty, které můžete pře
 
 ```c
 funkce scitej(a; b): {
-    vrat a + b;
+    vrat .a + .b;
 }
 ```
 

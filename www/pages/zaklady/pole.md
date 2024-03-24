@@ -7,9 +7,9 @@ Pole jsou základní datovou strukturou v našem jazyce, která umožňuje uchov
 Pro deklaraci listu použijte `[]` značící seznam hodnot. Hodnoty v listu mohou být jakéhokoli typu, včetně čísel, řetězců a pravdivostních hodnot.
 
 ```c
-prm mujList = [1, 2, 3, 4, 5];
-prm jmena = ['Karel', 'Eva', 'Jiří'];
-prm pravdy = [ano, ne, ano, nic];
+prm mujList = [1; 2; 3; 4; 5];
+prm jmena = ['Karel'; 'Eva'; 'Jiří'];
+prm pravdy = [ano; ne; ano; nic];
 ```
 
 #### Přístup k Prvkům
@@ -33,10 +33,10 @@ Pro změnu hodnoty prvku v poli, použijte jeho index a přiřaďte novou hodnot
 
 #### Délka List
 
-Pro zjištění počtu prvků v poli můžete použít vlastnost `delka`. 
+Pro zjištění počtu prvků v poli můžete použít vlastnost `délka`. 
 
 ```c
-tiskni .delka(.mujList);  // Vytiskne 5
+tiskni .délka(.mujList);  // Vytiskne 5
 ```
 
 #### Iterace přes List
@@ -44,7 +44,7 @@ tiskni .delka(.mujList);  // Vytiskne 5
 Pro projití všech prvků listu můžete použít smyčku. Zde je příklad použití smyčky `opakuj` pro výpis všech prvků pole:
 
 ```c
-opakuj prm i = 0; .i < .delka(.mujList); .i += 1: {
+opakuj prm i = 0; .i < .délka(.mujList); .i += 1: {
     tiskni .mujList[.i];
 }
 ```

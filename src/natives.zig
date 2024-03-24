@@ -9,21 +9,27 @@ const Object = _value.Object;
 extern fn now() f64;
 
 /// Délka textového řetězce
-pub fn str_lenNative(vm: *VM, args: []const Val) ?Val {
+pub fn lenNative(vm: *VM, args: []const Val) ?Val {
     if (args.len != 1) {
         vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
         return null;
     }
 
-    if (args[0] != .obj or args[0].obj.type != .string) {
-        vm.runtimeErr("Argument musí být textový řetězec", .{}, &.{});
+    if (!args[0].isString() and !args[0].isList()) {
+        vm.runtimeErr("Argument musí být textový řetězec nebo list", .{}, &.{});
         return null;
     }
 
-    const string = args[0].obj.string().repre;
+    if (args[0].isString()) {
+        const string = args[0].obj.string().repre;
 
-    const result: f64 = @floatFromInt(std.unicode.utf8CountCodepoints(string) catch @panic("Nepodařilo se získat délku řetězce"));
-    return Val{ .number = result };
+        const result: f64 = @floatFromInt(std.unicode.utf8CountCodepoints(string) catch @panic("Nepodařilo se získat délku řetězce"));
+        return Val{ .number = result };
+    } else {
+        const list = args[0].obj.list();
+
+        return Val{ .number = @floatFromInt(list.items.items.len) };
+    }
 }
 
 /// Získat input jako textový řetězec
@@ -92,7 +98,11 @@ pub fn randNative(vm: *VM, args: []const Val) ?Val {
     }
 
     var rnd = std.rand.DefaultPrng.init(0);
-    rnd.seed(@intCast(std.time.nanoTimestamp()));
+    const time: i64 = if (shared.isFreestanding()) @intFromFloat(now()) else @intCast(std.time.nanoTimestamp());
+
+    rnd.seed(
+        @intCast(time),
+    );
 
     var mod: u64 = undefined;
     if (args.len == 1) {
@@ -156,6 +166,7 @@ pub fn isStringNative(vm: *VM, args: []const Val) ?Val {
     return Val{ .boolean = args[0].isString() };
 }
 
+/// Jestli je hodnota list
 pub fn isListNative(vm: *VM, args: []const Val) ?Val {
     if (args.len != 1) {
         vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
@@ -172,42 +183,7 @@ pub fn getTimeStampNative(vm: *VM, args: []const Val) ?Val {
         return null;
     }
 
-    return Val{ .number = @floatFromInt(std.time.timestamp()) };
-}
-
-pub fn getTimeStampWasm(vm: *VM, args: []const Val) ?Val {
-    if (args.len != 0) {
-        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
-        return null;
-    }
-
-    return Val{ .number = now() };
-}
-
-pub fn randWasm(vm: *VM, args: []const Val) ?Val {
-    if (args.len != 1 and args.len != 0) {
-        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}' nebo '{}'", .{ args.len, 0, 1 }, &.{});
-        return null;
-    }
-
-    if (args.len == 1 and args[0] != .number) {
-        vm.runtimeErr("Argument musí být číselné hodnoty", .{}, &.{});
-        return null;
-    }
-
-    var rnd = std.rand.DefaultPrng.init(0);
-    rnd.seed(@intFromFloat(now()));
-
-    var mod: u64 = undefined;
-    if (args.len == 1) {
-        mod = @intFromFloat(args[0].number);
-    }
-
-    const result: f64 = @floatFromInt(
-        if (args.len == 0) rnd.random().int(u32) else @mod(rnd.random().int(u32), mod + 1),
-    );
-
-    return Val{ .number = result };
+    return Val{ .number = if (shared.isFreestanding()) now() else @floatFromInt(std.time.timestamp()) };
 }
 
 /// Převést hodnotu na textový řetězec
@@ -261,5 +237,42 @@ pub fn toNumber(vm: *VM, args: []const Val) ?Val {
     return Val{ .number = number };
 }
 
-pub const timeFunction = if (shared.isFreestanding()) getTimeStampWasm else getTimeStampNative;
-pub const randFunction = if (shared.isFreestanding()) randWasm else randNative;
+/// Přidat prvek do listu
+pub fn appendToList(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 2) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isList()) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
+        return null;
+    }
+
+    const list = args[0].obj.list();
+    list.append(args[1]);
+    return Val{ .number = @floatFromInt(list.items.items.len) };
+}
+
+/// Odstranit poslední prvek v listu
+pub fn popFromList(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 1) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isList()) {
+        vm.runtimeErr("Prvek jde vyjmout pouze z listu", .{}, &.{});
+        return null;
+    }
+
+    const list = args[0].obj.list();
+    if (list.isEmpty()) {
+        vm.runtimeErr("Nelze vyjmout prvek z listu, list je prázdný", .{}, &.{});
+        return null;
+    }
+
+    const popped = list.items.pop();
+
+    return popped;
+}
