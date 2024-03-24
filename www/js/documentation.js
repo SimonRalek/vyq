@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function openFolderAndHighlightPage(defaultPage) {
-    const defaultLink = document.querySelector('.navigation a[onclick*="${defaultPage}"]');
+    const defaultLink = document.querySelector(`.navigation a[onclick="changeContent('${defaultPage}')"]`);    
     if (defaultLink) {
         const parentFolder = defaultLink.closest('.folder');
         if (parentFolder) {
