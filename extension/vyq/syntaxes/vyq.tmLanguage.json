@@ -1,101 +1,101 @@
-{
-	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "vyq",
-	"patterns": [
-		{
-			"include": "#keywords"
+	{
+		"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+		"name": "vyq",
+		"patterns": [
+			{
+				"include": "#keywords"
+			},
+			{
+				"include": "#strings"
+			},
+			{
+				"include": "#brackets"
+			},
+			{
+				"name": "support.function.builtin.vyq",
+				"match": "\\.(délka|načtiVstup|získejTyp|náhoda|mocnina|odmocnina|jeČíslo|jeŘetězec|čas|naČíslo|naŘetězec)\\b"
+			},
+			{
+				"name": "variable.other.dot-prefix.vyq",
+				"match": "\\.[a-zA-Z_ěĚšŠčČřŘžŽýÝáÁíÍéÉňŇúÚůŮóÓťŤ][a-zA-Z0-9_ěĚšŠčČřŘžŽýÝáÁíÍéÉňŇúÚůŮóÓťŤ]*"
+			},			  
+			{
+				"name": "constant.numeric.binary.vyq",
+				"match": "\\b0[bB][01]+\\b"
+			},
+			{
+				"name": "constant.numeric.octal.vyq",
+				"match": "\\b0[oO][0-7]+\\b"
+			},
+			{
+				"name": "constant.numeric.hexadecimal.vyq",
+				"match": "\\b0[xX][0-9A-Fa-f]+\\b"
+			},		
+			{
+				"name": "constant.numeric.vyq",
+				"match": "\\b\\d+([,]\\d+)?\\b"
+			},
+			{
+				"name": "comment.line.double-slash.vyq",
+				"match": "//.*$"
+			},
+			{
+				"name": "comment.block.vyq",
+				"begin": "/\\*",
+				"end": "\\*/"
+			}
+		],
+		"repository": {
+			"keywords": {
+				"patterns": [
+					{
+						"name": "keyword.control.vyq",
+						"match": "\\b(ano|ne|pokud|jinak|prm|konst|opakuj|dokud|nic|nebo|zaroven|pokracuj|tiskni|tiskniN|zastav|jako|dolu|vyber|pripad|po|funkce|vrat)\\b"
+					}
+				]
+			},
+			"strings": {
+				"patterns": [
+					{
+						"name": "string.quoted.double.vyq",
+						"begin": "\"",
+						"end": "\"",
+						"patterns": [
+							{
+								"name": "constant.character.escape.vyq",
+								"match": "\\\\\\."
+							}
+						]
+					},
+					{
+						"name": "string.quoted.single.vyq",
+						"begin": "'",
+						"end": "'",
+						"patterns": [
+							{
+								"name": "constant.character.escape.vyq",
+								"match": "\\\\\\."
+							}
+						]
+					}
+				]
+			},
+			"brackets": {
+				"patterns": [
+					{
+						"name": "punctuation.definition.brackets.round.vyq",
+						"match": "[()]"
+					},
+					{
+						"name": "punctuation.definition.brackets.square.vyq",
+						"match": "[\\[\\]]"
+					},
+					{
+						"name": "punctuation.definition.brackets.curly.vyq",
+						"match": "[{}]"
+					}
+				]
+			}
 		},
-		{
-			"include": "#strings"
-		},
-		{
-			"include": "#brackets"
-		},
-		{
-			"name": "support.function.builtin.vyq",
-			"match": "\\.(délka|načtiVstup|získejTyp|náhoda|mocnina|odmocnina|jeČíslo|jeŘetězec|čas|naČíslo|naŘetězec)\\b"
-		},
-		{
-			"name": "variable.other.dot-prefix.vyq",
-			"match": "\\.[a-zA-Z_][a-zA-Z0-9_]*"
-		},
-		{
-			"name": "constant.numeric.binary.vyq",
-			"match": "\\b0[bB][01]+\\b"
-		},
-		{
-			"name": "constant.numeric.octal.vyq",
-			"match": "\\b0[oO][0-7]+\\b"
-		},
-		{
-			"name": "constant.numeric.hexadecimal.vyq",
-			"match": "\\b0[xX][0-9A-Fa-f]+\\b"
-		},		
-		{
-			"name": "constant.numeric.vyq",
-			"match": "\\b\\d+([,]\\d+)?\\b"
-		},
-		{
-			"name": "comment.line.double-slash.vyq",
-			"match": "//.*$"
-		},
-		{
-			"name": "comment.block.vyq",
-			"begin": "/\\*",
-			"end": "\\*/"
-		}
-	],
-	"repository": {
-		"keywords": {
-			"patterns": [
-				{
-					"name": "keyword.control.vyq",
-					"match": "\\b(ano|ne|pokud|jinak|prm|konst|opakuj|dokud|nic|nebo|zaroven|pokracuj|tiskni|tiskniN|zastav|jako|dolu|vyber|pripad|po|funkce|vrat)\\b"
-				}
-			]
-		},
-		"strings": {
-			"patterns": [
-				{
-					"name": "string.quoted.double.vyq",
-					"begin": "\"",
-					"end": "\"",
-					"patterns": [
-						{
-							"name": "constant.character.escape.vyq",
-							"match": "\\\\\\."
-						}
-					]
-				},
-				{
-					"name": "string.quoted.single.vyq",
-					"begin": "'",
-					"end": "'",
-					"patterns": [
-						{
-							"name": "constant.character.escape.vyq",
-							"match": "\\\\\\."
-						}
-					]
-				}
-			]
-		},
-		"brackets": {
-			"patterns": [
-				{
-					"name": "punctuation.definition.brackets.round.vyq",
-					"match": "[()]"
-				},
-				{
-					"name": "punctuation.definition.brackets.square.vyq",
-					"match": "[\\[\\]]"
-				},
-				{
-					"name": "punctuation.definition.brackets.curly.vyq",
-					"match": "[{}]"
-				}
-			]
-		}
-	},
-	"scopeName": "source.vyq"
-}
+		"scopeName": "source.vyq"
+	}
