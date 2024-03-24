@@ -11,15 +11,15 @@ pub fn completion(text: ?[*:0]const u8, start: c_int, end: c_int) callconv(.C) ?
     const arr = Keywords.kvs;
     var result = std.ArrayList(?[*:0]u8).init(alloc);
 
-    const buf = std.mem.span(text) orelse @panic("");
+    const buf = std.mem.span(text) orelse @panic("Něco se nepodařilo, prosím zkuste znova");
 
     for (arr) |kv| {
         if (std.mem.startsWith(u8, kv.key, buf)) {
-            const duped = alloc.dupeZ(u8, kv.key) catch @panic("");
-            result.append(duped.ptr) catch @panic("");
+            const duped = alloc.dupeZ(u8, kv.key) catch @panic("Něco se nepodařilo, prosím zkuste znova");
+            result.append(duped.ptr) catch @panic("Něco se nepodařilo, prosím zkuste znova");
         }
     }
 
-    const ownedSlice = result.toOwnedSliceSentinel(null) catch @panic("");
+    const ownedSlice = result.toOwnedSliceSentinel(null) catch @panic("Něco se nepodařilo, prosím zkuste znova");
     return if (ownedSlice.len != 0) ownedSlice.ptr else null;
 }

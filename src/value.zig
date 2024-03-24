@@ -30,6 +30,8 @@ pub const Val = union(enum) {
                         b.obj.string().repre,
                     );
                 }
+
+		        break :blk false;
             },
         };
     }
@@ -41,9 +43,9 @@ pub const Val = union(enum) {
                 allocator,
                 "{d}",
                 .{self.number},
-            ) catch @panic("");
+            ) catch @panic("Nepodařilo se alokovat hodnotu");
 
-            const buff = allocator.alloc(u8, number.len) catch @panic("");
+            const buff = allocator.alloc(u8, number.len) catch @panic("Nepodařilo se alokovat hodnotu");
             _ = std.mem.replace(u8, number, ".", ",", buff);
 
             shared.stdout.print(
@@ -395,7 +397,7 @@ pub const Object = struct {
 
         /// Nové 'Closure'
         pub fn init(vm: *VM, func: *Function) *Closure {
-            const elvs = vm.allocator.alloc(?*ELV, func.elv_count) catch @panic("");
+            const elvs = vm.allocator.alloc(?*ELV, func.elv_count) catch @panic("Nepodařilo se alokovat hodnotu");
 
             for (elvs) |*elvariable| elvariable.* = null;
 

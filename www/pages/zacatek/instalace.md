@@ -2,14 +2,11 @@
 
 Tato část vás provede kroky potřebnými k instalaci programovacího jazyka, jeho přidání do systémové proměnné `PATH` a jeho základnímu použití.
 
-Program lze nainstalovat stažením binárního souboru ze sekce "Releases" na GitHubu. Prosím, vyberte soubor odpovídající vašemu operačnímu systému a platformě.
-
-
 ### Kroky pro instalaci:
 
 1. Klikněte na tento [link](#downloadLink) pro instalaci přímo pro váš systém.
 
-nebo 
+nebo
 
 1. Přejděte na [GitHub](https://github.com/simonralek/vyq) a otevřete stránku projektu.
 2. Klikněte na záložku "Releases" nalezenou na stránce projektu.

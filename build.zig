@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
-    exe.addModule("clap", clap.module("clap"));
+    exe.root_module.addImport("clap", clap.module("clap"));
 
     exe.linkSystemLibrary("readline");
 
@@ -55,13 +55,14 @@ pub fn build(b: *std.Build) !void {
         .{ .cpu_arch = .aarch64, .os_tag = .macos },
     };
 
-    const wasm_target = std.zig.CrossTarget{ .cpu_arch = .wasm32, .os_tag = .freestanding };
-    const wasm_exe = b.addSharedLibrary(.{
+    //const wasm_target = std.zig.CrossTarget{ .cpu_arch = .wasm32, .os_tag = .freestanding };
+    const wasm_exe = b.addExecutable(.{
         .name = "vyq",
         .root_source_file = .{ .path = "src/wasm.zig" },
-        .target = wasm_target,
+        .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding }),
         .optimize = .ReleaseFast,
     });
+    wasm_exe.entry = .disabled;
     wasm_exe.rdynamic = true;
     const wasm_dir = b.addInstallArtifact(wasm_exe, .{
         .dest_dir = .{
@@ -70,16 +71,21 @@ pub fn build(b: *std.Build) !void {
     });
     release_step.dependOn(&wasm_dir.step);
 
-    const linux_name = try (std.zig.CrossTarget{ .os_tag = .linux, .cpu_arch = .x86_64 }).zigTriple(b.allocator);
+    const linux_name = try (std.zig.CrossTarget{
+        .os_tag = .linux,
+        .cpu_arch = .x86_64,
+    }).zigTriple(b.allocator);
+
     const linux_exe = b.addExecutable(.{
         .name = std.mem.concat(b.allocator, u8, &.{ "vyq-", linux_name }) catch "vyq",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
+
     linux_exe.linkLibC();
     linux_exe.linkSystemLibrary("readline");
-    linux_exe.addModule("clap", clap.module("clap"));
+    linux_exe.root_module.addImport("clap", clap.module("clap"));
     const linux_dir = b.addInstallArtifact(linux_exe, .{
         .dest_dir = .{
             .override = .{ .custom = linux_name },
@@ -93,12 +99,12 @@ pub fn build(b: *std.Build) !void {
         const release_exe = b.addExecutable(.{
             .name = std.mem.concat(b.allocator, u8, &.{ "vyq-", name }) catch "vyq",
             .root_source_file = .{ .path = "src/main.zig" },
-            .target = release_target,
+            .target = b.resolveTargetQuery(release_target),
             .optimize = .ReleaseFast,
         });
 
         release_exe.linkLibC();
-        release_exe.addModule("clap", clap.module("clap"));
+        release_exe.root_module.addImport("clap", clap.module("clap"));
 
         if (release_target.os_tag == .linux) {
             release_exe.addIncludePath(.{ .path = "/usr/include" });

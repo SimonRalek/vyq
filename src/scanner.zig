@@ -118,7 +118,7 @@ pub const Scanner = struct {
             '~' => self.createToken(.bw_not),
 
             '0' => {
-                return if (self.match('b')) self.binary() else if (self.match('o')) self.octal() else if (self.match('x')) self.hexadecimal() else self.number();
+                return (self.isNumeric() orelse self.number());
             },
 
             else => {
@@ -168,6 +168,21 @@ pub const Scanner = struct {
         }
 
         return self.createToken(.number);
+    }
+
+    /// Jestli je číslo mimo desítkovou sestavu
+    fn isNumeric(self: *Self) ?Token {
+        if (self.match('b') or self.match('B')) {
+            return self.binary();
+        }
+        else if (self.match('o') or self.match('O')) {
+            return self.octal();
+        } 
+        else if (self.match('x') or self.match('X')) {
+            return self.hexadecimal();
+        } 
+    
+        return null;
     }
 
     /// Skenovat hexadecimální číslo do tokenu

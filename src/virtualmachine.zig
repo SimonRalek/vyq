@@ -488,11 +488,14 @@ pub const VirtualMachine = struct {
         const str = Object.String.copy(self, name);
         self.push(str.val());
         const functionVal = (Object.Native.init(self, function, name)).obj.val();
+
         self.push(functionVal);
+
         self.globals.put(
             str.string(),
             Global{ .is_const = true, .val = functionVal },
-        ) catch @panic("");
+        ) catch @panic("Proměnná nemohla být deklarována");
+
         _ = self.pop();
         _ = self.pop();
     }
@@ -622,7 +625,7 @@ pub const VirtualMachine = struct {
         const b = self.peek(0).obj.string();
         const a = self.peek(1).obj.string();
 
-        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.repre, b.repre }) catch @panic("");
+        const buff = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ a.repre, b.repre }) catch @panic("Řetězce nešlo spojit");
 
         const val = Val{ .obj = Object.String.take(self, buff) };
 

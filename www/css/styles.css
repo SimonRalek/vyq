@@ -1,4 +1,5 @@
 html {
+  scrollbar-color: #5f4da8 white;
   transition: 2s;
   scroll-padding-top: 88px;
 }

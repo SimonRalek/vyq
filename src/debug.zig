@@ -4,7 +4,7 @@ const Block = _block.Block;
 
 pub const debugging = false;
 pub const benchmark = false;
-pub const test_alloc = true;
+pub const test_alloc = false;
 
 /// Výpis instrukcí s hodnoty v bloku
 pub fn disassembleBlock(block: *Block, name: []const u8) void {

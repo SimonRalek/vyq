@@ -161,7 +161,7 @@
     }
 
     #navbarResponsive {
-        height: 5.5rem;
+        height: 5.3rem;
         flex-grow: 1;
         display: flex;
         justify-content: end;

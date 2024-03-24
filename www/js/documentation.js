@@ -46,7 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 0);
 
     document.getElementById('theme-toggle-btn').addEventListener('click', function () {
+        const htmlClassList = document.querySelector('html').classList;
         const bodyClassList = document.body.classList;
+        htmlClassList.toggle('dark-theme');
         bodyClassList.toggle('dark-theme');
 
         const isDarkTheme = bodyClassList.contains('dark-theme');
@@ -95,6 +97,10 @@ function openFolderAndHighlightPage(defaultPage) {
 }
 
 const darkThemeStyles = `
+    html.dark-theme {
+        scrollbar-color: #5f4da8 #333;
+    }
+
     body.dark-theme {
         background-color: #333;
         color: #fff;

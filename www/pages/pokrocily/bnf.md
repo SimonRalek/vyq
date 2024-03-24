@@ -25,7 +25,7 @@
 <case-statement> ::= "pripad" <expression> "->" <statement>
 <default-case> ::= "jinak" "->" <statement>
 
-<expression-statement> ::= <assignment>
+<expression-statement> ::= <expression> ";"
 <assignment> ::= <variable-access> "=" <expression>
 <print-statement> ::= "tiskni" <expression>
 <break-statement> ::= "zastav"

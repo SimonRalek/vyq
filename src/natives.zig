@@ -22,7 +22,7 @@ pub fn str_lenNative(vm: *VM, args: []const Val) ?Val {
 
     const string = args[0].obj.string().repre;
 
-    const result: f64 = @floatFromInt(std.unicode.utf8CountCodepoints(string) catch @panic(""));
+    const result: f64 = @floatFromInt(std.unicode.utf8CountCodepoints(string) catch @panic("Nepodařilo se získat délku řetězce"));
     return Val{ .number = result };
 }
 
@@ -44,7 +44,7 @@ pub fn inputNative(vm: *VM, args: []const Val) ?Val {
         '\n',
         buf.len,
     ) catch {
-        @panic("");
+        @panic("Nepodařilo se načíst vstup z terminálu");
     };
     const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
@@ -203,7 +203,7 @@ pub fn randWasm(vm: *VM, args: []const Val) ?Val {
         mod = @intFromFloat(args[0].number);
     }
 
-    var result: f64 = @floatFromInt(
+    const result: f64 = @floatFromInt(
         if (args.len == 0) rnd.random().int(u32) else @mod(rnd.random().int(u32), mod + 1),
     );
 
@@ -244,7 +244,7 @@ pub fn toNumber(vm: *VM, args: []const Val) ?Val {
         return null;
     }
 
-    var replaced: []u8 = vm.allocator.alloc(u8, repre.len) catch {
+    const replaced: []u8 = vm.allocator.alloc(u8, repre.len) catch {
         vm.runtimeErr("Alokace paměti neuspěla", .{}, &.{});
         return null;
     };

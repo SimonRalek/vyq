@@ -24,7 +24,7 @@ const GPA = std.heap.GeneralPurposeAllocator;
 const ArenaAlloc = std.heap.ArenaAllocator;
 
 extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
-extern "kernel32" fn ReadConsoleW(handle: std.os.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
+extern "kernel32" fn ReadConsoleW(handle: std.posix.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
 
 const MAX_HISTORY = 250;
 
@@ -82,12 +82,12 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
         clap.Help,
         &params,
         parsers,
-        .{},
+        .{ .allocator = allocator },
     );
     defer res.deinit();
 
     if (res.args.verze == 1) {
-        const version = (std.ChildProcess.exec(.{
+        const version = (std.ChildProcess.run(.{
             .allocator = allocator,
             .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
         }) catch {
@@ -154,7 +154,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
                 '\n',
                 buf.len,
             ) catch {
-                @panic("");
+                @panic("Nepodařilo se načíst vstup z terminálu");
             };
             const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
@@ -173,7 +173,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             @cInclude("readline/history.h");
         });
         c.using_history();
-        var path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.os.getenv("HOME") orelse ".", "/.vyq_history" });
+        const path: [:0]const u8 = try std.fs.path.joinZ(allocator, &.{ std.posix.getenv("HOME") orelse ".", "/.vyq/history" });
         defer allocator.free(path);
         _ = c.read_history(path.ptr);
         c.stifle_history(MAX_HISTORY);
@@ -181,7 +181,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         c.rl_attempted_completion_function = History.completion;
 
         while (true) {
-            const line = c.readline(">>> ") orelse @panic("");
+            const line = c.readline(">>> ") orelse @panic("Nepodařilo se přečíst hodnotu z terminálu");
             c.add_history(line);
 
             const last_line = c.history_get(c.history_length - 1);

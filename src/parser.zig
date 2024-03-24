@@ -726,7 +726,7 @@ pub const Parser = struct {
 
     /// Parsování vylepšeného 'opakuj'
     fn parseEnhancedFor(self: *Self) void {
-        var prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
+        const prm = self.parseVar("Očekávané jméno prvku po 'jako'") catch {
             return;
         };
 
@@ -770,7 +770,7 @@ pub const Parser = struct {
             self.emitVal(Val{ .number = 1 });
         }
         self.emitOpCode(if (directionUp) .op_add else .op_sub);
-        var resolve = self.resolveLocal(self.emitter, &token);
+        const resolve = self.resolveLocal(self.emitter, &token);
         self.emitter.emitOpCodes(.op_set_loc, @intCast(resolve[0].?), self.previous.location);
         self.emitOpCode(.op_pop);
 
