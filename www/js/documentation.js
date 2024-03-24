@@ -11,10 +11,28 @@ function changeContent(page) {
             document.querySelector('.navigation').classList.remove('open');
             hljs.highlightAll();
 
+            addCopyButtonsToCodeBlocks();
+
             if (page == 'zacatek/instalace.md') {
                 detectOSAndSetDownloadLink();
             }
         });
+}
+
+function addCopyButtonsToCodeBlocks() {
+    document.querySelectorAll('pre code').forEach((block) => {
+        const preElement = block.parentNode;
+        const button = document.createElement('button');
+        button.innerHTML = '&#128203;';
+        button.className = 'copy-code-button';
+        button.addEventListener('click', () => copyCodeToClipboard(block));
+        preElement.insertBefore(button, preElement.firstChild);
+    });
+}
+
+function copyCodeToClipboard(codeBlock) {
+    const text = codeBlock.textContent;
+    navigator.clipboard.writeText(text);
 }
 
 function updateSelectedLink(selectedPage) {
@@ -132,6 +150,10 @@ const darkThemeStyles = `
 
     body.dark-theme a {
         color: #adadad;
+    }
+
+    body.dark-theme .copy-code-button {
+        background-color: #3e3e3e;
     }
 
     body.dark-theme .navigation ul .folder {

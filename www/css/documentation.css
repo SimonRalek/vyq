@@ -8,6 +8,23 @@ body {
     transition: 1s;
 }
 
+.copy-code-button {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    border: 1px solid #ccc;
+    background-color: rgba(255, 255, 255, 0.5);
+    opacity: 0.5;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    transition: opacity 0.3s;
+}
+
+.copy-code-button:hover {
+    opacity: 1;
+}
+
 #mainNav {
     position: relative;
     height: 4.7rem;
@@ -38,6 +55,7 @@ body {
 }
 
 pre {
+    position: relative;
     background-color: #f4f4f4;
     border: 1px solid #ddd;
     border-radius: 5px;
