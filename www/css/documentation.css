@@ -203,7 +203,7 @@ a {
     height: 4.7rem
 }
 
-@media (min-width: 769px) {
+@media (min-width: 992px) {
     .navbar {
         display: flex;
         justify-content: start;
@@ -233,7 +233,7 @@ a {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 991px) {
     .nav-item {
         width: 100%;
         text-align: center;

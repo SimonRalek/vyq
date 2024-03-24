@@ -111,9 +111,7 @@
     background-color: #fff;
 }
 
-@media (max-width: 768px) {
-
-
+@media (max-width: 991px) {
     .navbar {
         text-align: center;
     }
@@ -142,7 +140,7 @@
     }
 }
 
-@media (min-width: 769px) {
+@media (min-width: 992px) {
     .navbar {
         display: flex;
         justify-content: start;
