@@ -3,7 +3,7 @@ function changeContent(page) {
         .then(response => response.text())
         .then(markdown => {
             const content = document.getElementById('content');
-            content.innerHTML = marked(markdown);
+            content.innerHTML = marked.marked(markdown);
             updateSelectedLink(page);
 
             content.scrollTop = 0;
@@ -23,7 +23,7 @@ function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('pre code').forEach((block) => {
         const preElement = block.parentNode;
         const button = document.createElement('button');
-        button.innerHTML = '&#128203;';
+        button.innerHTML = '<i class="fa-solid fa-copy"></i>';
         button.className = 'copy-code-button';
         button.addEventListener('click', () => copyCodeToClipboard(block));
         preElement.insertBefore(button, preElement.firstChild);
@@ -93,8 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const navbarToggler = document.getElementById('navbarToggler');
     const navbarCollapse = document.getElementById('navbarResponsive');
 
-    document.addEventListener('click', () => {
-        if (!navbarCollapse.contains(event.target) && !navbarToggler.contains(event.target)) {
+    document.addEventListener('click', (e) => {
+        if (!navbarCollapse.contains(e.target) && !navbarToggler.contains(e.target)) {
             navbarCollapse.classList.remove('show');
         }
         navigation.classList.remove('open');
