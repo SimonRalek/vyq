@@ -154,6 +154,7 @@ const darkThemeStyles = `
 
     body.dark-theme .copy-code-button {
         background-color: #3e3e3e;
+        color: #fff;
     }
 
     body.dark-theme .navigation ul .folder {
