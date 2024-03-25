@@ -35,6 +35,14 @@ h4 {
     margin-top: 20px;
 }
 
+#doc-nav {
+    margin: 5px 0 0;
+}
+
+#nav-list {
+    margin-top: 10px;
+}
+
 .copy-success {
     color: #28a745;
 }
@@ -169,14 +177,14 @@ pre {
     gap: 5px;
 }
 
-.folder>.folder-text::before {
-    content: '▶';
+.folder>.folder-text>svg {
     display: inline-block;
     transition: transform 0.3s;
     font-size: 12px;
+    margin-right: 6px;
 }
 
-.folder.open>.folder-text::before {
+.folder.open>.folder-text>svg {
     transform: rotate(90deg);
 }
 
