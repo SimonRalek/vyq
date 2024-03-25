@@ -50,7 +50,7 @@
 				"patterns": [
 					{
 						"name": "keyword.control.vyq",
-						"match": "\\b(ano|ne|pokud|jinak|prm|konst|opakuj|dokud|nic|nebo|zaroven|pokracuj|tiskni|tiskniN|zastav|jako|dolu|vyber|pripad|po|funkce|vrat)\\b"
+						"match": "\\b(ano|ne|pokud|jinak|prm|konst|opakuj|dokud|nic|nebo|zaroven|pokracuj|tiskni|tiskniB|zastav|jako|dolu|vyber|pripad|po|funkce|vrat)\\b"
 					}
 				]
 			},

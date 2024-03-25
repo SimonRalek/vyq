@@ -97,8 +97,7 @@ pub const Report = struct {
                 );
             },
         }
-
-        if (!shared.isFreestanding()) {
+        if (!shared.isFreestanding() and self.item.token.?.type != .eof) {
             try self.getSource(self.item.token.?.location);
         }
     }

@@ -370,7 +370,7 @@ pub const Parser = struct {
 
             if (std.mem.eql(u8, name.lexeme, loc.name)) {
                 self.warn(
-                    &self.current,
+                    &self.previous,
                     "Proměnná s tímto jménem již existuje v daném kontextu",
                 );
             }
