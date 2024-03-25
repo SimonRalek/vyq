@@ -25,15 +25,23 @@ function addCopyButtonsToCodeBlocks() {
         const button = document.createElement('button');
         button.innerHTML = '<i class="fa-solid fa-copy"></i>';
         button.className = 'copy-code-button';
-        button.addEventListener('click', () => copyCodeToClipboard(block));
+        button.addEventListener('click', () => copyCodeToClipboard(block, button));
         preElement.insertBefore(button, preElement.firstChild);
     });
 }
 
-function copyCodeToClipboard(codeBlock) {
+function copyCodeToClipboard(codeBlock, button) {
     const text = codeBlock.textContent;
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).then(() => {
+        button.innerHTML = '<i class="fa-solid fa-check copy-success"></i>';
+
+        setTimeout(() => {
+            button.innerHTML = '<i class="fa-solid fa-copy"></i>';
+            button.classList.remove('copy-success');
+        }, 2000);
+    });
 }
+
 
 function updateSelectedLink(selectedPage) {
     document.querySelectorAll('.navigation a').forEach(link => {
