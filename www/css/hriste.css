@@ -101,8 +101,11 @@ body {
 
 .runCodeBtn {
     background-color: #5f4da8;
-    /* margin-bottom: 3rem; */
     color: white;
+}
+
+.runCodeBtn:active {
+    outline: 1px solid #5a5a5a !important;
 }
 
 .runCodeBtn:hover {
@@ -112,6 +115,7 @@ body {
 
 #runCodeBtnMobile {
     transform: translateX(9%);
+    margin-bottom: 0;
 }
 
 @media (min-width: 988px) {
