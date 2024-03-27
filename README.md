@@ -1,4 +1,4 @@
-# vyq
+<img src="images/vyq.png" alt="logo" width="600"/>
 
 vyq je imperativní, dynamicky typovaný, univerzální, stack-based interpretovaný programovací jazyk navržený s cílem sloužit jako mezistupeň mezi blokovým programováním a tradičním imperativním programováním používaným v reálných aplikacích. Jazyk je určen především pro výuku programování u dětí, aby jim ulehčil přechod od blokového programování k základům kódování používaným v praxi. Vyq je navíc open-source, což umožňuje jeho využití, modifikaci a rozšíření širší komunitou programátorů a pedagogů.
 
