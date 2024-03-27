@@ -35,7 +35,7 @@ Tento řádek kódu využívá příkaz `tiskni` k vypsání textu `Ahoj, světe
 Uložte soubor a zavřete textový editor. Otevřete terminál nebo příkazový řádek a přejděte do složky, kde jste soubor uložili. Poté spusťte program pomocí vašeho programovacího jazyka takto:
 
 ```c
-./vyq cesta/k/souboru/ahoj_svete.vyq
+vyq cesta/k/souboru/ahoj_svete.vyq
 ```
 
 Po spuštění programu byste měli vidět na obrazovce výpis:
@@ -53,10 +53,10 @@ Pro lepší integraci s prostředím Visual Studio Code, můžete využít [roz�
 Pro detailní dokumentaci přejdětě na [naší stránku](https://www.vyq.cz/dokumentace) s dokumentací
 
 ## Příklady Kódu
-```c
+```python
 konst str = 'ahoj';
 
-opakuj prm i = 1; .i < .délka(.str); .i++: {
+opakuj prm i = 1; .i < .délka(.str); .i += 1: {
 	tiskni .i;
 }
 
@@ -87,6 +87,46 @@ dokud .vaha < 65 : {
 	pokud .vaha == 60: {
 		zastav;
 	}
+}
+```
+
+```python
+// List názvů barev
+prm barvy = ['červená';'zelená';'modrá'];
+
+// Funkce pro převod barev na hexidecimální kod
+funkce ziskejHexKod(barva): {
+    vyber .barva: {
+        pripad 'červená' -> vrat '#FF0000';
+        pripad 'zelená' -> vrat '#00FF00';
+        pripad 'modrá' -> vrat '#0000FF';
+        jinak -> vrat 'Neznámá barva';
+    }
+}
+
+prm barva =.barvy[.náhoda(2)];
+tiskniB 'Pro barvu ' + .barva;
+tiskni ' je hex kód: ' + .ziskejHexKod(.barva);
+```
+
+```python
+prm vlhkost = 100; // Vlhkost květiny
+prm dny = 1; // Počet dní
+
+funkce snizVlhkost(uroven): {
+    vrat .uroven - .náhoda(25);
+}
+
+dokud .dny <= 7: {
+    .vlhkost =.snizVlhkost(.vlhkost);
+
+    pokud .vlhkost <= 0: {
+        tiskni 'Kytka vyschla na dni: ' + .dny;
+        zastav;
+    } jinak {
+        tiskni 'Den ' + .dny + ', úroveň vlhkosti: ' + .vlhkost;
+        .dny += 1;
+    }
 }
 ```
 
