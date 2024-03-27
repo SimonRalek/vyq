@@ -50,7 +50,7 @@ Gratulujeme, právě jste napsali a spustili svůj první program!
 Pro lepší integraci s prostředím Visual Studio Code, můžete využít [rozšíření Vyq Language Support](https://marketplace.visualstudio.com/items?itemName=vyq.vyq-language-support), které poskytuje syntax highlighting, snippety a další funkce pro pohodlnější práci s jazykem Vyq.
 
 ## Dokumentace
-Pro detailní dokumentaci přejdětě na [naší stránku](https://www.vyq.cz/dokumentace) s dokumentací
+Pro detailní dokumentaci přejdětě na [stránku s dokumentací](https://www.vyq.cz/dokumentace).
 
 ## Příklady Kódu
 ```python
