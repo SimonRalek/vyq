@@ -6,6 +6,16 @@ pub fn build(b: *std.Build) !void {
 
     const optimize = b.standardOptimizeOption(.{});
 
+    var options = b.addOptions();
+    const version = (std.ChildProcess.run(.{
+        .allocator = b.allocator,
+        .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
+    }) catch {
+        unreachable;
+    }).stdout;
+    options.addOption([]const u8, "version", version);
+    const build_module = options.createModule();
+
     const exe = b.addExecutable(.{
         .name = "vyq",
         .root_source_file = .{ .path = "src/main.zig" },
@@ -20,6 +30,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     exe.root_module.addImport("clap", clap.module("clap"));
+
+    exe.root_module.addImport("build_options", build_module);
 
     exe.linkSystemLibrary("readline");
 
@@ -86,6 +98,7 @@ pub fn build(b: *std.Build) !void {
     linux_exe.linkLibC();
     linux_exe.linkSystemLibrary("readline");
     linux_exe.root_module.addImport("clap", clap.module("clap"));
+    linux_exe.root_module.addImport("build_options", build_module);
     const linux_dir = b.addInstallArtifact(linux_exe, .{
         .dest_dir = .{
             .override = .{ .custom = linux_name },
@@ -105,6 +118,7 @@ pub fn build(b: *std.Build) !void {
 
         release_exe.linkLibC();
         release_exe.root_module.addImport("clap", clap.module("clap"));
+        release_exe.root_module.addImport("build_options", build_module);
 
         if (release_target.os_tag == .linux) {
             release_exe.addIncludePath(.{ .path = "/usr/include" });

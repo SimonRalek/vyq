@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const BuildOptions = @import("build_options");
 const clap = @import("clap");
 
 const debug = @import("debug.zig");
@@ -87,14 +88,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
     defer res.deinit();
 
     if (res.args.verze == 1) {
-        const version = (std.ChildProcess.run(.{
-            .allocator = allocator,
-            .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
-        }) catch {
-            unreachable;
-        }).stdout;
-        try shared.stdout.print("{s}", .{version});
-        allocator.free(version);
+        try shared.stdout.print("{s}", .{BuildOptions.version});
         return;
     }
 
