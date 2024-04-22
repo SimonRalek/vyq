@@ -209,9 +209,17 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
 }
 
 /// Získat podle debug modu přiřazený allocator
-fn getAllocatorType() if (debug.test_alloc) GPA(.{}) else ArenaAlloc {
+fn getAllocatorType() if (debug.test_alloc) GPA(.{}) else type {
     return if (debug.test_alloc)
         GPA(.{}){}
     else
-        ArenaAlloc.init(std.heap.page_allocator);
+        struct {
+            fn allocator() std.mem.Allocator {
+                return std.heap.c_allocator;
+            }
+
+            fn deinit() void {
+
+            }
+        };
 }

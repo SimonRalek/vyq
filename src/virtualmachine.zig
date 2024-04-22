@@ -80,10 +80,14 @@ pub const VirtualMachine = struct {
     pub fn init(self: *Self, reporter: *Reporter) void {
         self.gc = GC.init(self);
 
+        const allocator = self.gc.allocator();
+
         self.reporter = reporter;
-        self.globals = std.AutoHashMap(*Object.String, Global).init(self.gc.allocator());
-        self.strings = std.StringHashMap(*Object.String).init(self.gc.allocator());
         self.grays = std.ArrayList(*Object).init(self.allocator);
+
+        self.allocator = allocator;
+        self.globals = std.AutoHashMap(*Object.String, Global).init(allocator);
+        self.strings = std.StringHashMap(*Object.String).init(allocator);
 
         self.defineNative("délka", natives.lenNative);
         self.defineNative("načtiVstup", natives.inputNative);
@@ -197,11 +201,12 @@ pub const VirtualMachine = struct {
 
                 .op_print => self.pop().print(self.allocator),
                 .op_println => {
-                    self.pop().print(self.allocator);
+                    self.peek(0).print(self.allocator);
                     shared.stdout.print(
                         "\n",
                         .{},
                     ) catch @panic("Nepodařilo se vypsat hodnotu");
+                    _ = self.pop();
                 },
                 .op_pop => _ = self.pop(),
                 .op_popn => {
@@ -226,11 +231,11 @@ pub const VirtualMachine = struct {
                     }
                     self.push(self.globals.get(name).?.val);
                 },
-                .op_def_glob_var => {
+                .op_def_glob => {
                     const name = self.readValue().obj.string();
                     self.globals.put(
                         name,
-                        Global.initPrm(self.peek(0)),
+                        if (self.readByte() == 1) Global.initKonst(self.peek(0)) else Global.initPrm(self.peek(0)),
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
@@ -264,17 +269,6 @@ pub const VirtualMachine = struct {
                     ) catch {
                         @panic("Nepodařilo se hodnotu alokovat");
                     };
-                },
-
-                .op_def_glob_const => {
-                    const name = self.readValue().obj.string();
-                    self.globals.put(
-                        name,
-                        Global.initKonst(self.peek(0)),
-                    ) catch {
-                        @panic("Nepodařilo se hodnotu alokovat");
-                    };
-                    _ = self.pop();
                 },
 
                 .op_get_loc => {
@@ -419,6 +413,7 @@ pub const VirtualMachine = struct {
 
     /// Zkusit zavolat hodnotu
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
+        std.debug.print("{any}\n", .{callee});
         if (callee == .obj) {
             switch (callee.obj.type) {
                 .closure => {

@@ -3,8 +3,8 @@ const builtin = @import("builtin");
 
 pub const wasm = @import("wasm.zig");
 pub const WasmWriter = @import("writer.zig").WasmWriter;
-pub const ResultError = error{ parser, compile, runtime };
 
+pub const ResultError = error{ parser, compile, runtime };
 pub const IndexError = error{ negative_index, bigger_index, float_index };
 
 /// Pro získání prostředku na výpis

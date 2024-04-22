@@ -90,7 +90,7 @@ pub const Parser = struct {
 
         const function = self.emitter.function;
         if (!self.reporter.had_error and debug.debugging and !shared.isFreestanding()) {
-            debug.disBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
+            debug.disassembleBlock(self.currentBlock(), if (function.name) |name| name.repre else "script");
         }
 
         if (self.emitter.wrapped) |emitter| {
@@ -342,8 +342,12 @@ pub const Parser = struct {
         }
 
         self.emitter.emitOpCodes(
-            if (is_const) .op_def_glob_const else .op_def_glob_var,
+            .op_def_glob,
             glob,
+            self.current.location,
+        );
+        self.emitter.emitByte(
+            if (is_const) 1 else 0,
             self.current.location,
         );
     }
@@ -408,36 +412,33 @@ pub const Parser = struct {
     fn namedVar(self: *Self, token: *Token, assignable: bool) !void {
         var get_op: Block.OpCode = undefined;
         var set_op: Block.OpCode = undefined;
-        var arg = self.resolveLocal(self.emitter, token);
+        var arg, const is_const = self.resolveLocal(self.emitter, token);
 
         if (token.type != .identifier) {
             self.report(token, "Po tečce se očekává jméno prvku");
             return ResultError.parser;
         }
 
-        if (arg[0] != null) {
+        if (arg != null) {
             get_op = .op_get_loc;
             set_op = .op_set_loc;
         } else {
             if (self.resolveELV(self.emitter, token)) |new| {
-                arg[0] = @intCast(new);
+                arg = @intCast(new);
                 get_op = .op_get_elv;
                 set_op = .op_set_elv;
             } else {
-                arg = .{
-                    self.makeVal(Val{
+                arg = self.makeVal(Val{
                         .obj = Object.String.copy(self.vm, token.lexeme),
-                    }),
-                    false,
-                };
+                      });
                 get_op = .op_get_glob;
                 set_op = .op_set_glob;
             }
         }
 
-        if (arg[0]) |index| {
+        if (arg) |index| {
             if (assignable and self.match(.assign)) {
-                if (arg[1]) {
+                if (is_const) {
                     self.report(&self.previous, "Nelze změnit hodnotu konstanty");
                     return ResultError.compile;
                 }
@@ -449,7 +450,7 @@ pub const Parser = struct {
                     self.current.location,
                 );
             } else if (assignable and self.isAdditionalOperator()) {
-                if (arg[1]) {
+                if (is_const) {
                     self.report(&self.previous, "Nelze změnit hodnotu konstanty");
                     return ResultError.compile;
                 }
@@ -1073,7 +1074,12 @@ pub const Parser = struct {
         const buff = try self.allocator.alloc(u8, self.previous.lexeme.len);
         defer self.allocator.free(buff);
 
+        // if (conf.real_numbers_by_comma) {
         _ = std.mem.replace(u8, self.previous.lexeme, ",", ".", buff);
+        // } else {
+        // @memcpy(buff, self.previous.lexeme);
+        // }
+
         const converted: std.fmt.ParseFloatError!f64 = std.fmt.parseFloat(f64, buff);
         if (converted) |value| {
             self.emitVal(Val{ .number = value });

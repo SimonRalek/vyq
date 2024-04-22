@@ -43,13 +43,14 @@ pub const Emitter = struct {
     /// Inicializace Emitteru
     pub fn init(vm: *VM, func_type: FunctionType, wrapped: ?*Emitter) Self {
         var locals = localArray.init(vm.allocator);
+        locals.ensureTotalCapacity(1) catch @panic("Nepovedlo se alokovat paměť");
 
         // aktuální funkce
-        locals.append(.{
+        locals.appendAssumeCapacity(.{
             .depth = 0,
             .name = "",
             .is_const = false,
-        }) catch {};
+        });
 
         return .{
             .allocator = vm.allocator,

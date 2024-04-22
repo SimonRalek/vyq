@@ -4,7 +4,7 @@ const Block = _block.Block;
 
 pub const debugging = false;
 pub const benchmark = false;
-pub const test_alloc = false;
+pub const test_alloc = true;
 
 /// Výpis instrukcí s hodnoty v bloku
 pub fn disassembleBlock(block: *Block, name: []const u8) void {
@@ -36,8 +36,6 @@ pub fn disassembleInstruction(block: *Block, idx: usize, allocator: std.mem.Allo
         .op_mult => simple("op_mult", idx),
         .op_div => simple("op_div", idx),
         .op_mod => simple("op_mod", idx),
-        .op_increment => simple("op_increment", idx),
-        .op_decrement => simple("op_decrement", idx),
         .op_not => simple("op_not", idx),
         .op_nic => simple("op_nic", idx),
         .op_ano => simple("op_ano", idx),
@@ -53,8 +51,14 @@ pub fn disassembleInstruction(block: *Block, idx: usize, allocator: std.mem.Allo
         .op_bit_not => simple("op_bit_not", idx),
         .op_print => simple("op_print", idx),
         .op_println => simple("op_println", idx),
-        .op_def_glob_var => value("op_define_global_var", block, idx, allocator),
-        .op_def_glob_const => value("op_define_global_const", block, idx, allocator),
+        .op_def_glob => {    
+            const val = block.code.items[idx + 1];
+            std.debug.print("{s} {} {s} ", .{ "op_def_glob", val, if (block.code.items[idx + 2] == 1) "konst" else "prm" });
+
+            block.*.values.items[val].print(allocator);
+            std.debug.print("\n", .{});
+            return idx + 3;
+        },
         .op_get_glob => value("op_get_global", block, idx, allocator),
         .op_set_glob => value("op_set_global", block, idx, allocator),
         .op_get_loc => byte("op_get_loc", block, idx),

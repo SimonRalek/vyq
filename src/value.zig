@@ -44,6 +44,7 @@ pub const Val = union(enum) {
                 "{d}",
                 .{self.number},
             ) catch @panic("Nepodařilo se alokovat hodnotu");
+            defer allocator.free(number);
 
             const buff = allocator.alloc(u8, number.len) catch @panic("Nepodařilo se alokovat hodnotu");
             _ = std.mem.replace(u8, number, ".", ",", buff);
@@ -53,7 +54,6 @@ pub const Val = union(enum) {
                 .{buff},
             ) catch @panic("Nepodařilo se hodnotu vypsat");
 
-            allocator.free(number);
             allocator.free(buff);
         }
 
@@ -77,10 +77,10 @@ pub const Val = union(enum) {
         return switch (self) {
             .number => |val| blk: {
                 const number = try std.fmt.allocPrint(allocator, "{d}", .{val});
+                defer allocator.free(number);
 
                 const buff = try allocator.alloc(u8, number.len);
                 _ = std.mem.replace(u8, number, ".", ",", buff);
-                allocator.free(number);
                 break :blk buff;
             },
             .nic => "nic",
@@ -229,32 +229,32 @@ pub const Object = struct {
 
     /// Převedení objektu na řetězec s tím spojený
     pub fn string(self: *Object) *String {
-        return @fieldParentPtr(String, "obj", self);
+        return @fieldParentPtr("obj", self);
     }
 
     /// Převedení objektu na funkci s tím spojenou
     pub fn function(self: *Object) *Function {
-        return @fieldParentPtr(Function, "obj", self);
+        return @fieldParentPtr("obj", self);
     }
 
     /// Převedení objektu na 'closure' s tím spojený
     pub fn closure(self: *Object) *Closure {
-        return @fieldParentPtr(Closure, "obj", self);
+        return @fieldParentPtr("obj", self);
     }
 
     /// Převedení objektu na 'Externí Lokální Proměnou' s tím spojenou
     pub fn elv(self: *Object) *ELV {
-        return @fieldParentPtr(ELV, "obj", self);
+        return @fieldParentPtr("obj", self);
     }
 
     /// Převedení objektu na nativní funkci s tím spojenou
     pub fn native(self: *Object) *Native {
-        return @fieldParentPtr(Native, "obj", self);
+        return @fieldParentPtr("obj", self);
     }
 
     /// Převedení objektu na list s tím spojený
     pub fn list(self: *Object) *List {
-        return @fieldParentPtr(List, "obj", self);
+        return @fieldParentPtr("obj", self);
     }
 
     pub const String = struct {
@@ -314,7 +314,7 @@ pub const Object = struct {
 
         /// Free řetězce
         pub fn deinit(object: *Object, vm: *VM) void {
-            const self = @fieldParentPtr(Self, "obj", object);
+            const self: *Self = @fieldParentPtr("obj", object);
             vm.allocator.free(self.repre);
             vm.allocator.destroy(self);
         }
@@ -333,7 +333,7 @@ pub const Object = struct {
 
         /// Dealokace listu
         pub fn deinit(obj: *Object, vm: *VM) void {
-            const self = @fieldParentPtr(List, "obj", obj);
+            const self: *List = @fieldParentPtr("obj", obj);
             self.items.deinit();
             vm.allocator.destroy(self);
         }
@@ -396,7 +396,7 @@ pub const Object = struct {
 
         /// Deinicializace funkce
         pub fn deinit(object: *Object, vm: *VM) void {
-            const self = @fieldParentPtr(Function, "obj", object);
+            const self: *Function = @fieldParentPtr("obj", object);
             self.block.deinit();
             vm.allocator.destroy(self);
         }
@@ -423,7 +423,7 @@ pub const Object = struct {
 
         /// Deinicializace 'Closure'
         pub fn deinit(obj: *Object, vm: *VM) void {
-            const self = @fieldParentPtr(Closure, "obj", obj);
+            const self: *Closure = @fieldParentPtr("obj", obj);
             vm.allocator.free(self.elvs);
             vm.allocator.destroy(self);
         }
@@ -446,7 +446,7 @@ pub const Object = struct {
 
         /// Deinicializace Externí Lokální Proměnné
         pub fn deinit(obj: *Object, vm: *VM) void {
-            const self = @fieldParentPtr(ELV, "obj", obj);
+            const self: *ELV = @fieldParentPtr("obj", obj);
             vm.allocator.destroy(self);
         }
     };
@@ -468,7 +468,7 @@ pub const Object = struct {
 
         /// Deinicializace nativní funkce
         pub fn deinit(object: *Object, vm: *VM) void {
-            const self = @fieldParentPtr(Native, "obj", object);
+            const self: *Native = @fieldParentPtr("obj", object);
             vm.allocator.destroy(self);
         }
     };
