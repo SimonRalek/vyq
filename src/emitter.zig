@@ -18,7 +18,7 @@ const Block = @import("block.zig").Block;
 const VM = @import("virtualmachine.zig").VirtualMachine;
 const Local = @import("storage.zig").Local;
 
-const localArray = std.ArrayList(Local);
+const localArray = std.ArrayListUnmanaged(Local);
 
 const ELV = struct { idx: u8, is_local: bool };
 
@@ -42,8 +42,8 @@ pub const Emitter = struct {
 
     /// Inicializace Emitteru
     pub fn init(vm: *VM, func_type: FunctionType, wrapped: ?*Emitter) Self {
-        var locals = localArray.init(vm.allocator);
-        locals.ensureTotalCapacity(1) catch @panic("Nepovedlo se alokovat paměť");
+        var locals = localArray{};
+        locals.ensureTotalCapacity(vm.allocator, 1) catch @panic("Nepovedlo se alokovat paměť");
 
         // aktuální funkce
         locals.appendAssumeCapacity(.{
@@ -59,13 +59,18 @@ pub const Emitter = struct {
             .locals = locals,
             .scope_depth = 0,
             .wrapped = wrapped,
-            .function = Function.init(vm, func_type),
+            .function = blk: {
+                const func = Function.init(vm, func_type);
+                func.source = vm.reporter.source;
+                func.file = vm.reporter.file;
+                break :blk func;
+            },
         };
     }
 
     // Emit returnu a disassemble pokud debug mod
     pub fn deinit(self: *Self) void {
-        self.locals.deinit();
+        self.locals.deinit(self.allocator);
     }
 
     /// Kompilace
@@ -74,6 +79,7 @@ pub const Emitter = struct {
 
         self.parser = Parser.init(self.allocator, self, self.vm, self.reporter);
         self.vm.parser = &(self.parser.?);
+        defer self.vm.parser = null;
 
         self.parser.?.parse(source);
 

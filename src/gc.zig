@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const Alignment = std.mem.Alignment;
 
 const VM = @import("virtualmachine.zig").VirtualMachine;
 const Emitter = @import("emitter.zig").Emitter;
@@ -16,7 +17,7 @@ pub const GC = struct {
     bytes_allocated: usize,
     next_GC: usize,
 
-    const vtable: Allocator.VTable = .{ .alloc = alloc, .resize = resize, .free = free };
+    const vtable: Allocator.VTable = .{ .alloc = alloc, .resize = resize, .free = free, .remap = remap };
 
     /// Nový GC (Garbage Collector)
     pub fn init(vm: *VM) Self {
@@ -69,7 +70,7 @@ pub const GC = struct {
 
         obj.is_marked = true;
 
-        self.vm.grays.append(obj) catch @panic("Nepovedlo se alokovat");
+        self.vm.grays.append(self.vm.allocator, obj) catch @panic("Nepovedlo se alokovat");
     }
 
     /// Označení objektů v mapách
@@ -101,7 +102,7 @@ pub const GC = struct {
     /// Po fázi označení projede "šedivé objekty"
     fn traceReferences(self: *Self) void {
         while (self.vm.grays.items.len > 0) {
-            const object = self.vm.grays.pop();
+            const object = self.vm.grays.pop().?;
             self.blackenObject(object);
         }
     }
@@ -170,7 +171,7 @@ pub const GC = struct {
     }
 
     /// Vlastní funkce na alokaci paměti
-    fn alloc(ctx: *anyopaque, len: usize, ptr_align: u8, ret_addr: usize) ?[*]u8 {
+    fn alloc(ctx: *anyopaque, len: usize, ptr_align: Alignment, ret_addr: usize) ?[*]u8 {
         const self: *Self = @ptrCast(@alignCast(ctx));
         if (self.bytes_allocated + len > self.next_GC) {
             self.collectGarbage();
@@ -184,7 +185,7 @@ pub const GC = struct {
     }
 
     /// Vlastní funkce pro změnu velikosti alokované paměti
-    fn resize(ctx: *anyopaque, buf: []u8, buf_align: u8, new_len: usize, ret_addr: usize) bool {
+    fn resize(ctx: *anyopaque, buf: []u8, buf_align: Alignment, new_len: usize, ret_addr: usize) bool {
         const self: *Self = @ptrCast(@alignCast(ctx));
         if (new_len > buf.len) {
             if (self.bytes_allocated + (new_len - buf.len) > self.next_GC) {
@@ -208,11 +209,30 @@ pub const GC = struct {
     fn free(
         ctx: *anyopaque,
         buf: []u8,
-        buf_align: u8,
+        buf_align: Alignment,
         ret_addr: usize,
     ) void {
         const self: *Self = @ptrCast(@alignCast(ctx));
         self.parent_allocator.rawFree(buf, buf_align, ret_addr);
         self.bytes_allocated -= buf.len;
+    }
+
+    fn remap(ctx: *anyopaque, memory: []u8, alignment: Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        if (new_len > memory.len) {
+            if (self.bytes_allocated + (new_len - memory.len) > self.next_GC) {
+                self.collectGarbage();
+            }
+        }
+
+        const result = self.parent_allocator.rawRemap(memory, alignment, new_len, ret_addr);
+        if (result != null) {
+            if (new_len > memory.len) {
+                self.bytes_allocated += new_len - memory.len;
+            } else {
+                self.bytes_allocated -= memory.len - new_len;
+            }
+        }
+        return result;
     }
 };

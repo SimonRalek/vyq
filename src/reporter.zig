@@ -2,7 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const shared = @import("shared.zig");
 const Allocator = std.mem.Allocator;
-const Color = std.io.tty.Color;
 
 const Token = @import("token.zig").Token;
 const Location = @import("scanner.zig").Location;
@@ -46,11 +45,11 @@ pub const Kind = enum {
     }
 
     /// Získat barvu
-    pub fn getColor(self: Self) Color {
+    pub fn getAnsiColor(self: Self) []const u8 {
         return switch (self) {
-            .err => .red,
-            .warn => .yellow,
-            .hint => .blue,
+            .err => "\x1b[31m", // Red
+            .warn => "\x1b[33m", // Yellow
+            .hint => "\x1b[34m", // Blue
         };
     }
 };
@@ -76,7 +75,6 @@ pub const Report = struct {
     type: ?ResultError = null,
     notes: []const Note,
 
-    /// Report pro kompilační chyby
     fn reportCompile(self: *Self) !void {
         try shared.stdout.print("\"{s}\"\n - ", .{self.item.message});
 
@@ -98,78 +96,124 @@ pub const Report = struct {
             },
         }
         if (!shared.isFreestanding() and self.item.token.?.type != .eof) {
-            try self.getSource(self.item.token.?.location);
+            try self.getSource(self.item.token.?);
         }
     }
 
-    /// Report pro runtime chyby
     fn reportRuntime(self: *Self) !void {
         try shared.stdout.print("\"{s}\"\n", .{self.item.message});
         try self.printNotes();
     }
 
-    /// Vytisknutí řádky s ukazovátkem kde nastala chyba
-    fn getSource(self: *Self, loc: Location) !void {
-        var it = std.mem.splitSequence(u8, self.reporter.source, "\n");
+    fn getSource(self: *Self, token: *Token) !void {
+        const source = self.reporter.source;
+        const token_start = @intFromPtr(token.lexeme.ptr) - @intFromPtr(source.ptr);
+        const token_len = token.lexeme.len;
+        const token_end = token_start + token_len;
 
-        var count: usize = 1;
-        while (it.next()) |line| : (count += 1) {
-            if (count == loc.line) {
-                if (!shared.isFreestanding() and !self.reporter.nocolor) {
-                    const stdout = std.io.getStdOut();
-                    var config = std.io.tty.detectConfig(stdout);
-                    try config.setColor(stdout, .dim);
-                    try stdout.writer().print("{}: {s}\n", .{ count, line });
-                    try config.setColor(stdout, .reset);
-                } else {
-                    try shared.stdout.print(" {s}\n", .{line});
-                }
-
-                for (0..loc.start_column + 2) |_| {
-                    try shared.stdout.print(" ", .{});
-                }
-
-                for (loc.start_column..loc.end_column + 1) |_| {
-                    if (!shared.isFreestanding() and !self.reporter.nocolor) {
-                        const stdout = std.io.getStdOut();
-                        var config = std.io.tty.detectConfig(stdout);
-                        try config.setColor(stdout, .green);
-                        try stdout.writer().print("^", .{});
-                        try config.setColor(stdout, .reset);
-                    } else {
-                        try shared.stdout.print("^", .{});
-                    }
-                }
-
-                try shared.stdout.print("\n", .{});
-
-                break;
+        // Find line start
+        var line_start: usize = 0;
+        if (token_start > 0) {
+            if (std.mem.lastIndexOfScalar(u8, source[0..token_start], '\n')) |idx| {
+                line_start = idx + 1;
             }
+        }
+
+        // Find line end
+        var line_end: usize = source.len;
+        if (std.mem.indexOfScalar(u8, source[token_end..], '\n')) |idx| {
+            line_end = token_end + idx;
+        }
+
+        const line = source[line_start..line_end];
+        const count = token.location.line;
+
+        // Offsets relative to line
+        const start_idx = token_start - line_start;
+        const end_idx = token_end - line_start;
+
+        if (!shared.isFreestanding() and !self.reporter.nocolor) {
+            // Calculate visual width of the line prefix (e.g. "12: ")
+            const line_digits = if (count == 0) 1 else std.math.log10_int(count) + 1;
+            const prefix_width = line_digits + 2;
+
+            try shared.stdout.print("\x1b[2m{}: {s}\n\x1b[0m", .{ count, line });
+
+            // Visual width before token
+            const pre_slice = line[0..start_idx];
+            var pre_width: usize = 0;
+            var pre_it = std.unicode.Utf8View.initUnchecked(pre_slice).iterator();
+            while (pre_it.nextCodepoint()) |cp| {
+                if (cp == '\t') pre_width += 4 else pre_width += 1;
+            }
+
+            for (0..(prefix_width + pre_width)) |_| {
+                try shared.stdout.print(" ", .{});
+            }
+
+            try shared.stdout.print("\x1b[32m", .{}); // Green
+
+            // Visual width of token
+            const token_slice = line[start_idx..end_idx];
+            var token_width: usize = 0;
+            var token_it = std.unicode.Utf8View.initUnchecked(token_slice).iterator();
+            while (token_it.nextCodepoint()) |cp| {
+                if (cp == '\t') token_width += 4 else token_width += 1;
+            }
+            if (token_width == 0) token_width = 1;
+
+            for (0..token_width) |_| {
+                try shared.stdout.print("^", .{});
+            }
+            try shared.stdout.print("\x1b[0m\n", .{});
+        } else {
+            // Plain text version
+            const line_digits = if (count == 0) 1 else std.math.log10_int(count) + 1;
+            const prefix_width = line_digits + 2;
+
+            try shared.stdout.print(" {}: {s}\n", .{ count, line });
+
+            const pre_slice = line[0..start_idx];
+            var pre_width: usize = 0;
+            var pre_it = std.unicode.Utf8View.initUnchecked(pre_slice).iterator();
+            while (pre_it.nextCodepoint()) |cp| {
+                if (cp == '\t') pre_width += 4 else pre_width += 1;
+            }
+
+            for (0..(prefix_width + pre_width)) |_| {
+                try shared.stdout.print(" ", .{});
+            }
+
+            const token_slice = line[start_idx..end_idx];
+            var token_width: usize = 0;
+            var token_it = std.unicode.Utf8View.initUnchecked(token_slice).iterator();
+            while (token_it.nextCodepoint()) |cp| {
+                if (cp == '\t') token_width += 4 else token_width += 1;
+            }
+            if (token_width == 0) token_width = 1;
+
+            for (0..token_width) |_| {
+                try shared.stdout.print("^", .{});
+            }
+            try shared.stdout.print("\n", .{});
         }
     }
 
-    /// Vytisknout poznámky
     fn printNotes(self: *Self) !void {
         for (self.notes) |note| {
             if (!shared.isFreestanding()) {
-                var stdout = std.io.getStdOut();
-                const config = std.io.tty.detectConfig(stdout);
-                if (!self.reporter.nocolor)
-                    try config.setColor(stdout, note.kind.getColor());
-                try stdout.writer().print(
-                    "poznámka",
-                    .{},
-                );
-                if (!self.reporter.nocolor)
-                    try config.setColor(stdout, .reset);
+                if (!self.reporter.nocolor) {
+                    try shared.stdout.print("{s}poznámka\x1b[0m: {s}\n", .{ note.kind.getAnsiColor(), note.message });
+                } else {
+                    try shared.stdout.print("poznámka: {s}\n", .{note.message});
+                }
             } else {
                 try shared.stdout.print("poznámka", .{});
+                try shared.stdout.print(": {s}\n", .{note.message});
             }
-            try shared.stdout.print(": {s}\n", .{note.message});
         }
     }
 
-    /// Vytisknout zprávu
     fn report(self: *Self, loc: Location) !void {
         try shared.stdout.print("{s}:{}:{} ", .{
             self.reporter.file,
@@ -178,15 +222,14 @@ pub const Report = struct {
         });
 
         if (!shared.isFreestanding()) {
-            var stdout = std.io.getStdOut();
-            var config = std.io.tty.detectConfig(stdout);
-            if (!self.reporter.nocolor)
-                try config.setColor(stdout, self.item.kind.getColor());
-            try stdout.writer().print("{s}: ", .{
-                self.item.kind.name(),
-            });
-            if (!self.reporter.nocolor)
-                try config.setColor(stdout, .reset);
+            if (!self.reporter.nocolor) {
+                try shared.stdout.print("{s}{s}: \x1b[0m", .{
+                    self.item.kind.getAnsiColor(),
+                    self.item.kind.name(),
+                });
+            } else {
+                try shared.stdout.print("{s}: ", .{self.item.kind.name()});
+            }
         } else {
             try shared.stdout.print("{s}: ", .{self.item.kind.name()});
         }
@@ -202,31 +245,24 @@ pub const Report = struct {
         }
     }
 
-    /// Report obecné chyby bez lokace
     fn reportGeneral(self: *Self) !void {
         try shared.stdout.print("{s} ", .{
             self.reporter.file,
         });
 
         if (!shared.isFreestanding()) {
-            var stdout = std.io.getStdOut();
-            var config = std.io.tty.detectConfig(stdout);
-            if (!self.reporter.nocolor)
-                try config.setColor(stdout, self.item.kind.getColor());
-            try stdout.writer().print("{s}: ", .{
-                self.item.kind.name(),
-            });
-            if (!self.reporter.nocolor)
-                try config.setColor(stdout, .reset);
+            if (!self.reporter.nocolor) {
+                try shared.stdout.print("{s}{s}: \x1b[0m{s}\n", .{ self.item.kind.getAnsiColor(), self.item.kind.name(), self.item.message });
+            } else {
+                try shared.stdout.print("{s}: {s}\n", .{ self.item.kind.name(), self.item.message });
+            }
         } else {
             try shared.stdout.print("{s}: ", .{self.item.kind.name()});
+            try shared.stdout.print("{s}\n", .{self.item.message});
         }
-
-        try shared.stdout.print("{s}\n", .{self.item.message});
     }
 };
 
-/// Report při parsování
 pub fn report(
     self: *Reporter,
     err_type: ResultError,
@@ -249,7 +285,6 @@ pub fn report(
     rep.report(token.location) catch @panic("Nepodařilo se hodnotu vypsat");
 }
 
-/// Report z emitteru
 pub fn reportCompile(self: *Reporter, message: []const u8) void {
     if (self.had_error) return;
 
@@ -266,7 +301,6 @@ pub fn reportCompile(self: *Reporter, message: []const u8) void {
     self.had_error = true;
 }
 
-/// Report při běhu programu
 pub fn reportRuntime(self: *Reporter, message: []const u8, notes: []const Note, loc: Location) void {
     var rep = Report{
         .reporter = self,
@@ -277,7 +311,6 @@ pub fn reportRuntime(self: *Reporter, message: []const u8, notes: []const Note, 
     rep.report(loc) catch @panic("Nepodařilo se hodnotu vypsat");
 }
 
-/// Varování
 pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
     var rep = Report{
         .reporter = self,
@@ -288,16 +321,10 @@ pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
     rep.report(token.location) catch {};
 }
 
-/// Errory v main.zig
 pub fn printErr(
     comptime message: []const u8,
     args: anytype,
 ) !void {
-    const stdout = std.io.getStdOut();
-    const config = std.io.tty.detectConfig(stdout);
-    try config.setColor(stdout, .red);
-    try stdout.writer().print("Chyba", .{});
-    try config.setColor(stdout, .reset);
-    try stdout.writer().print(": ", .{});
+    try shared.stdout.print("\x1b[31mChyba:\x1b[0m ", .{});
     try shared.stdout.print(message ++ "\n", args);
 }

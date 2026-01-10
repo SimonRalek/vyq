@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const shared = @import("shared.zig");
 const VM = @import("virtualmachine.zig").VirtualMachine;
@@ -41,22 +42,38 @@ pub fn inputNative(vm: *VM, args: []const Val) ?Val {
     _ = args;
 
     var buf: [256]u8 = undefined;
-    var buf_stream = std.io.fixedBufferStream(&buf);
 
-    var buffered_stdin = std.io.bufferedReader(std.io.getStdIn().reader());
-    const stdin = buffered_stdin.reader();
-    stdin.streamUntilDelimiter(
-        buf_stream.writer(),
-        '\n',
-        buf.len,
-    ) catch {
-        @panic("Nepodařilo se načíst vstup z terminálu");
+    const stdin_file = if (builtin.os.tag == .windows) blk: {
+        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_INPUT_HANDLE);
+        break :blk std.fs.File{ .handle = handle.? };
+    } else blk: {
+        break :blk std.fs.File{ .handle = std.posix.STDIN_FILENO };
     };
-    const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+
+    var len: usize = 0;
+    while (len < buf.len) : (len += 1) {
+        var byte_buf: [1]u8 = undefined;
+        const n = stdin_file.read(&byte_buf) catch {
+            vm.runtimeErr("IO Error", .{}, &.{});
+            return null;
+        };
+        if (n == 0) break;
+        const byte = byte_buf[0];
+
+        if (byte == '\n') break;
+        buf[len] = byte;
+    }
+    const input = std.mem.trim(u8, buf[0..len], "\r");
 
     if (input.len == buf.len) {
         vm.runtimeErr("Vstup je příliš dlouhý", .{}, &.{});
-        std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n') catch {};
+        // Skip remaining input manually
+        while (true) {
+            var byte_buf: [1]u8 = undefined;
+            const n_read = stdin_file.read(&byte_buf) catch break;
+            if (n_read == 0) break;
+            if (byte_buf[0] == '\n') break;
+        }
     }
 
     return Val{ .obj = Object.String.copy(vm, buf[0..input.len]) };
@@ -97,7 +114,7 @@ pub fn randNative(vm: *VM, args: []const Val) ?Val {
         return null;
     }
 
-    var rnd = std.rand.DefaultPrng.init(0);
+    var rnd = std.Random.DefaultPrng.init(0);
     const time: i64 = if (shared.isFreestanding()) @intFromFloat(now()) else @intCast(std.time.nanoTimestamp());
 
     rnd.seed(
@@ -193,10 +210,13 @@ pub fn toString(vm: *VM, args: []const Val) ?Val {
         return null;
     }
 
-    const string = Object.String.copy(vm, args[0].stringVal(vm.allocator) catch {
+    const str_val = args[0].stringVal(vm.allocator) catch {
         vm.runtimeErr("Nepovedlo se hodnotu převést na řetězec", .{}, &.{});
         return null;
-    });
+    };
+    defer vm.allocator.free(str_val);
+
+    const string = Object.String.copy(vm, str_val);
 
     return Val{ .obj = string };
 }
@@ -275,4 +295,185 @@ pub fn popFromList(vm: *VM, args: []const Val) ?Val {
     const popped = list.items.pop();
 
     return popped;
+}
+
+/// Přečíst obsah souboru
+pub fn readFileNative(vm: *VM, args: []const Val) ?Val {
+    if (shared.isFreestanding()) {
+        vm.runtimeErr("Funkci pro čtení souborů nelze použít na webu", .{}, &.{});
+        return null;
+    }
+
+    if (args.len != 1) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isString()) {
+        vm.runtimeErr("Argument cesty k souboru musí být textový řetězec", .{}, &.{});
+        return null;
+    }
+
+    const path = args[0].obj.string().repre;
+
+    const content = std.fs.cwd().readFileAlloc(vm.allocator, path, std.math.maxInt(usize)) catch |err| {
+        vm.runtimeErr("Nepodařilo se přečíst soubor '{s}', chyba: {}", .{ path, err }, &.{});
+        return null;
+    };
+
+    // We take ownership of the content buffer in String.take or copy?
+    // String.take expects the buffer to be allocated with vm.allocator.
+    // readFileAlloc uses vm.allocator, so we can use String.take.
+    return Val{ .obj = Object.String.take(vm, content) };
+}
+
+/// Zapsat obsah do souboru
+pub fn writeFileNative(vm: *VM, args: []const Val) ?Val {
+    if (shared.isFreestanding()) {
+        vm.runtimeErr("Funkci pro zápis do souborů nelze použít na webu", .{}, &.{});
+        return null;
+    }
+
+    if (args.len != 2) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isString() or !args[1].isString()) {
+        vm.runtimeErr("Argumenty musí být textové řetězce (cesta, obsah)", .{}, &.{});
+        return null;
+    }
+
+    const path = args[0].obj.string().repre;
+    const content = args[1].obj.string().repre;
+
+    const file = std.fs.cwd().createFile(path, .{}) catch |err| {
+        vm.runtimeErr("Nepodařilo se otevřít soubor '{s}' pro zápis, chyba: {}", .{ path, err }, &.{});
+        return null;
+    };
+    defer file.close();
+
+    file.writeAll(content) catch |err| {
+        vm.runtimeErr("Nepodařilo se zapsat do souboru '{s}', chyba: {}", .{ path, err }, &.{});
+        return null;
+    };
+
+    return Val{ .boolean = true };
+}
+
+/// Rozdělit řetězec
+pub fn splitNative(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 2) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 2 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isString() or !args[1].isString()) {
+        vm.runtimeErr("Argumenty musí být textové řetězce (text, oddělovač)", .{}, &.{});
+        return null;
+    }
+
+    const text = args[0].obj.string().repre;
+    const separator = args[1].obj.string().repre;
+
+    const list = Object.List.init(vm);
+
+    if (separator.len == 0) {
+        // If separator is empty, behavior can vary. Let's just return list with original string or split by char?
+        // Usually split by empty string means split by characters.
+        // Let's implement split by chars if separator is empty.
+        var i: usize = 0;
+        while (i < text.len) {
+            // Need to handle UTF-8 chars?
+            const len = std.unicode.utf8ByteSequenceLength(text[i]) catch 1;
+            const char_str = Object.String.copy(vm, text[i .. i + len]);
+            list.append(char_str.val());
+            i += len;
+        }
+    } else {
+        var it = std.mem.splitSequence(u8, text, separator);
+        while (it.next()) |chunk| {
+            const chunk_str = Object.String.copy(vm, chunk);
+            list.append(chunk_str.val());
+        }
+    }
+
+    return list.obj.val();
+}
+
+/// Nahradit v řetězci
+pub fn replaceNative(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 3) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 3 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isString() or !args[1].isString() or !args[2].isString()) {
+        vm.runtimeErr("Argumenty musí být textové řetězce (text, hledané, nahrazení)", .{}, &.{});
+        return null;
+    }
+
+    const text = args[0].obj.string().repre;
+    const needle = args[1].obj.string().repre;
+    const replacement = args[2].obj.string().repre;
+
+    const new_size = std.mem.replacementSize(u8, text, needle, replacement);
+    const buffer = vm.allocator.alloc(u8, new_size) catch {
+        vm.runtimeErr("Nepodařilo se alokovat paměť pro nový řetězec", .{}, &.{});
+        return null;
+    };
+
+    _ = std.mem.replace(u8, text, needle, replacement, buffer);
+
+    return Val{ .obj = Object.String.take(vm, buffer) };
+}
+
+/// Ořezat bílé znaky
+pub fn trimNative(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 1) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isString()) {
+        vm.runtimeErr("Argument musí být textový řetězec", .{}, &.{});
+        return null;
+    }
+
+    const text = args[0].obj.string().repre;
+    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+
+    return Val{ .obj = Object.String.copy(vm, trimmed) };
+}
+
+/// Importovat a spustit soubor
+pub fn importNative(vm: *VM, args: []const Val) ?Val {
+    if (args.len != 1) {
+        vm.runtimeErr("Nesprávný počet argumentů - dostalo '{}' místo očekávaných '{}'", .{ args.len, 1 }, &.{});
+        return null;
+    }
+
+    if (!args[0].isString()) {
+        vm.runtimeErr("Argument musí být cesta k souboru (řetězec)", .{}, &.{});
+        return null;
+    }
+
+    const path = args[0].obj.string().repre;
+
+    // Manual stack cleanup: pop args and native function from outer frame stack
+    // because wrapper won't do it if we return null (handled).
+    vm.stack_count -= args.len + 1;
+
+    const content = std.fs.cwd().readFileAlloc(vm.allocator, path, std.math.maxInt(usize)) catch |err| {
+        vm.runtimeErr("Nepodařilo se přečíst soubor '{s}', chyba: {}", .{ path, err }, &.{});
+        return null;
+    };
+    defer vm.allocator.free(content);
+
+    vm.load(content, path) catch {
+        // Compile error should have been reported already by load->compile
+        return null;
+    };
+
+    return null; // Return null to indicate "Handled" (wrapper checks had_error)
 }

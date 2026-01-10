@@ -1,16 +1,19 @@
 .{
-    .name = "vyq",
+    .name = .vyq,
     .version = "1.1.1",
-
-    .minimum_zig_version = "0.11.0",
-
+    .minimum_zig_version = "0.15.0",
+    .fingerprint = 0x76c24ee5d25bfb00,
     .dependencies = .{
         .clap = .{
-          .url = "https://github.com/Hejsil/zig-clap/archive/8c98e6404b22aafc0184e999d8f068b81cc22fa1.tar.gz",
-          .hash = "122014e73fd712190e109950837b97f6143f02d7e2b6986e1db70b6f4aadb5ba6a0d",
-        }
+            .url = "https://github.com/Hejsil/zig-clap/archive/refs/tags/0.11.0.tar.gz",
+            .hash = "clap-0.11.0-oBajB-HnAQDPCKYzwF7rO3qDFwRcD39Q0DALlTSz5H7e",
+        },
     },
     .paths = .{
-        "",
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE",
+        "README.md",
     },
 }

@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     var options = b.addOptions();
-    const version = (std.ChildProcess.run(.{
+    const version = (std.process.Child.run(.{
         .allocator = b.allocator,
         .argv = &.{ "git", "describe", "--tags", "--abbrev=0" },
     }) catch {
@@ -18,9 +18,11 @@ pub fn build(b: *std.Build) !void {
 
     const exe = b.addExecutable(.{
         .name = "vyq",
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     exe.linkLibC();
@@ -33,10 +35,12 @@ pub fn build(b: *std.Build) !void {
 
     exe.root_module.addImport("build_options", build_module);
 
-    exe.linkSystemLibrary("readline");
+    if (target.result.os.tag != .windows) {
+        exe.linkSystemLibrary("readline");
+    }
 
     b.installArtifact(exe);
-    b.exe_dir = "./";
+    // b.exe_dir = "./"; // Deprecated/Removed in newer Zig versions
     const run_cmd = b.addRunArtifact(exe);
 
     run_cmd.step.dependOn(b.getInstallStep());
@@ -49,9 +53,11 @@ pub fn build(b: *std.Build) !void {
     run_step.dependOn(&run_cmd.step);
 
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/scanner.zig" },
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/scanner.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
@@ -61,7 +67,7 @@ pub fn build(b: *std.Build) !void {
 
     const release_step = b.step("release", "Build and install release builds for all targets");
 
-    const release_targets: []const std.zig.CrossTarget = &.{
+    const release_targets: []const std.Target.Query = &.{
         .{ .cpu_arch = .x86_64, .os_tag = .windows },
         .{ .cpu_arch = .x86_64, .os_tag = .macos },
         .{ .cpu_arch = .aarch64, .os_tag = .macos },
@@ -70,9 +76,11 @@ pub fn build(b: *std.Build) !void {
     //const wasm_target = std.zig.CrossTarget{ .cpu_arch = .wasm32, .os_tag = .freestanding };
     const wasm_exe = b.addExecutable(.{
         .name = "vyq",
-        .root_source_file = .{ .path = "src/wasm.zig" },
-        .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding }),
-        .optimize = .ReleaseFast,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm.zig"),
+            .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding }),
+            .optimize = .ReleaseFast,
+        }),
     });
     wasm_exe.entry = .disabled;
     wasm_exe.rdynamic = true;
@@ -83,16 +91,18 @@ pub fn build(b: *std.Build) !void {
     });
     release_step.dependOn(&wasm_dir.step);
 
-    const linux_name = try (std.zig.CrossTarget{
+    const linux_name = try (std.Target.Query{
         .os_tag = .linux,
         .cpu_arch = .x86_64,
     }).zigTriple(b.allocator);
 
     const linux_exe = b.addExecutable(.{
         .name = std.mem.concat(b.allocator, u8, &.{ "vyq-", linux_name }) catch "vyq",
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     linux_exe.linkLibC();
@@ -111,9 +121,11 @@ pub fn build(b: *std.Build) !void {
 
         const release_exe = b.addExecutable(.{
             .name = std.mem.concat(b.allocator, u8, &.{ "vyq-", name }) catch "vyq",
-            .root_source_file = .{ .path = "src/main.zig" },
-            .target = b.resolveTargetQuery(release_target),
-            .optimize = .ReleaseFast,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/main.zig"),
+                .target = b.resolveTargetQuery(release_target),
+                .optimize = .ReleaseFast,
+            }),
         });
 
         release_exe.linkLibC();
@@ -121,8 +133,8 @@ pub fn build(b: *std.Build) !void {
         release_exe.root_module.addImport("build_options", build_module);
 
         if (release_target.os_tag == .linux) {
-            release_exe.addIncludePath(.{ .path = "/usr/include" });
-            release_exe.addLibraryPath(.{ .path = "/usr/lib/x86_64-linux-gnu" });
+            release_exe.addIncludePath(b.path("/usr/include"));
+            release_exe.addLibraryPath(b.path("/usr/lib/x86_64-linux-gnu"));
             release_exe.linkSystemLibrary("readline");
         }
 

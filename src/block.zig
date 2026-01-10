@@ -1,13 +1,13 @@
 const std = @import("std");
 
 const Val = @import("value.zig").Val;
-const ArrayList = std.ArrayList;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const Location = @import("scanner.zig").Location;
 
-const charList = ArrayList(u8);
-const valList = ArrayList(Val);
-const locList = ArrayList(Location);
+const charList = ArrayListUnmanaged(u8);
+const valList = ArrayListUnmanaged(Val);
+const locList = ArrayListUnmanaged(Location);
 
 pub const Block = struct {
     const Self = @This();
@@ -59,6 +59,7 @@ pub const Block = struct {
         op_store_subr,
     };
 
+    allocator: Allocator,
     code: charList,
     locations: locList,
     values: valList,
@@ -66,17 +67,18 @@ pub const Block = struct {
     /// Inicializace bloku
     pub fn init(allocator: Allocator) Self {
         return .{
-            .code = charList.init(allocator),
-            .locations = locList.init(allocator),
-            .values = valList.init(allocator),
+            .allocator = allocator,
+            .code = charList{},
+            .locations = locList{},
+            .values = valList{},
         };
     }
 
     /// Free blok
     pub fn deinit(self: *Self) void {
-        self.code.deinit();
-        self.locations.deinit();
-        self.values.deinit();
+        self.code.deinit(self.allocator);
+        self.locations.deinit(self.allocator);
+        self.values.deinit(self.allocator);
     }
 
     /// Zapsat instrukci
@@ -86,14 +88,14 @@ pub const Block = struct {
 
     /// Zapsat instrukce
     pub fn writeOpByte(self: *Block, byte: u8, loc: Location) void {
-        self.code.append(byte) catch @panic("Alokace selhala");
-        self.locations.append(loc) catch @panic("Alokace selhala");
+        self.code.append(self.allocator, byte) catch @panic("Alokace selhala");
+        self.locations.append(self.allocator, loc) catch @panic("Alokace selhala");
     }
 
     /// Přidat hodnotu do bloku
     pub fn addVal(self: *Self, value: Val) u9 {
         const idx: u9 = @intCast(self.values.items.len);
-        self.values.append(value) catch @panic("Alokace selhala");
+        self.values.append(self.allocator, value) catch @panic("Alokace selhala");
         return idx;
     }
 };

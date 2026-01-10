@@ -1,5 +1,5 @@
 out/*
-zig-cache/*
+.zig-cache/*
 zig-out/*
 todo.txt
 logs/log

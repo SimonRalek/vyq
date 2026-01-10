@@ -47,12 +47,16 @@ const CallFrame = struct {
 pub const VirtualMachine = struct {
     const Self = @This();
 
-    frames: [64]CallFrame = undefined,
-    frame_count: u8 = 0,
+    pub const FRAMES_MAX = 2048;
+    pub const STACK_MAX = 65536;
+
+    frames: [FRAMES_MAX]CallFrame = undefined,
+    frame_count: usize = 0,
 
     allocator: Allocator,
-    stack: [256]Val = undefined,
-    stack_count: u9 = 0,
+    stack: [STACK_MAX]Val = undefined,
+    stack_count: usize = 0,
+    sources: std.ArrayListUnmanaged([]const u8) = .{},
     globals: std.AutoHashMap(*Object.String, Global),
 
     strings: std.StringHashMap(*Object.String),
@@ -63,17 +67,30 @@ pub const VirtualMachine = struct {
     parser: ?*Parser = null,
 
     gc: GC,
-    grays: std.ArrayList(*Object),
+    grays: std.ArrayListUnmanaged(*Object),
 
     /// Vytvořit prázdný objekt virtuální mašiny
-    pub fn create(allocator: Allocator) Self {
-        return .{
+    pub fn create(allocator: Allocator) *Self {
+        const ptr = allocator.create(Self) catch @panic("Nepodařilo se alokovat VM");
+        ptr.* = .{
             .allocator = allocator,
             .gc = undefined,
-            .grays = undefined,
+            .grays = .{},
             .strings = undefined,
             .globals = undefined,
+            .sources = .{},
         };
+        return ptr;
+    }
+
+    /// Zničit virtuální mašinu (volat pouze pokud byla vytvořena přes create)
+    pub fn destroy(self: *Self) void {
+        // We must retrieve the backing allocator (heap) from GC
+        // because self.allocator points to GC, and using GC to free VM (which contains GC)
+        // leads to use-after-free in GC.free().
+        const allocator = self.gc.parent_allocator;
+        self.deinit();
+        allocator.destroy(self);
     }
 
     /// Inicializace virtuální mašiny
@@ -83,9 +100,10 @@ pub const VirtualMachine = struct {
         const allocator = self.gc.allocator();
 
         self.reporter = reporter;
-        self.grays = std.ArrayList(*Object).init(self.allocator);
+        self.grays = .{};
 
         self.allocator = allocator;
+        self.sources = .{};
         self.globals = std.AutoHashMap(*Object.String, Global).init(allocator);
         self.strings = std.StringHashMap(*Object.String).init(allocator);
 
@@ -103,6 +121,12 @@ pub const VirtualMachine = struct {
         self.defineNative("naČíslo", natives.toNumber);
         self.defineNative("přidat", natives.appendToList);
         self.defineNative("vyjmout", natives.popFromList);
+        self.defineNative("čtiSoubor", natives.readFileNative);
+        self.defineNative("zapišSoubor", natives.writeFileNative);
+        self.defineNative("rozděl", natives.splitNative);
+        self.defineNative("nahraď", natives.replaceNative);
+        self.defineNative("ořež", natives.trimNative);
+        self.defineNative("použij", natives.importNative);
     }
 
     /// "Free"nout objekty a listy
@@ -110,7 +134,11 @@ pub const VirtualMachine = struct {
         self.deinitObjs();
         self.globals.deinit();
         self.strings.deinit();
-        self.grays.deinit();
+        self.grays.deinit(self.allocator);
+        for (self.sources.items) |source| {
+            self.allocator.free(source);
+        }
+        self.sources.deinit(self.allocator);
         self.stack_count = 0;
     }
 
@@ -124,21 +152,41 @@ pub const VirtualMachine = struct {
         }
     }
 
-    /// Setup programu - spuštění kompilace a parsování
-    pub fn interpret(self: *Self, source: []const u8) ResultError!void {
+    pub fn load(self: *Self, source: []const u8, file: []const u8) ResultError!void {
         self.reporter.source = source;
+        self.reporter.file = file;
+
+        // Keep track of source/file to free later
+        const source_copy = self.allocator.dupe(u8, source) catch return ResultError.compile;
+        self.sources.append(self.allocator, source_copy) catch return ResultError.compile;
+
+        // We likely don't need to copy 'file' if it comes from 'args' which are strings in VM.
+        // But if 'file' string is GC'd...
+        // 'importNative' passes string repre. Object.String is GC managed.
+        // If string object is collected, 'file' ptr becomes invalid.
+        // But logic is simpler if we treat it as static string like source.
+        // Let's dupe it.
+        const file_copy = self.allocator.dupe(u8, file) catch return ResultError.compile;
+        self.sources.append(self.allocator, file_copy) catch return ResultError.compile; // Reuse sources list for simple string storage
+
+        self.reporter.source = source_copy;
+        self.reporter.file = file_copy;
 
         var emitter = Emitter.init(self, .script, null);
         defer emitter.deinit();
 
-        const func = emitter.compile(source) catch return ResultError.compile;
+        const func = emitter.compile(source_copy) catch return ResultError.compile;
         self.push(func.obj.val());
 
         const closure = Closure.init(self, func);
         _ = self.pop();
         self.push(closure.obj.val());
         _ = self.call(closure, 0);
+    }
 
+    /// Setup programu - spuštění kompilace a parsování
+    pub fn interpret(self: *Self, source: []const u8) ResultError!void {
+        try self.load(source, self.reporter.file);
         return self.run();
     }
 
@@ -413,7 +461,6 @@ pub const VirtualMachine = struct {
 
     /// Zkusit zavolat hodnotu
     fn callValue(self: *Self, callee: Val, arg_count: u8) bool {
-        std.debug.print("{any}\n", .{callee});
         if (callee == .obj) {
             switch (callee.obj.type) {
                 .closure => {
@@ -430,14 +477,15 @@ pub const VirtualMachine = struct {
                         self.stack[self.stack_count - arg_count .. self.stack_count],
                     );
 
-                    if (result != null)
-                        self.stack_count -= arg_count + 1;
-
                     if (result) |val| {
+                        self.stack_count -= arg_count + 1;
                         self.push(val);
                         return true;
                     } else {
-                        return false;
+                        if (self.reporter.had_error or self.reporter.panic_mode) {
+                            return false;
+                        }
+                        return true;
                     }
                 },
                 else => {},
@@ -463,7 +511,7 @@ pub const VirtualMachine = struct {
             return false;
         }
 
-        if (self.frame_count == 64) {
+        if (self.frame_count == FRAMES_MAX) {
             self.runtimeErr("Stack overflow", .{}, &.{});
             return false;
         }
@@ -818,20 +866,39 @@ pub const VirtualMachine = struct {
         notes: []const Reporter.Note,
     ) void {
         const closure = self.currentFrame().closure;
+        if (closure.function.source.len > 0) self.reporter.source = closure.function.source;
+        if (closure.function.file.len > 0) self.reporter.file = closure.function.file;
+
         const location = closure.function.block.locations.items[self.currentFrame().ip - 1];
 
         const new = std.fmt.allocPrint(self.allocator, message, args) catch @panic("Nepodařilo se alokovat");
         defer self.allocator.free(new);
         self.reporter.reportRuntime(new, notes, location);
 
-        const stdout = if (!shared.isFreestanding()) std.io.getStdOut() else wasm.getWriter();
+        if (!shared.isFreestanding()) {
+            const stdout = if (builtin.os.tag == .windows) blk: {
+                const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_OUTPUT_HANDLE);
+                break :blk std.fs.File{ .handle = handle.? };
+            } else blk: {
+                break :blk std.fs.File{ .handle = std.posix.STDOUT_FILENO };
+            };
 
-        if (!shared.isFreestanding() and !self.reporter.nocolor) {
-            const config = std.io.tty.detectConfig(stdout);
-            config.setColor(stdout, .dim) catch {};
-            self.printTrace(stdout.writer());
-            config.setColor(stdout, .reset) catch {};
+            if (!self.reporter.nocolor) {
+                const config = std.io.tty.detectConfig(stdout);
+                var buf: [4096]u8 = undefined;
+                const buffered = stdout.writer(&buf);
+                var w = buffered.interface;
+                config.setColor(&w, .dim) catch {};
+                self.printTrace(&w);
+                config.setColor(&w, .reset) catch {};
+            } else {
+                var buf: [4096]u8 = undefined;
+                const buffered = stdout.writer(&buf);
+                var w = buffered.interface;
+                self.printTrace(&w);
+            }
         } else {
+            const stdout = wasm.getWriter();
             self.printTrace(stdout.writer());
         }
 

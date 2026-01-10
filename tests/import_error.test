@@ -1,0 +1,7 @@
+.zapišSoubor("./tests/bad_module.vyq"; "tiskni;");
+.použij("./tests/bad_module.vyq");
+---
+./tests/bad_module.vyq:1:7 Chyba: "Neznámý výraz"
+ - v ';'
+ 1: tiskni;
+         ^

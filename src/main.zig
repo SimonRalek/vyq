@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const WINAPI: std.builtin.CallingConvention = if (builtin.cpu.arch == .x86) .stdcall else .c;
 const BuildOptions = @import("build_options");
 const clap = @import("clap");
 
@@ -24,8 +25,9 @@ const SplitIterator = std.mem.SplitIterator;
 const GPA = std.heap.GeneralPurposeAllocator;
 const ArenaAlloc = std.heap.ArenaAllocator;
 
-extern "kernel32" fn SetConsoleCP(wCodePageID: std.os.windows.UINT) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
-extern "kernel32" fn ReadConsoleW(handle: std.posix.fd_t, buffer: [*]u16, len: std.os.windows.DWORD, read: *std.os.windows.DWORD, input_ctrl: ?*void) i32;
+extern "kernel32" fn SetConsoleCP(wCodePageID: u32) callconv(WINAPI) i32;
+extern "kernel32" fn SetConsoleOutputCP(wCodePageID: u32) callconv(WINAPI) i32;
+extern "kernel32" fn ReadConsoleW(handle: std.posix.fd_t, buffer: [*]u16, len: u32, read: *u32, input_ctrl: ?*void) i32;
 
 const MAX_HISTORY = 250;
 
@@ -33,7 +35,16 @@ const MAX_HISTORY = 250;
 pub fn main() !void {
     if (builtin.os.tag == .windows) {
         std.debug.assert(SetConsoleCP(65001) != 0);
-        std.debug.assert(std.os.windows.kernel32.SetConsoleOutputCP(65001) != 0);
+        _ = SetConsoleOutputCP(65001);
+
+        const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_OUTPUT_HANDLE);
+        if (handle) |h| {
+            var mode: u32 = 0;
+            if (std.os.windows.kernel32.GetConsoleMode(h, &mode) != 0) {
+                mode |= 0x0004; // ENABLE_VIRTUAL_TERMINAL_PROCESSING
+                _ = std.os.windows.kernel32.SetConsoleMode(h, mode);
+            }
+        }
     }
 
     var heap = getAllocatorType();
@@ -42,7 +53,7 @@ pub fn main() !void {
 
     var reporter = Reporter{ .allocator = allocator };
     var vm = VM.create(allocator);
-    defer vm.deinit();
+    defer vm.destroy();
     vm.init(&reporter);
 
     var bench: BenchMark = undefined;
@@ -54,8 +65,8 @@ pub fn main() !void {
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
-    arguments(allocator, &vm) catch {
-        Reporter.printErr("Neznámý argument", .{}) catch @panic("Hodnotu se nepodařilo vypsat");
+    arguments(allocator, vm) catch |err| {
+        Reporter.printErr("Chyba: {}", .{err}) catch @panic("Hodnotu se nepodařilo vypsat");
     };
 
     if (debug.benchmark) {
@@ -110,9 +121,9 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
         vm.reporter.nocolor = true;
     }
 
-    if (res.positionals.len > 0) {
-        vm.reporter.file = res.positionals[0];
-        runFile(allocator, res.positionals[0], vm) catch {};
+    if (res.positionals.len > 0 and res.positionals[0].len > 0) {
+        vm.reporter.file = res.positionals[0][0];
+        runFile(allocator, res.positionals[0][0], vm) catch {};
     } else {
         vm.reporter.file = "REPL";
         repl(allocator, vm) catch {};
@@ -125,16 +136,19 @@ fn repl(allocator: Allocator, vm: *VM) !void {
         while (true) {
             try shared.stdout.print(">>> ", .{});
 
-            const stdin = std.io.getStdIn().handle;
+            const stdin = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_INPUT_HANDLE).?;
             var data: [256]u16 = undefined;
-            var read: u32 = undefined;
-            _ = ReadConsoleW(stdin, &data, data.len, &read, null);
+            var read: u32 = 0;
+            if (ReadConsoleW(stdin, &data, data.len, &read, null) == 0) {
+                break;
+            }
 
             var utf8: [1024]u8 = undefined;
-            const utf8_len = try std.unicode.utf16leToUtf8(&utf8, data[0..read]);
-            const source = utf8[0 .. utf8_len - 1];
-
-            vm.interpret(source) catch {};
+            const utf8_len = try std.unicode.utf16LeToUtf8(&utf8, data[0..read]);
+            if (utf8_len > 0) {
+                const source = utf8[0 .. utf8_len - 1]; // Assuming stripping newline?
+                vm.interpret(source) catch {};
+            }
         }
     } else if (builtin.os.tag == .macos) {
         while (true) {
@@ -143,7 +157,9 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
             try shared.stdout.print(">>> ", .{});
 
-            std.io.getStdIn().reader().streamUntilDelimiter(
+            const stdin_file = std.fs.File{ .handle = std.posix.STDIN_FILENO };
+            var stdin_buf: [4096]u8 = undefined;
+            stdin_file.reader(&stdin_buf).streamUntilDelimiter(
                 buf_stream.writer(),
                 '\n',
                 buf.len,
@@ -154,7 +170,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
             if (input.len == buf.len) {
                 try Reporter.printErr("Vstup je příliš dlouhý", .{});
-                try std.io.getStdIn().reader().skipUntilDelimiterOrEof('\n');
+                try stdin_file.reader(&stdin_buf).skipUntilDelimiterOrEof('\n');
                 continue;
             }
             const source = buf[0..input.len];
@@ -218,8 +234,6 @@ fn getAllocatorType() if (debug.test_alloc) GPA(.{}) else type {
                 return std.heap.c_allocator;
             }
 
-            fn deinit() void {
-
-            }
+            fn deinit() void {}
         };
 }

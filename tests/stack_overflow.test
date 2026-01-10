@@ -1,0 +1,6 @@
+funkce a(): {
+    .a();
+}
+.a();
+---
+<FILE>:2:9 Chyba: "Stack overflow"

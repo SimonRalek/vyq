@@ -1,0 +1,21 @@
+// Split
+prm str = "a,b,c";
+prm list = .rozděl(.str; ",");
+prm a = .list[0];
+prm b = .list[1];
+prm c = .list[2];
+tiskni .a + .b + .c;
+
+// Replace
+prm text = "hello world";
+prm rep = .nahraď(.text; "world"; "vyq");
+tiskni .rep;
+
+// Trim
+prm dirty = "  clean  ";
+prm clean = .ořež(.dirty);
+tiskni "'" + .clean + "'";
+---
+abc
+hello vyq
+'clean'

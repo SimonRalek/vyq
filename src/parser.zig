@@ -429,8 +429,8 @@ pub const Parser = struct {
                 set_op = .op_set_elv;
             } else {
                 arg = self.makeVal(Val{
-                        .obj = Object.String.copy(self.vm, token.lexeme),
-                      });
+                    .obj = Object.String.copy(self.vm, token.lexeme),
+                });
                 get_op = .op_get_glob;
                 set_op = .op_set_glob;
             }
@@ -559,6 +559,7 @@ pub const Parser = struct {
         }
 
         self.emitter.locals.append(
+            self.allocator,
             if (is_const) Local.initKonst(name, -1) else Local.initPrm(name, -1),
         ) catch {
             @panic("Nepadařilo se alokovat");

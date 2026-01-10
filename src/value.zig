@@ -172,12 +172,12 @@ pub const Object = struct {
     pub fn print(self: *Object, allocator: Allocator) !void {
         switch (self.type) {
             .string => {
-                var arrlist = std.ArrayList(u8).init(allocator);
-                defer arrlist.deinit();
-                const writer = arrlist.writer();
+                var arrlist = std.ArrayListUnmanaged(u8){};
+                defer arrlist.deinit(allocator);
+                const writer = arrlist.writer(allocator);
                 try Formatter.escapeFmt(self.string().repre).format(writer);
 
-                const formatted = try arrlist.toOwnedSlice();
+                const formatted = try arrlist.toOwnedSlice(allocator);
                 defer allocator.free(formatted);
                 try shared.stdout.print("{s}", .{formatted});
             },
@@ -322,30 +322,32 @@ pub const Object = struct {
 
     pub const List = struct {
         obj: Object,
-        items: std.ArrayList(Val),
+        items: std.ArrayListUnmanaged(Val),
+        allocator: Allocator,
 
         /// Alokace listu
         pub fn init(vm: *VM) *List {
             const array = Object.alloc(vm, List, .list);
-            array.items = std.ArrayList(Val).init(vm.allocator);
+            array.allocator = vm.allocator;
+            array.items = .{};
             return array;
         }
 
         /// Dealokace listu
         pub fn deinit(obj: *Object, vm: *VM) void {
             const self: *List = @fieldParentPtr("obj", obj);
-            self.items.deinit();
+            self.items.deinit(self.allocator);
             vm.allocator.destroy(self);
         }
 
         /// Přidat prvek do listu
         pub fn append(array: *List, value: Val) void {
-            array.items.append(value) catch {};
+            array.items.append(array.allocator, value) catch {};
         }
 
         /// Přidat prvek do listu na pozici
         pub fn insert(self: *List, idx: f64, value: Val) void {
-            self.items.insert(@intFromFloat(idx), value) catch {};
+            self.items.insert(self.allocator, @intFromFloat(idx), value) catch {};
         }
 
         /// Získat prvek na indexu
@@ -381,6 +383,8 @@ pub const Object = struct {
         name: ?*String,
         type: FunctionType,
         elv_count: u9 = 0,
+        source: []const u8 = undefined,
+        file: []const u8 = undefined,
 
         /// Nová funkce
         pub fn init(vm: *VM, func_type: FunctionType) *Function {

@@ -86,7 +86,7 @@ pub const Type = enum(u8) {
     arrow,
 };
 
-pub const Keywords = std.ComptimeStringMap(Type, .{
+pub const Keywords = std.StaticStringMap(Type).initComptime(.{
     .{ "ano", .ano },
     .{ "ne", .ne },
     .{ "pokud", .pokud },

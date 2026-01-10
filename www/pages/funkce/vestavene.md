@@ -14,6 +14,14 @@ Naším jazykem jsou poskytovány různé vestavěné funkce, které vám umožn
 #### Vstup a Výstup
 
 - `.načtiVstup()`: Načte řetězec z standardního vstupu.
+- `.čtiSoubor(cesta)`: Přečte obsah souboru.
+- `.zapišSoubor(cesta; obsah)`: Zapíše obsah do souboru. 
+
+#### Práce s Řetězci (pokračování)
+
+- `.rozděl(retezec; oddelovac)`: Rozdělí řetězec podle oddělovače a vrátí list.
+- `.nahraď(retezec; co; cim)`: Nahradí všechny výskyty podřetězce 'co' za 'cim'.
+- `.ořež(retezec)`: Odstraní bílé znaky ze začátku a konce řetězce.
 
 #### Typy a Kontrola Typů
 

@@ -1,0 +1,7 @@
+.zapišSoubor("./tests/imported_module.vyq"; "prm x = 42; prm y = 20;");
+.použij("./tests/imported_module.vyq");
+tiskni .x;
+tiskni .y;
+---
+42
+20
