@@ -4,3 +4,4 @@ zig-out/*
 todo.txt
 logs/log
 .idea/*
+*.pdb

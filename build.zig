@@ -39,8 +39,13 @@ pub fn build(b: *std.Build) !void {
         exe.linkSystemLibrary("readline");
     }
 
-    b.installArtifact(exe);
-    // b.exe_dir = "./"; // Deprecated/Removed in newer Zig versions
+    // b.installArtifact(exe);
+    const install_exe = b.addInstallArtifact(exe, .{
+        .dest_dir = .{
+            .override = .{ .custom = "../" },
+        },
+    });
+    b.getInstallStep().dependOn(&install_exe.step);
     const run_cmd = b.addRunArtifact(exe);
 
     run_cmd.step.dependOn(b.getInstallStep());
