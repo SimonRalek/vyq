@@ -177,7 +177,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
 
             const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
             if (input.len == buf.len and total_read == buf.len) {
-                try Reporter.printErr("Vstup je příliš dlouhý", .{});
+                try vm.reporter.printErr("Vstup je příliš dlouhý", .{});
                 while (true) {
                     const n = stdin_file.read(&stdin_buf) catch break;
                     if (n == 0 or stdin_buf[0] == '\n') break;
