@@ -66,7 +66,7 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
     arguments(allocator, vm) catch |err| {
-        Reporter.printErr("Chyba: {}", .{err}) catch @panic("Hodnotu se nepodařilo vypsat");
+        vm.reporter.printErr("Chyba: {}", .{err}) catch @panic("Hodnotu se nepodařilo vypsat");
     };
 
     if (debug.benchmark) {
@@ -123,10 +123,7 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
     if (res.positionals.len > 0 and res.positionals[0].len > 0) {
         vm.reporter.file = res.positionals[0][0];
-        runFile(allocator, res.positionals[0][0], vm) catch |err| {
-            Reporter.printErr("Chyba při běhu skriptu: {}", .{err}) catch {};
-            std.process.exit(1);
-        };
+        runFile(allocator, res.positionals[0][0], vm) catch {};
     } else {
         vm.reporter.file = "REPL";
         repl(allocator, vm) catch {};
@@ -172,7 +169,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
 
             if (input.len == buf.len) {
-                try Reporter.printErr("Vstup je příliš dlouhý", .{});
+                try vm.reporter.printErr("Vstup je příliš dlouhý", .{});
                 try stdin_file.reader(&stdin_buf).skipUntilDelimiterOrEof('\n');
                 continue;
             }
@@ -217,7 +214,7 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
         filename,
         1024 * 1024,
     ) catch {
-        Reporter.printErr("Soubor nebyl nalezen", .{}) catch {
+        vm.reporter.printErr("Soubor nebyl nalezen", .{}) catch {
             @panic("Hodnotu se nepodařilo vypsat");
         };
         return;

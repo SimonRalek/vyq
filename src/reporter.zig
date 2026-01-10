@@ -322,9 +322,15 @@ pub fn warn(self: *Reporter, token: *Token, message: []const u8) void {
 }
 
 pub fn printErr(
+    self: *Reporter,
     comptime message: []const u8,
     args: anytype,
 ) !void {
-    try shared.stdout.print("\x1b[31mChyba:\x1b[0m ", .{});
-    try shared.stdout.print(message ++ "\n", args);
+    if (self.nocolor) {
+        try shared.stdout.print("Chyba: ", .{});
+        try shared.stdout.print(message ++ "\n", args);
+    } else {
+        try shared.stdout.print("\x1b[31mChyba:\x1b[0m ", .{});
+        try shared.stdout.print(message ++ "\n", args);
+    }
 }
