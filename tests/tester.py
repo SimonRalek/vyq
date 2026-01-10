@@ -82,6 +82,9 @@ def run_test(test_filepath):
             print(f"{Fore.RED}Test Failed:{Style.RESET_ALL} {test_filepath}")
             print(f"Expected Output:\n{expected_output}")
             print(f"Actual Output:\n{actual_output}")
+            print(f"Exit Code: {process.returncode}")
+            if process.stderr:
+                print(f"Stderr:\n{process.stderr}")
             return 1
 
     except Exception as e:

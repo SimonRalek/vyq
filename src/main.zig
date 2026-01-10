@@ -123,7 +123,10 @@ fn arguments(allocator: Allocator, vm: *VM) !void {
 
     if (res.positionals.len > 0 and res.positionals[0].len > 0) {
         vm.reporter.file = res.positionals[0][0];
-        runFile(allocator, res.positionals[0][0], vm) catch {};
+        runFile(allocator, res.positionals[0][0], vm) catch |err| {
+            Reporter.printErr("Chyba při běhu skriptu: {}", .{err}) catch {};
+            std.process.exit(1);
+        };
     } else {
         vm.reporter.file = "REPL";
         repl(allocator, vm) catch {};
@@ -221,7 +224,9 @@ fn runFile(allocator: Allocator, filename: []const u8, vm: *VM) !void {
     };
     defer allocator.free(source);
 
-    vm.interpret(source) catch {};
+    vm.interpret(source) catch |err| {
+        return err;
+    };
 }
 
 /// Získat podle debug modu přiřazený allocator
