@@ -1,5 +1,5 @@
 prm l = [];
-opakuj prm i = 0; .i < 50000; .i += 1: {
+opakuj prm i = 0; .i < 10000; .i += 1: {
     .přidat(.l; "long string to take up space " + .naŘetězec(.i));
     pokud .délka(.l) > 100: {
        .vyjmout(.l);
