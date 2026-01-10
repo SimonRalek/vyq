@@ -41,9 +41,10 @@ def run_test(test_filepath):
             temp_input_file.write(user_input)
             temp_path = temp_input_file.name
 
-        exe_path = os.path.join(".", "zig-out", "bin", "vyq.exe")
+        exe_name = "vyq.exe" if os.name == "nt" else "vyq"
+        exe_path = os.path.join(".", "zig-out", "bin", exe_name)
         if not os.path.exists(exe_path):
-            exe_path = os.path.join(".", "vyq.exe")
+            exe_path = os.path.join(".", exe_name)
 
         command = f'"{exe_path}" --bezbarev "{temp_path}"'
 
@@ -59,6 +60,8 @@ def run_test(test_filepath):
             print(f"{Fore.RED}Test Failed:{Style.RESET_ALL} {test_filepath}")
             print(f"Expected Output:\n{expected_output}")
             print(f"Actual Output:\n{actual_output}")
+            if process.stderr:
+                print(f"Error Output:\n{process.stderr}")
             return 1
 
     except Exception as e:
