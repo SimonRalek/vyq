@@ -4,7 +4,7 @@ const Block = _block.Block;
 
 pub const debugging = false;
 pub const benchmark = false;
-pub const test_alloc = true;
+pub const test_alloc = false;
 
 /// Výpis instrukcí s hodnoty v bloku
 pub fn disassembleBlock(block: *Block, name: []const u8) void {
@@ -51,7 +51,7 @@ pub fn disassembleInstruction(block: *Block, idx: usize, allocator: std.mem.Allo
         .op_bit_not => simple("op_bit_not", idx),
         .op_print => simple("op_print", idx),
         .op_println => simple("op_println", idx),
-        .op_def_glob => {    
+        .op_def_glob => {
             const val = block.code.items[idx + 1];
             std.debug.print("{s} {} {s} ", .{ "op_def_glob", val, if (block.code.items[idx + 2] == 1) "konst" else "prm" });
 

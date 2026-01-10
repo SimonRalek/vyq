@@ -41,10 +41,32 @@ def run_test(test_filepath):
             temp_input_file.write(user_input)
             temp_path = temp_input_file.name
 
-        exe_name = "vyq.exe" if os.name == "nt" else "vyq"
-        exe_path = os.path.join(".", exe_name)
-        if not os.path.exists(exe_path):
-            exe_path = os.path.join(".", exe_name)
+        if os.environ.get("DEBUG_TESTS"):
+            exe_name = "vyq.exe" if os.name == "nt" else "vyq"
+            print(f"CWD: {os.getcwd()}")
+            print(f"Looking for executable: {exe_name}")
+        else:
+            exe_name = "vyq.exe" if os.name == "nt" else "vyq"
+
+        search_paths = [
+            os.path.join(".", exe_name),
+            os.path.join(".", "zig-out", "bin", exe_name),
+        ]
+
+        exe_path = None
+        for path in search_paths:
+            if os.path.exists(path):
+                exe_path = path
+                break
+        
+        if not exe_path:
+             # Fallback to just name if not found in specific paths (search in PATH)
+             exe_path = exe_name
+             if os.environ.get("DEBUG_TESTS"):
+                 print(f"Executable not found in specific paths, trying PATH: {exe_name}")
+
+        if os.environ.get("DEBUG_TESTS") and exe_path:
+             print(f"Using executable: {exe_path}")
 
         command = f'"{exe_path}" --bezbarev "{temp_path}"'
 
