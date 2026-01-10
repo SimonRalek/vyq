@@ -47,7 +47,7 @@ pub fn main() !void {
         }
     }
 
-    var heap = getAllocatorType();
+    const heap = getAllocatorType();
     defer _ = heap.deinit();
     const allocator = heap.allocator();
 
