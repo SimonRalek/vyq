@@ -3,23 +3,29 @@ const Allocator = std.mem.Allocator;
 const Keywords = @import("token.zig").Keywords;
 
 // Doplnění v REPL (jen v linuxu)
-pub fn completion(text: ?[*:0]const u8, start: c_int, end: c_int) callconv(.C) ?[*:null]?[*:0]u8 {
+pub fn completion(text_in: [*c]const u8, start: c_int, end: c_int) callconv(.c) [*c][*c]u8 {
     _ = end;
     _ = start;
 
-    const alloc = std.heap.raw_c_allocator;
-    const arr = Keywords.kvs;
-    var result = std.ArrayList(?[*:0]u8).init(alloc);
+    const alloc = std.heap.c_allocator;
+    const arr = Keywords.keys();
+    const buf = std.mem.span(text_in);
+    var result = std.ArrayList([*c]u8){};
 
-    const buf = std.mem.span(text) orelse @panic("Něco se nepodařilo, prosím zkuste znova");
-
-    for (arr) |kv| {
-        if (std.mem.startsWith(u8, kv.key, buf)) {
-            const duped = alloc.dupeZ(u8, kv.key) catch @panic("Něco se nepodařilo, prosím zkuste znova");
-            result.append(duped.ptr) catch @panic("Něco se nepodařilo, prosím zkuste znova");
+    for (arr) |key| {
+        if (std.mem.startsWith(u8, key, buf)) {
+            const duped = alloc.dupeZ(u8, key) catch @panic("Něco se nepodařilo, prosím zkuste znova");
+            result.append(alloc, duped.ptr) catch @panic("Něco se nepodařilo, prosím zkuste znova");
         }
     }
 
-    const ownedSlice = result.toOwnedSliceSentinel(null) catch @panic("Něco se nepodařilo, prosím zkuste znova");
-    return if (ownedSlice.len != 0) ownedSlice.ptr else null;
+    result.append(alloc, null) catch @panic("Něco se nepodařilo, prosím zkuste znova");
+
+    const ownedSlice = result.toOwnedSlice(alloc) catch @panic("Něco se nepodařilo, prosím zkuste znova");
+
+    if (ownedSlice.len > 1) {
+        return @ptrCast(ownedSlice.ptr);
+    } else {
+        return null;
+    }
 }
