@@ -41,7 +41,7 @@ pub fn main() !void {
         if (handle) |h| {
             var mode: u32 = 0;
             if (std.os.windows.kernel32.GetConsoleMode(h, &mode) != 0) {
-                mode |= 0x0004; // ENABLE_VIRTUAL_TERMINAL_PROCESSING
+                mode |= 0x0004;
                 _ = std.os.windows.kernel32.SetConsoleMode(h, mode);
             }
         }
@@ -149,7 +149,7 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             var utf8: [1024]u8 = undefined;
             const utf8_len = try std.unicode.utf16LeToUtf8(&utf8, data[0..read]);
             if (utf8_len > 0) {
-                const source = utf8[0 .. utf8_len - 1]; // Assuming stripping newline?
+                const source = utf8[0 .. utf8_len - 1];
                 vm.interpret(source) catch {};
             }
         }
@@ -161,19 +161,30 @@ fn repl(allocator: Allocator, vm: *VM) !void {
             try shared.stdout.print(">>> ", .{});
 
             const stdin_file = std.fs.File{ .handle = std.posix.STDIN_FILENO };
-            var stdin_buf: [4096]u8 = undefined;
-            stdin_file.reader(&stdin_buf).streamUntilDelimiter(
-                buf_stream.writer(),
-                '\n',
-                buf.len,
-            ) catch {
-                @panic("Nepodařilo se načíst vstup z terminálu");
-            };
-            const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+            var stdin_buf: [1]u8 = undefined;
+            const writer_stream = buf_stream.writer();
+            var total_read: usize = 0;
 
-            if (input.len == buf.len) {
+            while (total_read < buf.len) {
+                const n = stdin_file.read(&stdin_buf) catch {
+                    @panic("Nepodařilo se načíst vstup z terminálu");
+                };
+                if (n == 0) break; // EOF
+
+                const byte = stdin_buf[0];
+                if (byte == '\n') break;
+
+                writer_stream.writeByte(byte) catch break;
+                total_read += 1;
+            }
+
+            const input = std.mem.trim(u8, buf_stream.getWritten(), "\n\r");
+            if (input.len == buf.len and total_read == buf.len) {
                 try Reporter.printErr("Vstup je příliš dlouhý", .{});
-                try stdin_file.reader(&stdin_buf).skipUntilDelimiterOrEof('\n');
+                while (true) {
+                    const n = stdin_file.read(&stdin_buf) catch break;
+                    if (n == 0 or stdin_buf[0] == '\n') break;
+                }
                 continue;
             }
             const source = buf[0..input.len];

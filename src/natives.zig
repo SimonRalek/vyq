@@ -43,6 +43,10 @@ pub fn inputNative(vm: *VM, args: []const Val) ?Val {
 
     var buf: [256]u8 = undefined;
 
+    if (builtin.os.tag == .freestanding) {
+        return null;
+    }
+
     const stdin_file = if (builtin.os.tag == .windows) blk: {
         const handle = std.os.windows.kernel32.GetStdHandle(std.os.windows.STD_INPUT_HANDLE);
         break :blk std.fs.File{ .handle = handle.? };
@@ -316,14 +320,13 @@ pub fn readFileNative(vm: *VM, args: []const Val) ?Val {
 
     const path = args[0].obj.string().repre;
 
+    if (builtin.os.tag == .freestanding) return null;
+
     const content = std.fs.cwd().readFileAlloc(vm.allocator, path, std.math.maxInt(usize)) catch |err| {
         vm.runtimeErr("Nepodařilo se přečíst soubor '{s}', chyba: {}", .{ path, err }, &.{});
         return null;
     };
 
-    // We take ownership of the content buffer in String.take or copy?
-    // String.take expects the buffer to be allocated with vm.allocator.
-    // readFileAlloc uses vm.allocator, so we can use String.take.
     return Val{ .obj = Object.String.take(vm, content) };
 }
 
@@ -346,6 +349,8 @@ pub fn writeFileNative(vm: *VM, args: []const Val) ?Val {
 
     const path = args[0].obj.string().repre;
     const content = args[1].obj.string().repre;
+
+    if (builtin.os.tag == .freestanding) return null;
 
     const file = std.fs.cwd().createFile(path, .{}) catch |err| {
         vm.runtimeErr("Nepodařilo se otevřít soubor '{s}' pro zápis, chyba: {}", .{ path, err }, &.{});
@@ -379,12 +384,8 @@ pub fn splitNative(vm: *VM, args: []const Val) ?Val {
     const list = Object.List.init(vm);
 
     if (separator.len == 0) {
-        // If separator is empty, behavior can vary. Let's just return list with original string or split by char?
-        // Usually split by empty string means split by characters.
-        // Let's implement split by chars if separator is empty.
         var i: usize = 0;
         while (i < text.len) {
-            // Need to handle UTF-8 chars?
             const len = std.unicode.utf8ByteSequenceLength(text[i]) catch 1;
             const char_str = Object.String.copy(vm, text[i .. i + len]);
             list.append(char_str.val());
@@ -460,9 +461,9 @@ pub fn importNative(vm: *VM, args: []const Val) ?Val {
 
     const path = args[0].obj.string().repre;
 
-    // Manual stack cleanup: pop args and native function from outer frame stack
-    // because wrapper won't do it if we return null (handled).
     vm.stack_count -= args.len + 1;
+
+    if (builtin.os.tag == .freestanding) return null;
 
     const content = std.fs.cwd().readFileAlloc(vm.allocator, path, std.math.maxInt(usize)) catch |err| {
         vm.runtimeErr("Nepodařilo se přečíst soubor '{s}', chyba: {}", .{ path, err }, &.{});
@@ -471,9 +472,8 @@ pub fn importNative(vm: *VM, args: []const Val) ?Val {
     defer vm.allocator.free(content);
 
     vm.load(content, path) catch {
-        // Compile error should have been reported already by load->compile
         return null;
     };
 
-    return null; // Return null to indicate "Handled" (wrapper checks had_error)
+    return null;
 }

@@ -6,7 +6,7 @@ pub const VMWriter = WasmWriter.Writer;
 
 pub const WasmWriter = struct {
     pub const Self = @This();
-    pub const Writer = std.io.Writer(Self, WriteErr, write);
+    pub const Writer = std.io.GenericWriter(Self, WriteErr, write);
 
     writeFn: WriteFn,
 

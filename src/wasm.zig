@@ -1,6 +1,4 @@
 const std = @import("std");
-const io = std.io;
-const process = std.process;
 const Allocator = std.mem.Allocator;
 
 const Reporter = @import("reporter.zig");
@@ -21,8 +19,7 @@ pub fn writeOutSlice(bytes: []const u8) void {
 }
 
 fn createVMPtr() !*VM {
-    const vm = try allocator.create(VM);
-    vm.* = VM.create(allocator);
+    const vm = VM.create(allocator);
     reporter = Reporter.init(allocator);
     reporter.file = "wasm";
     vm.init(&reporter);

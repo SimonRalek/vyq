@@ -244,7 +244,7 @@ pub const Object = struct {
 
     /// Převedení objektu na 'Externí Lokální Proměnou' s tím spojenou
     pub fn elv(self: *Object) *ELV {
-        return @fieldParentPtr("obj", self);
+        return @alignCast(@fieldParentPtr("obj", self));
     }
 
     /// Převedení objektu na nativní funkci s tím spojenou
@@ -450,7 +450,7 @@ pub const Object = struct {
 
         /// Deinicializace Externí Lokální Proměnné
         pub fn deinit(obj: *Object, vm: *VM) void {
-            const self: *ELV = @fieldParentPtr("obj", obj);
+            const self: *ELV = @alignCast(@fieldParentPtr("obj", obj));
             vm.allocator.destroy(self);
         }
     };
