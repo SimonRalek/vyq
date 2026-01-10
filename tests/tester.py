@@ -42,7 +42,7 @@ def run_test(test_filepath):
             temp_path = temp_input_file.name
 
         exe_name = "vyq.exe" if os.name == "nt" else "vyq"
-        exe_path = os.path.join(".", "zig-out", "bin", exe_name)
+        exe_path = os.path.join(".", exe_name)
         if not os.path.exists(exe_path):
             exe_path = os.path.join(".", exe_name)
 

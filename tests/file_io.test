@@ -1,4 +1,4 @@
-prm soubor = "test_io.txt";
+prm soubor = "./tests/test_io.txt";
 prm obsah = "Ahoj světe!";
 
 // Write file
